@@ -13,7 +13,16 @@ import logoUrl from './holybulb.webp'
 // (that may be empty, if the api is still loading).
 const devices = api.store.makeRef("devices")
 const groups = api.store.makeRef("groups")
-const admin = new Store(false)
+
+function goTo(obj) {
+	obj.search = obj.search || {}
+	obj.search.admin = route.peek('search', 'admin')
+	route.set(obj)
+}
+
+function isAdmin() {
+	return !!route.get('search', 'admin')
+}
 
 function getBulbRgb(bulbRef) {
 	let state = bulbRef.get('state') || {}
@@ -102,15 +111,40 @@ observe(() => {
 
 
 function drawGroup(groupId) {
-	if (admin.get()) return drawGroupAdmin.call(this, groupId);
-	
 	let groupRef = groups.ref(groupId)
 	if (groupRef.getType() === 'undefined') return drawEmpty('No such group')
+
+	if (route.get('p', 2) === 'add') return drawGroupAddDevice(groupRef)
+
+	function createScene() {
+		let name = prompt("What should the new scene be called?")
+		if (!name) return
+		
+		let freeId = 0
+		while(groupRef.query({path: ['scenes', freeId], peek: true, depth: 1})) freeId++
+		api.send(groupRef.get("name"), "set", {scene_store: {ID: freeId, name}})
+	}
+
 	route.merge({
 		drawIcons: null,
 		title: groupRef.get('name'),
 		subTitle: 'group',
+		drawIcons: isAdmin() ? () => {
+			icons.rename({click: () => {
+				let name = prompt(`What should be the new name for '${groupRef.get('name')}'?`, groupRef.get('name'))
+				if (name) {
+					api.send("bridge", "request", "group", "rename", {from: groupRef.get("name"), to: name, homeassistant_rename: true})
+				}
+			}})
+			icons.remove({click: () => {
+				if (confirm(`Are you sure you want to delete group '${groupRef.get('name')}'?`)) {
+					api.send("bridge", "request", "group", "remove",{id:  groupRef.get("name")})
+					goTo({path: '/', mode: 'back'})
+				}
+			}})
+		} : undefined,
 	})
+
 
 	node(".item", () => {
 		drawGroupSquircle(groupRef)
@@ -119,21 +153,26 @@ function drawGroup(groupId) {
 
 	drawColorPicker(groupRef)
 	
-	node("h1", "Bulbs")
+	node("h1", () => {
+		text('Bulbs')
+		if (isAdmin()) icons.create({click: () => goTo({p: ['group', groupRef.index(), 'add']}) })
+	})
+
 	node(".list", () => {
 		groupRef.onEach("members", ieeeStore => {
-			node(".item", () => {
-				let deviceRef = devices.ref(ieeeStore.get())
-				drawBulbCircle(deviceRef)
-				node("h2.link", deviceRef.get('name'), {click: () => route.set({p: ['bulb', deviceRef.index()]}) })
-			})
-		}, ieeeStore => devices.get(ieeeStore.get(), "name"))
+			let deviceRef = devices.ref(ieeeStore.get())
+			drawDeviceItem(deviceRef, groupRef)
+		}, ieeeStore => devices.get(ieeeStore.get(), "name") || '-')
+
 		if (groupRef.isEmpty("members")) {
-			node("empty", "-")
+			drawEmpty("None yet")
 		}
 	})
 	
-	node("h1", "Scenes")
+	node("h1", () => {
+		text('Scenes')
+		if (isAdmin()) icons.create({click: createScene})
+	})
 	node('.list', () => {
 		groupRef.onEach("scenes", sceneRef => {
 			function recall() {
@@ -141,18 +180,46 @@ function drawGroup(groupId) {
 			}
 			node(".item", {click: recall}, () => {
 				node('h2.link', sceneRef.get('short_name'))
+				if (isAdmin()) {
+					function update(e) {
+						e.stopPropagation()
+						// e.preventDefault()
+						if (!confirm(`Are you sure you want to overwrite the '${sceneRef.get('name')}' scene for group '${groupRef.get('name')}' with the current light state?`)) return;
+						api.send(groupRef.get("name"), "set", {scene_store: {ID: sceneRef.get('id'), name: sceneRef.get('name')}})
+
+						// Some devices (ikea) fail to store their state when that state is OFF. Make it explicit.
+						for(let ieee of groupRef.get('members')) {
+							if (!devices.get(ieee, 'state', 'on')) {
+								api.send(ieee, "set", {scene_add: {ID: sceneRef.get('id'), group_id: groupRef.index(), name: sceneRef.get('name'), state: "OFF"}})
+							}
+						}
+					}
+					function remove(e) {
+						e.stopPropagation()
+						if (!confirm(`Are you sure you want to delete the '${sceneRef.get('name')}' scene for group '${groupRef.get('name')}'?`)) return;
+						api.send(groupRef.get("name"), "set", {scene_remove: sceneRef.get('id')})
+					}
+					function rename(e) {
+						e.stopPropagation()
+						let name = prompt(`What should be the new name for '${sceneRef.get('name')}'?`, sceneRef.get('name'))
+						if (name) {
+							api.send(groupRef.get("name"), "set", {scene_rename: {ID: sceneRef.get('id'), name: name}})
+						}
+					}
+					icons.rename({click: rename})
+					icons.save({click: update})
+					icons.remove({click: remove})
+				}
 			})
 
 		}, sceneRef => sceneRef.get("suffix")+'#'+sceneRef.get("short_name"))
 		if (groupRef.isEmpty("scenes")) {
-			node("empty", "-")
+			drawEmpty("None yet")
 		}
 	})
 }
 
-function drawGroupAddDevice(groupId) {
-	let groupRef = groups.ref(groupId)
-	if (groupRef.getType() === 'undefined') return drawEmpty('No such group')
+function drawGroupAddDevice(groupRef) {
 	function addDevice(ieee) {
 		api.send("bridge", "request", "group", "members", "add", {group: groupRef.get("name"), device: ieee})
 		history.back()
@@ -176,127 +243,52 @@ function drawGroupAddDevice(groupId) {
 	})
 }
 
-function drawGroupAdmin(groupId) {
-
-	let groupRef = groups.ref(groupId)
-	if (groupRef.getType() === 'undefined') return drawEmpty('No such group')
-	
-	route.merge({
-		title: groupRef.get('name'),
-		subTitle: 'group admin',
-		drawIcons: () => {
-			icons.rename({click: () => {
-				let name = prompt(`What should be the new name for '${groupRef.get('name')}'?`, groupRef.get('name'))
-				if (name) {
-					api.send("bridge", "request", "group", "rename", {from: groupRef.get("name"), to: name, homeassistant_rename: true})
-				}
-			}})
-			icons.remove({click: () => {
-				if (confirm(`Are you sure you want to delete group '${groupRef.get('name')}'?`)) {
-					api.send("bridge", "request", "group", "remove",{id:  groupRef.get("name")})
-				}
-			}})
-		},
-	})
-
-	node("h1", () => {
-		text('Scenes')
-		icons.create({click: create})
-	})
-	groupRef.onEach("scenes", sceneRef => {
-		function update(e) {
-			e.stopPropagation()
-			// e.preventDefault()
-			if (!confirm(`Are you sure you want to overwrite the '${sceneRef.get('name')}' scene for group '${groupRef.get('name')}' with the current light state?`)) return;
-			api.send(groupRef.get("name"), "set", {scene_store: {ID: sceneRef.get('id'), name: sceneRef.get('name')}})
-
-			// Some devices (ikea) fail to store their state when that state is OFF. Make it explicit.
-			for(let ieee of groupRef.get('members')) {
-				if (!devices.get(ieee, 'state', 'on')) {
-					api.send(ieee, "set", {scene_add: {ID: sceneRef.get('id'), group_id: groupRef.index(), name: sceneRef.get('name'), state: "OFF"}})
-				}
-			}
-		}
-		function remove(e) {
-			e.stopPropagation()
-			if (!confirm(`Are you sure you want to delete the '${sceneRef.get('name')}' scene for group '${groupRef.get('name')}'?`)) return;
-			api.send(groupRef.get("name"), "set", {scene_remove: sceneRef.get('id')})
-		}
-		function rename(e) {
-			e.stopPropagation()
-			let name = prompt(`What should be the new name for '${sceneRef.get('name')}'?`, sceneRef.get('name'))
-			if (name) {
-				api.send(groupRef.get("name"), "set", {scene_rename: {ID: sceneRef.get('id'), name: name}})
-			}
-		}
-		node(".item", () => {
-			// drawBulbCircle(bulbRef)
-			node('h2', sceneRef.get('name'))
-			icons.rename({click: rename})
-			icons.save({click: update})
-			icons.remove({click: remove})
-		})
-
-	}, sceneRef => sceneRef.get("suffix")+'#'+sceneRef.get("name"))
-	function create() {
-		let name = prompt("What should the new scene be called?")
-		if (!name) return
-		
-		let freeId = 0
-		while(groupRef.query({path: ['scenes', freeId], peek: true, depth: 1})) freeId++
-		api.send(groupRef.get("name"), "set", {scene_store: {ID: freeId, name}})
-	}
-
-	node("h1", () => {
-		text('Devices')
-		icons.create({click: () => route.set({p: ['group', groupRef.index(), 'add']}) })
-	})
-	node(".list", () => {
-		groupRef.onEach("members", ieeeStore => {
-			let deviceRef = devices.ref(ieeeStore.get())
-			drawDeviceAdminItem(deviceRef, groupRef)
-		}, ieeeStore => devices.get(ieeeStore.get(), "name") || '-')
+function drawDeviceItem(deviceRef, groupRef) {
+	node(".item", () => {
+		drawBulbCircle(deviceRef)
+		node("h2.link", deviceRef.get('name'), {click: () => goTo({p: ['bulb', deviceRef.index()]}) })
+		if (isAdmin()) drawDeviceAdminIcons(deviceRef, groupRef)
 	})
 }
 
-function drawDeviceAdminItem(deviceRef, groupRef) {
-	node(".item", () => {
-		node("h2", deviceRef.get('name'))
-	
-		icons.rename({click: (e) => {
-			e.stopPropagation()
-			let name = prompt(`What should be the new name for '${deviceRef.get('name')}'?`, deviceRef.get('name'))
-			if (name) {
-				api.send("bridge", "request", "device", "rename", {from: deviceRef.get("name"), to: name, homeassistant_rename: true})
+function drawDeviceAdminIcons(deviceRef, groupRef) {
+	icons.rename({click: (e) => {
+		e.stopPropagation()
+		let name = prompt(`What should be the new name for '${deviceRef.get('name')}'?`, deviceRef.get('name'))
+		if (name) {
+			api.send("bridge", "request", "device", "rename", {from: deviceRef.get("name"), to: name, homeassistant_rename: true})
+		}
+	}})
+
+	if (groupRef) {
+		icons.remove({click: (e) => {
+			api.send("bridge", "request", "group", "members", "remove", {group: groupRef.get("name"), device: deviceRef.get("name")})
+		}})
+	} else {
+		icons.eject({click: (e) => {
+			if (confirm(`Are you sure you want to detach '${deviceRef.get('name')}' from zigbee2mqtt?`)) {
+				api.send("bridge", "request", "device", "remove", "remove", groupRef.index())
 			}
 		}})
-
-		if (groupRef) {
-			icons.remove({click: (e) => {
-				api.send("bridge", "request", "group", "members", "remove", {group: groupRef.get("name"), device: deviceRef.get("name")})
-			}})
-		} else {
-			icons.eject({click: (e) => {
-				if (confirm(`Are you sure you want to detach '${deviceRef.get('name')}' from zigbee2mqtt?`)) {
-					api.send("bridge", "request", "device", "remove", "remove", groupRef.index())
-				}
-			}})
-		}
-	})
+	}
 }
 
 function drawMain() {
-	if (admin.get()) return drawMainAdmin.call(this)
 	route.merge({
 		drawIcons: null,
-		subTitle: null
+		subTitle: null,
+		drawIcons: isAdmin() ? () => {
+			icons.create({click: permitJoin})
+			icons.createGroup({click: createGroup})
+			icons.bug({click: () => goTo({p: ['dump']}) })
+		} : undefined,
 	})
 
 	node(".list", () => {
 		groups.onEach(groupRef => {
 			node(".item", () => {
 				drawGroupSquircle(groupRef)
-				node("h2.link", groupRef.get("short_name"), {click: () => route.set({p: ['group', groupRef.index()]}) })
+				node("h2.link", groupRef.get("short_name"), {click: () => goTo({p: ['group', groupRef.index()]}) })
 				node(".options", () => {
 					groupRef.onEach("scenes", sceneRef => {
 						node(".scene.link", sceneRef.get("short_name"), {click: () => {
@@ -306,12 +298,12 @@ function drawMain() {
 				})
 			})
 		}, group => group.get("name"))
-		
+	})
+
+	// Devices not in any groups		
+	node(".list", () => {
 		devices.onEach(deviceRef => {
-			 node(".item", () => {
-				drawBulbCircle(deviceRef)
-				node("h2.link", deviceRef.get('name'), {click: () => route.set({p: ['bulb', deviceRef.index()]}) })
-			})
+			drawDeviceItem(deviceRef)
 		}, deviceRef => deviceGroups.get(deviceRef.index()) || deviceRef.getType('light') === 'undefined' ? undefined : deviceRef.get('name'))
 	})
 }
@@ -331,49 +323,10 @@ function disableJoin() {
 }
 
 
-function drawMainAdmin() {
-	route.merge({
-		drawIcons: () => {
-			icons.bug({click: () => route.set({p: ['dump']}) })
-		},
-		subTitle: "admin"
-	})
-	node("h1", () => {
-		text('Groups')
-		icons.create({click: createGroup})
-	})
-	node(".list", () => {
-		groups.onEach(groupRef => {
-			node(".item", () => {
-				node("h2.link", groupRef.get("name"), {click: () => route.set({p: ['group', groupRef.index()]}) })
-			})
-		}, group => group.get("name"))
-	})
-
-	node("h1", () => {
-		text('Devices')
-		if (!api.store.get('permit_join')) {
-			icons.create({click: permitJoin})
-		}
-	})
-	let hideGrouped = new Store(true)
-	node('label.checkbox', () => {
-		node('input', {type: 'checkbox'}, hideGrouped)
-		text('Hide grouped devices')
-	})
-	node(".list", () => {
-		devices.onEach(deviceRef => {
-			drawDeviceAdminItem(deviceRef)
-		}, deviceRef => hideGrouped.get() && deviceGroups.get(deviceRef.index()) ? undefined : deviceRef.get('name'))
-	})
-}
-
-	
-
 mount(document.body, () => {
 	node('.root', () => {
 		node('header', () => {
-			node("img.logo", {src: logoUrl, click: () => route.set({path: '/', mode: 'back'}) })
+			node("img.logo", {src: logoUrl, click: () => goTo({path: '/', mode: 'back'}) })
 			observe(() => {
 				if (route.get('path') !== '/') {
 					icons.back({click: () => history.back()})
@@ -394,7 +347,7 @@ mount(document.body, () => {
 				}
 			})
 			observe(() => {
-				icons.admin({click: () => admin.modify(v => !v), class: admin.get() ? 'icon on' : 'icon' })
+				icons.admin({click: () => route.ref("search", "admin").modify(v => v?undefined:"y"), class: route.get('search', 'admin') ? 'icon on' : 'icon' })
 			})
 		})
 		observe(() => {
