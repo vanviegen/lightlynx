@@ -1,0 +1,308 @@
+/* Reset from https://www.joshwcomeau.com/css/custom-css-reset/ */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+* {
+  margin: 0;
+}
+
+html,
+body {
+  height: 100%;
+  user-select: none;
+}
+
+body {
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+img,
+picture,
+video,
+canvas {
+  display: block;
+  max-width: 100%;
+}
+
+input,
+textarea,
+button,
+select {
+  font: inherit;
+  padding: 4px 8px;
+  border-radius: 4px;
+  border: 0px;
+  color: white;
+  font-weight: bold;
+  background-color: #555;
+}
+
+button {
+  background-color: #fbc103;
+  color: black;
+}
+
+button .icon {
+  color: black;
+  vertical-align: middle;
+  height: 20px;
+  margin-right: 4px;
+}
+
+p,
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  overflow-wrap: break-word;
+}
+
+body {
+  background-color: #05090a;
+  color: white;
+  font-family: system-ui, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+}
+
+.root {
+  max-width: 500px;
+  margin: 0 auto;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+header {
+  background-image: linear-gradient(rgba(0, 0, 0, 0.6), rgba(0, 0, 0, 0.8)), url(holybulb.webp);
+  background-size: 550px;
+  background-position: center;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding-right: 8px;
+}
+
+header>.logo {
+  max-height: 40px;
+}
+
+header>h1 {
+  font-size: 25px;
+}
+
+header>.title {
+  flex: 1;
+}
+
+header>.title>.subTitle {
+  color: #bbb;
+  font-weight: normal;
+}
+
+main {
+  overflow: auto;
+  overflow-x: hidden;
+  flex: 1;
+}
+
+/* Hide the scrollbar */
+main::-webkit-scrollbar,
+.options::-webkit-scrollbar {
+  display: none;
+  /* WebKit */
+}
+
+main,
+.options {
+  -ms-overflow-style: none;
+  /* IE and Edge */
+  scrollbar-width: none;
+  /* Firefox */
+}
+
+main>h1 {
+  overflow: hidden;
+  text-align: center;
+  font-size: 120%;
+  text-transform: uppercase;
+  font-weight: normal;
+  color: #888;
+  margin-top: 16px;
+}
+
+
+.item {
+  display: flex;
+  align-items: center;
+  background: repeating-linear-gradient(45deg, #ffffff00 0px, #ffffff00 4px, #ffffff0b 5px, #ffffff0b 9px);
+  margin: 4px 0;
+  padding: 4px 8px;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.item:nth-child(even) {
+  background: repeating-linear-gradient(-45deg, #ffffff00 0px, #ffffff00 4px, #ffffff0b 5px, #ffffff0b 9px);
+}
+
+.item>h2 {
+  font-size: 120%;
+  flex: 1 0 auto;
+  font-weight: normal;
+}
+.item>h2.link {
+  font-weight: bold;
+}
+
+.item>p {
+  flex: 1;
+  margin: 0;
+}
+
+.options {
+  display: flex;
+  align-items: center;
+  overflow-y: auto;
+}
+
+.options>* {
+  padding: 0 8px;
+  flex: 1 0 auto;
+}
+
+@media screen and (min-width: 501px) {
+  .root {
+    box-shadow: 0 0 256px #fbc10320;
+  }
+}
+
+.link {
+  position: relative;
+  transition-duration: 0.4s;
+  overflow: hidden;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+
+.link:after {
+  content: "";
+  background: #fbc103;
+  display: block;
+  position: absolute;
+  padding-top: 300%;
+  padding-left: 350%;
+  margin-left: -20px !important;
+  margin-top: -120%;
+  opacity: 0;
+  transition: all 0.8s;
+  pointer-events: none;
+}
+
+
+.link:active:after {
+  padding: 0;
+  margin: 0;
+  opacity: 1;
+  transition: 0s
+}
+
+.circle,
+.squircle {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 1px solid #333;
+  padding: 0;
+  transition: background-color 500ms;
+  background-color: black;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.squircle {
+  border-radius: 25%;
+}
+
+main>p {
+  margin: 8px;
+}
+
+.wheel {
+  position: relative;
+}
+
+.handle {
+  position: absolute;
+  transition: "all 0.1s";
+  border-radius: 50%;
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 1px #000 inset;
+  touch-action: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
+
+.icon {
+  width: 24px;
+  cursor: pointer;
+  color: #fbc103;
+}
+
+.icon.on {
+  color: #fb3403;
+}
+
+.item > .icon:first-child {
+  width: 32px;
+}
+
+.scene {
+  color: #fbc103;
+}
+
+h1 > .icon {
+  vertical-align: middle;
+  margin-left: 8px;
+}
+
+.banner {
+  background-color: #fbc103;
+  display: flex;
+  color: black;
+  border-top: 2px solid black;
+}
+
+.banner > p {
+  flex: 1;
+}
+
+.banner > * {
+  margin: 8px;
+}
+
+.banner .icon {
+  color: black;
+}
+
+.empty {
+  padding: 1em;
+  text-align: center;
+  background-color: #fbc10320;
+}
+
+label.checkbox {
+  margin: 8px;
+  gap: 8px;
+  display: flex;
+}
+
