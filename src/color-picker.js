@@ -2,8 +2,8 @@ import {node, prop, Store, text, observe, getParentElement, clean} from "aberdee
 import * as colors from "./colors.js"
 import api from "./api.ts"
 
-
 const CT_MIN = 100, CT_MAX = 550
+let tracking
 
 function drawColorWheelMarker(state, size = 24) {
     node('div.handle', () => {
@@ -23,7 +23,7 @@ function drawColorWheelMarker(state, size = 24) {
         let hueRadians = color[0] * (Math.PI / 180)
         let left = Math.cos(hueRadians) * color[1] * 50 + 50
         let top = Math.sin(hueRadians) * color[1] * 50 + 50
-        
+
         prop('style', {
             display: 'block',
             height: lsize+'px',
@@ -47,10 +47,8 @@ export function drawColorWheel(target) {
             width: 1,
             height: 1,
             style: {width: "100%"},
-            mousedown: track,
-            mousemove: track,
-            touchstart: track,
-            touchmove: track,
+            mousedown: startTrack,
+            touchstart: startTrack,
         }, () => {
 
             // Wait for layout to finish, so we can use the final offsetWidth
@@ -68,15 +66,17 @@ export function drawColorWheel(target) {
         })
     })
 
-    function track(e) {
-        if (e.type === "mousemove" && !e.buttons) return
+    function startTrack(event) {
+        tracking = {event, setPosition}
+    }
 
+    function setPosition(pageX, pageY) {
         let bounding = canvas.getBoundingClientRect()
-        
+
         let radius = bounding.width / 2
         // (-1..+1)
-        let relX = ((e.touches ? e.touches[0].pageX : e.pageX) - bounding.left - radius) / radius
-        let relY = ((e.touches ? e.touches[0].pageY : e.pageY) - bounding.top - radius) / radius
+        let relX = (pageX - bounding.left - radius) / radius
+        let relY = (pageY - bounding.top - radius) / radius
 
         let hue = Math.atan2(relY, relX) * 180 / Math.PI
         if (hue < 0) hue += 360
@@ -185,7 +185,7 @@ function drawScale(target, colorTempRange) {
     }, () => {
 
         let state = target.ref('state')
-    
+
         node('canvas', {
             width: 300,
             height: 1,
@@ -196,10 +196,10 @@ function drawScale(target, colorTempRange) {
         }, () => {
             let element = getParentElement()
             let ctx = element.getContext("2d")
-            
+
             var imageData = ctx.getImageData(0, 0, element.width, element.height)
             let pixels = imageData.data
-            
+
             let pos = 0
 
             let baseColor
@@ -219,7 +219,7 @@ function drawScale(target, colorTempRange) {
                 pixels[pos++] = rgb[2]
                 pixels[pos++] = 255 // alpha
             }
-            
+
             ctx.putImageData(imageData, 0, 0)
         })
 
@@ -231,11 +231,10 @@ function drawScale(target, colorTempRange) {
         })
 
         let el = getParentElement()
-        function track(e) {
-            // console.log('track', e)
-            if (e.type === "mousemove" && !e.buttons) return
 
-            let fraction = ((e.touches ? e.touches[0].clientX : e.clientX) - el.offsetLeft) / el.offsetWidth
+        function setPosition(pageX) {
+            let bounding = el.getBoundingClientRect()
+            let fraction = (pageX - bounding.left) / bounding.width
             let state = colorTempRange ? {
                 on: true,
                 color: Math.min(colorTempRange[1],Math.max(colorTempRange[0],Math.round(fraction*(colorTempRange[1]-colorTempRange[0])+colorTempRange[0]))),
@@ -245,11 +244,45 @@ function drawScale(target, colorTempRange) {
             }
             api.setLightState(target.index(), state)
         }
+
+        function startTrack(event) {
+            tracking = {event, setPosition}
+        }
+        
         prop({
-            mousedown: track,
-            mousemove: track,
-            touchstart: track,
-            touchmove: track,
+            mousedown: startTrack,
+            touchstart: startTrack,
         })
     })
 }
+
+function trackMouse(e) {
+    if (!tracking) return
+     console.log('track', e)
+
+    tracking.setPosition(e.pageX, e.pageY)
+    
+    if (e.type === "mouseup") tracking = undefined
+}
+
+function trackTouch(e) {
+    // console.log('track', e)
+    if (!tracking) return
+
+    let startTouch = tracking.event.touches[0]
+    let touch = e.touches[0]
+    if (Math.max(
+        Math.abs(touch.pageX - startTouch.pageX),
+        Math.abs(touch.pageY - startTouch.pageY),
+    ) > 10) {
+        tracking = undefined
+    } else if (e.type === "touchend") {
+        tracking.setPosition(touch.pageX, touch.pageY)
+        tracking = undefined
+    }
+}
+
+document.body.addEventListener('mousemove', trackMouse)
+document.body.addEventListener('mouseup', trackMouse)
+document.body.addEventListener('touchmove', trackTouch)
+document.body.addEventListener('touchend', trackTouch)
