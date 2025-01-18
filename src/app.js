@@ -1,5 +1,10 @@
 'use strict';
 
+// Useless, except for allowing the app to be installable on Android
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/sw.js');
+}
+
 import {observe, node, prop, Store, mount, text} from 'aberdeen'
 import {route} from 'aberdeen/route';
 import api from './api.ts'
@@ -52,24 +57,6 @@ function setBulbColor(rgb) {
 	prop('style', {
 		backgroundColor: rgb,
 		boxShadow: rgb=='#000000' ? '' : `0 0 15px ${rgb}`,
-	})
-}
-
-function drawGroupSquircle(groupRef) {
-	function onClick() {
-		api.setLightState(groupRef.index(), {on: !groupRef.peek('state','on')})
-	}
-	
-	node('.squircle', {click: onClick}, () => {
-		let bgs = []
-		for(let ieee of groupRef.get('members')) {
-			bgs.push(getBulbRgb(devices.ref(ieee)))
-		}
-		if (bgs.length == 1) {
-			prop('style', {backgroundColor: bgs[0]})
-		} else {
-			prop('style', {backgroundImage: `linear-gradient(45deg, ${bgs.join(', ')})`})
-		}
 	})
 }
 
@@ -145,11 +132,6 @@ function drawGroup(groupId) {
 		} : undefined,
 	})
 
-
-	node(".item", () => {
-		drawGroupSquircle(groupRef)
-		node('p', `Group containing ${groupRef.count('members')} bulbs`)
-	})
 
 	drawColorPicker(groupRef)
 	
@@ -284,17 +266,46 @@ function drawMain() {
 		} : undefined,
 	})
 
-	node(".list", () => {
+	node(".grid", () => {
 		groups.onEach(groupRef => {
-			node(".item", () => {
-				drawGroupSquircle(groupRef)
+			node("", () => {
+				let bgs = []
+				let totalBri = 0
+				for(let ieee of groupRef.get('members')) {
+					let rgb = getBulbRgb(devices.ref(ieee))
+					totalBri += [1,3,5].map(idx => parseInt(rgb.substr(idx,2), 16)).reduce((a,b)=>a+b, 0)
+					bgs.push(rgb)
+				}
+				bgs.sort() // We could be doing something smarter here...
+				if (bgs.length == 1) {
+					prop('style', {backgroundColor: bgs[0]})
+				} else {
+					prop('style', {backgroundImage: `linear-gradient(45deg, ${bgs.join(', ')})`})
+				}
+
+				let bri = totalBri / bgs.length / 3
+				prop('class', {
+					bright: bri>127,
+					off: bri<1,
+				})
+
 				node("h2.link", groupRef.get("short_name"), {click: () => goTo({p: ['group', groupRef.index()]}) })
 				node(".options", () => {
+					icons.off({click: () => api.setLightState(groupRef.index(), {on: false}) })
 					groupRef.onEach("scenes", sceneRef => {
-						node(".scene.link", sceneRef.get("short_name"), {click: () => {
+						function onClick() {
 							api.send(groupRef.get("name"), "set", {scene_recall: sceneRef.get('id')})
-						}})
+						}
+						const name = sceneRef.get("short_name")
+						const lowerName = name.toLowerCase()
+						const icon = icons.scenes[icons.sceneAliases[lowerName] || lowerName]
+						if (icon) icon({click: onClick})
+						else node(".scene.link", name, {click: onClick})
 					}, sceneRef => sceneRef.get("suffix")+'#'+sceneRef.get("name"))
+
+					if (groupRef.isEmpty()) {
+						icons.scenes.normal({click: () => api.setLightState(groupRef.index(), {on: false, bri: 140, ct: colors.CT_DEFAULT}) })
+					}
 				})
 			})
 		}, group => group.get("name"))

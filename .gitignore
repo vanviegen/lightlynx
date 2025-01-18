@@ -1,5 +1,4 @@
 node_modules
-public
+/public
 .parcel_cache
 _webcentral_data
-

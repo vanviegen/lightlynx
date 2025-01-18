@@ -1,0 +1,19 @@
+{
+  "name": "HolyBulb",
+  "icons": [
+    {
+      "src": "holybulb192.webp",
+      "type": "image/webp",
+      "sizes": "192x192"
+    },
+    {
+      "src": "holybulb512.webp",
+      "type": "image/webp",
+      "sizes": "512x512"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#05090a",
+  "theme_color": "#fbc103",
+  "display": "standalone"
+}

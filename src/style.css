@@ -64,7 +64,8 @@ h6 {
 }
 
 body {
-  background-color: #05090a;
+  background: repeating-linear-gradient(-45deg, #05090a 0px, #05090a 4px, #29241d 5px, #29241d 9px);
+  background-color: #29241d; /* #05090a */
   color: white;
   font-family: system-ui, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
 }
@@ -141,18 +142,17 @@ main>h1 {
 .item {
   display: flex;
   align-items: center;
-  background: repeating-linear-gradient(45deg, #ffffff00 0px, #ffffff00 4px, #ffffff0b 5px, #ffffff0b 9px);
   margin: 4px 0;
-  padding: 4px 8px;
+  padding: 4px;
   gap: 8px;
   white-space: nowrap;
+  background: #ffffff09;
+  border-top: 2px solid #ffffff09;
+  border-bottom: 2px solid #ffffff09;
 }
 
-.item:nth-child(even) {
-  background: repeating-linear-gradient(-45deg, #ffffff00 0px, #ffffff00 4px, #ffffff0b 5px, #ffffff0b 9px);
-}
 
-.item>h2 {
+.item>h2, .grid h2 {
   font-size: 120%;
   flex: 1 0 auto;
   font-weight: normal;
@@ -170,11 +170,11 @@ main>h1 {
   display: flex;
   align-items: center;
   overflow-y: auto;
+  gap: 8px;
 }
 
 .options>* {
-  padding: 0 8px;
-  flex: 1 0 auto;
+  flex: 0 0 auto;
 }
 
 @media screen and (min-width: 501px) {
@@ -268,10 +268,6 @@ main>p {
   width: 32px;
 }
 
-.scene {
-  color: #fbc103;
-}
-
 h1 > .icon {
   vertical-align: middle;
   margin-left: 8px;
@@ -306,5 +302,45 @@ label.checkbox {
   margin: 8px;
   gap: 8px;
   display: flex;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 8px;
+  margin: 8px;
+}
+
+.grid > * {
+  border-radius: 4px;
+  text-shadow: 2px 2px 4px #000;
+  padding: 5px 8px;
+  white-space: nowrap;
+  line-height: 1.5em;
+}
+
+.grid > * > .options {
+  margin-top: 4px;
+}
+
+.grid > .bright {
+  color: black;
+  text-shadow: 2px 2px 4px white;
+}
+
+.grid > .off {
+  color: #888;
+}
+
+.grid svg {
+  filter: drop-shadow(2px 2px 4px black);
+  color: inherit;
+  height: 28px;
+  width: auto;
+}
+
+.grid > .bright svg {
+  color: black;
+  filter: drop-shadow(2px 2px 4px white);
 }
 

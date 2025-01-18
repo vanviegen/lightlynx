@@ -1,4 +1,4 @@
-const CT_DEFAULT = 300
+export const CT_DEFAULT = 300
 
 // input: h in [0,360] and s,v in [0,1] - output: r,g,b in [0,255]
 // from https://stackoverflow.com/a/54024653

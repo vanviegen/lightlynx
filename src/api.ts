@@ -409,7 +409,9 @@ class Api {
                 }
             }
             else {
-                this.store.set(...topic.split('/'), payload);
+                if (topic !== 'definitions') {
+                    this.store.set(...topic.split('/'), payload);
+                }
             }
         } else {
             if (topic.endsWith("/availability")) {

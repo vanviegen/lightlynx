@@ -4,6 +4,7 @@
   "description": "",
   "scripts": {
     "build": "vite build src/ --outDir ../public --emptyOutDir --assetsDir .",
+    "watch": "npm run build -- --watch",
     "dev": "vite src/",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
