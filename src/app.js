@@ -6,13 +6,16 @@ if ('serviceWorker' in navigator) {
 }
 
 import {observe, node, prop, Store, mount, text} from 'aberdeen'
-import {route} from 'aberdeen/route';
+import {route, persistScroll} from 'aberdeen/route';
 import api from './api.ts'
 import * as icons from './icons.ts'
 import * as colors from './colors'
-import drawColorPicker from "./color-picker"
+import {drawColorPicker, drawBulbCircle, getBulbRgb} from "./color-picker"
 
 import logoUrl from './holybulb.webp'
+
+
+window.route = route
 
 // Get a reference to the devices and groups, making sure they exist as objects
 // (that may be empty, if the api is still loading).
@@ -29,39 +32,8 @@ function isAdmin() {
 	return !!route.get('search', 'admin')
 }
 
-function getBulbRgb(bulbRef) {
-	let state = bulbRef.get('state') || {}
-	if (!state.on) {
-		return "#000000";
-	} else if (state.color instanceof Array) {
-		return colors.rgbToHex(colors.hsvToRgb(state.color[0], state.color[1], state.level/254*0.8+0.2))
-	} else {
-		return colors.rgbToHex(colors.miredsToRgb(state.color || 250, state.level ? state.level/254*0.8+0.2 : 1))
-	}
-}
-
-function drawBulbCircle(bulbRef) {
-	if (bulbRef.getType('light') === 'undefined') {
-		icons.sensor()
-		return
-	}
-	function onClick() {
-		api.setLightState(bulbRef.index(), {on: !bulbRef.peek('state','on')})
-	}
-	node('.circle', {click: onClick}, () => {
-		setBulbColor(getBulbRgb(bulbRef))
-	})
-}
-
-function setBulbColor(rgb) {
-	prop('style', {
-		backgroundColor: rgb,
-		boxShadow: rgb=='#000000' ? '' : `0 0 15px ${rgb}`,
-	})
-}
-
 function drawEmpty(text) {
-	node('.empty', text)
+node('.empty', text)
 }
 
 function drawBulb(ieee) {
@@ -70,10 +42,7 @@ function drawBulb(ieee) {
 	let name = bulbRef.get('name')
 	
 	route.merge({title: name, subTitle: 'bulb'})
-	node(".item", () => {
-		drawBulbCircle(bulbRef)
-		node('p', bulbRef.get('description'))
-	})
+	node(".item", bulbRef.get('description'))
 	
 	drawColorPicker(bulbRef)
 }
@@ -161,7 +130,7 @@ function drawGroup(groupId) {
 				api.send(groupRef.get("name"), "set", {scene_recall: sceneRef.get('id')})
 			}
 			node(".item", {click: recall}, () => {
-				node('h2.link', sceneRef.get('short_name'))
+				node('h2.link', sceneRef.get(isAdmin() ? 'name' : 'short_name'))
 				if (isAdmin()) {
 					function update(e) {
 						e.stopPropagation()
@@ -242,17 +211,28 @@ function drawDeviceAdminIcons(deviceRef, groupRef) {
 		}
 	}})
 
-	if (groupRef) {
-		icons.remove({click: (e) => {
-			api.send("bridge", "request", "group", "members", "remove", {group: groupRef.get("name"), device: deviceRef.get("name")})
-		}})
-	} else {
-		icons.eject({click: (e) => {
-			if (confirm(`Are you sure you want to detach '${deviceRef.get('name')}' from zigbee2mqtt?`)) {
-				api.send("bridge", "request", "device", "remove", "remove", groupRef.index())
-			}
-		}})
-	}
+	let removing = new Store(false)
+	observe(() => {
+		if (groupRef && !removing.get()) {
+			icons.remove({click: (e) => {
+				api.send("bridge", "request", "group", "members", "remove", {group: groupRef.get("name"), device: deviceRef.get("name")})
+				removing.set(true)
+			}})
+		} else if (removing.get() !== 'eject') {
+			icons.eject({click: (e) => {
+				if (confirm(`Are you sure you want to detach '${deviceRef.get('name')}' from zigbee2mqtt?`)) {
+					api.send("bridge", "request", "device", "remove", {id: deviceRef.index()})
+					removing.set('eject')
+				}
+			}})
+		} else {
+			icons.eject({style: {color: 'red'}, click: (e) => {
+				if (confirm(`Are you sure you want to FORCE detach '${deviceRef.get('name')}' from zigbee2mqtt?`)) {
+					api.send("bridge", "request", "device", "remove", {id: deviceRef.index(), force: true})
+				}
+			}})
+		}
+	})
 }
 
 function drawMain() {
@@ -289,7 +269,7 @@ function drawMain() {
 					off: bri<1,
 				})
 
-				node("h2.link", groupRef.get("short_name"), {click: () => goTo({p: ['group', groupRef.index()]}) })
+				node("h2.link", groupRef.get(isAdmin() ? "name" : "short_name"), {click: () => goTo({p: ['group', groupRef.index()]}) })
 				node(".options", () => {
 					icons.off({click: () => api.setLightState(groupRef.index(), {on: false}) })
 					groupRef.onEach("scenes", sceneRef => {
@@ -327,10 +307,10 @@ function createGroup() {
 
 
 function permitJoin() {
-	api.send("bridge", "request", "permit_join", {value: true})
+	api.send("bridge", "request", "permit_join", {time: 254})
 }
 function disableJoin() {
-	api.send("bridge", "request", "permit_join", {value: false})
+	api.send("bridge", "request", "permit_join", {time: 0})
 }
 
 
@@ -382,21 +362,17 @@ mount(document.body, () => {
 			}
 		})
 	
-		node('main', () => {
-			let p = route.get('p')
-			if (p[0]==='group') drawGroup(0|p[1]);
-			else if (p[0] === 'bulb') drawBulb(p[1]);
-			else if (p[0] === 'dump') drawDump();
-			else drawMain();
+		node('.mainContainer', () => {
+			const p = route.get('p')
+			console.log('p', route.peek())
+			node('main', () => {
+				if (p[0]==='group') drawGroup(0|p[1]);
+				else if (p[0] === 'bulb') drawBulb(p[1]);
+				else if (p[0] === 'dump') drawDump();
+				else drawMain();
+				persistScroll()
+			}, {destroy: 'fadeOut', create: route.peek('nav')})
 		})
-		// routeStack.onEach(route => {
-		// 	node('main', () => {
-		// 		observe(() => {
-		// 			prop('style', {display: route.index() === routeStack.count()-1 ? 'block' : 'none'})
-		// 		})
-		// 		route.get('func').apply(route, route.query({path: ['args'], depth: 1})||[])
-		// 	})
-		// })
 	})
 })
 

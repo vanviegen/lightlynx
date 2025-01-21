@@ -45,12 +45,9 @@ export function rgbToXy([r, g, b]) {
     return {x: retX, y: retY}
 }
 
-export function xyToRgb({x, y}) {
-    // use maximum brightness
-    const brightness = 254;
-
+export function xyToRgb({x, y}, brightness=1) {
     const z = 1.0 - x - y;
-    const Y = Number((brightness / 254).toFixed(2));
+    const Y = Number(brightness.toFixed(2));
     const X = (Y / y) * x;
     const Z = (Y / y) * z;
 
@@ -144,9 +141,9 @@ export function rgbToHex(rgb) {
     return '#' + rgb.map(c => Math.max(0,Math.min(255,Math.round(c))).toString(16).padStart(2,'0')).join('')
 }
 
-export function toRgb(color) {
-    if (color instanceof Array) return hsvToRgb(color[0], color[1], 1)
-    if (color && color.x != null) return xyToRgb(color)
-    return miredsToRgb(color||CT_DEFAULT)
+export function toRgb(color, brightness=1) {
+    if (color instanceof Array) return hsvToRgb(color[0], color[1], brightness)
+    if (color && color.x != null) return xyToRgb(color, brightness)
+    return miredsToRgb(color||CT_DEFAULT, brightness)
 }
 

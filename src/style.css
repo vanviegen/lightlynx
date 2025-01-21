@@ -64,8 +64,7 @@ h6 {
 }
 
 body {
-  background: repeating-linear-gradient(-45deg, #05090a 0px, #05090a 4px, #29241d 5px, #29241d 9px);
-  background-color: #29241d; /* #05090a */
+  background-color: #05090a;
   color: white;
   font-family: system-ui, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
 }
@@ -107,25 +106,13 @@ header>.title>.subTitle {
   font-weight: normal;
 }
 
-main {
-  overflow: auto;
-  overflow-x: hidden;
-  flex: 1;
-}
-
 /* Hide the scrollbar */
-main::-webkit-scrollbar,
-.options::-webkit-scrollbar {
-  display: none;
-  /* WebKit */
+main::-webkit-scrollbar, .options::-webkit-scrollbar {
+  display: none; /* WebKit */
 }
-
-main,
-.options {
-  -ms-overflow-style: none;
-  /* IE and Edge */
-  scrollbar-width: none;
-  /* Firefox */
+main, .options {
+  -ms-overflow-style: none; /* IE and Edge */
+  scrollbar-width: none; /* Firefox */
 }
 
 main>h1 {
@@ -158,6 +145,7 @@ main>h1 {
   font-weight: normal;
 }
 .item>h2.link {
+  padding: 0 4px;
   font-weight: bold;
 }
 
@@ -344,3 +332,44 @@ label.checkbox {
   filter: drop-shadow(2px 2px 4px white);
 }
 
+
+.mainContainer {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+}
+
+main {
+  overflow: auto;
+  overflow-x: hidden;
+  position: absolute;
+  z-index: 2;
+  transition: transform 0.2s ease-out, opacity 0.2s ease-out, visibility 0.2s ease-out;
+  left: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  background: repeating-linear-gradient(-45deg, #05090a 0px, #05090a 4px, #29241d 5px, #29241d 9px);
+}
+
+main.fadeOut {
+  z-index: 1;
+  opacity: 0;
+  visibility: hidden;
+}
+main.fadeOut * {
+  transition: visibility 0.2s ease-out;
+  visibility: hidden;
+}
+
+main.forward, main.push {
+  transform: translateX(100%);
+}
+
+main.back {
+  transform: translateX(-100%);
+}
+
+main.load {
+  opacity: 0;
+}

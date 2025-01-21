@@ -1,9 +1,36 @@
 import {node, prop, Store, text, observe, getParentElement, clean} from "aberdeen"
+import * as icons from './icons.ts'
 import * as colors from "./colors.js"
 import api from "./api.ts"
 
 const CT_MIN = 100, CT_MAX = 550
 let tracking
+
+export function getBulbRgb(bulbRef) {
+	let state = bulbRef.get('state') || {}
+	if (!state.on) {
+		return "#000000";
+	} else {
+		return colors.rgbToHex(colors.toRgb(state.color, 0.3 + state.level/255*0.7))
+	}
+}
+
+export function drawBulbCircle(bulbRef) {
+	if (bulbRef.getType('light') === 'undefined') {
+		icons.sensor()
+		return
+	}
+	function onClick() {
+		api.setLightState(bulbRef.index(), {on: !bulbRef.peek('state','on')})
+	}
+	node('.circle', {click: onClick}, () => {
+        const rgb = getBulbRgb(bulbRef)
+        prop('style', {
+            backgroundColor: rgb,
+            boxShadow: rgb=='#000000' ? '' : `0 0 15px ${rgb}`,
+        })
+	})
+}
 
 function drawColorWheelMarker(state, size = 24) {
     node('div.handle', () => {
@@ -39,8 +66,6 @@ function drawColorWheelMarker(state, size = 24) {
 export function drawColorWheel(target) {
     let state = target.ref('state')
     let canvas
-    let interval
-    let lastEvent
 
     node('p.wheel', {style: {position: 'relative'}}, () => {
         node('canvas', {
@@ -157,11 +182,16 @@ function drawScaleMarker(state, colorTempRange, size = 24) {
     })
 }
 
-export default function drawColorPicker(target) {
+export function drawColorPicker(target) {
     let capabilities = target.peek("light")
-    if (capabilities.brightness) {
-        drawScale(target)
-    }
+    node('p', {style: {display: 'flex', gap: '16px', alignItems: 'center'}}, () => {
+        if (capabilities.state) {
+            drawBulbCircle(target)
+        }
+        if (capabilities.brightness) {
+            drawScale(target)
+        }
+    })
 
     if (capabilities.color_temp || capabilities.color_xy || capabilities.color_hs) {
         let temps = capabilities.color_temp ? [capabilities.color_temp.value_min, capabilities.color_temp.value_max] : [CT_MIN, CT_MAX]
