@@ -1,13 +1,13 @@
-import {node} from 'aberdeen'
+import {$} from 'aberdeen'
 
-export function createIcon(innerHTML, viewBox = "0 0 24 24") {
+export function createIcon(innerHTML: string, viewBox: string | number = "0 0 24 24") {
   if (typeof viewBox === 'number') viewBox = `0 0 ${viewBox} ${viewBox}`
-  return function(...args) {
+  return function(...args: any[]) {
     let el = document.createElementNS("http://www.w3.org/2000/svg", "svg")
     el.setAttribute("class", "icon")
     el.setAttribute("viewBox", viewBox)
     el.innerHTML = innerHTML
-    node(el, ...args)
+    $(el, ...args)
   }
 }
 
@@ -34,7 +34,7 @@ export const stop = createIcon(`<g fill="none" stroke="currentColor" stroke-line
 
 export const back = createIcon(`<mask id="ipSBack0"><path fill="#fff" fill-rule="evenodd" stroke="#fff" stroke-linejoin="round" stroke-width="4" d="M44 40.836c-4.893-5.973-9.238-9.362-13.036-10.168c-3.797-.805-7.412-.927-10.846-.365V41L4 23.545L20.118 7v10.167c6.349.05 11.746 2.328 16.192 6.833c4.445 4.505 7.009 10.117 7.69 16.836Z" clip-rule="evenodd"/></mask><path fill="currentColor" d="M0 0h48v48H0z" mask="url(#ipSBack0)"/>`, 48)
 
-export const scenes = {
+export const scenes: Record<string, (...args: any[]) => void> & {normal: (...args: any[]) => void} = {
   normal: createIcon(`<path fill="currentColor" d="M12 2a7 7 0 0 0-7 7c0 2.38 1.19 4.47 3 5.74V17a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1v-2.26c1.81-1.27 3-3.36 3-5.74a7 7 0 0 0-7-7M9 21a1 1 0 0 0 1 1h4a1 1 0 0 0 1-1v-1H9z"/>`),
   cozy: createIcon(`<path fill="currentColor" d="M6 20h12q.425 0 .713-.288T19 19H5q0 .425.288.713T6 20m6-12q-1.2 0-2-.837t-.75-2.038q.05-1.3.913-2.287T12 1q.975.85 1.838 1.838t.912 2.287q.05 1.2-.75 2.038T12 8m-1 9h2v-6h-2zm1-11q.325 0 .538-.225t.212-.55q0-.425-.238-.775T12 3.775q-.275.325-.513.675t-.237.775q0 .325.213.55T12 6m8.25 11q.325 0 .538-.213T21 16.25t-.213-.537t-.537-.213t-.537.213t-.213.537t.213.538t.537.212M18 22H6q-1.25 0-2.125-.875T3 19v-2h6v-6q0-.825.588-1.412T11 9h2q.825 0 1.413.588T15 11v6h2.6q-.05-.2-.075-.375t-.025-.375q0-1.15.8-1.95t1.95-.8t1.95.8t.8 1.95q0 .95-.562 1.675T21 18.9v.1q0 1.25-.875 2.125T18 22m-7-5h2zm1-12.1"/>`),
   bright: createIcon(`<path fill="currentColor" d="M17.07 7.07V2.93h-4.14L10 0L7.07 2.93H2.93v4.14L0 10l2.93 2.93v4.14h4.14L10 20l2.93-2.93h4.14v-4.14L20 10zM10 16a6 6 0 1 1 6-6a6 6 0 0 1-6 6"/><circle cx="10" cy="10" r="4.5" fill="currentColor"/>`, 22),
@@ -44,7 +44,7 @@ export const scenes = {
   drinks: createIcon(`<g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" color="currentColor"><path d="m8.205 15.358l-3.688-4.277C2.625 8.887 1.68 7.79 2.098 6.895S3.98 6 6.901 6h4.198c2.922 0 4.383 0 4.803.895c.42.894-.527 1.992-2.42 4.186l-3.687 4.277C9.425 15.786 9.24 16 9 16s-.426-.214-.795-.642M8.5 6l-.401-2.406a1 1 0 0 0-.67-.784L5 2m4 14v6m-1.5 0h3"/><path d="M15.86 8.833A3.52 3.52 0 0 0 18.482 10A3.51 3.51 0 0 0 22 6.5C22 4.567 20.425 3 18.482 3A3.51 3.51 0 0 0 15 6"/></g>`),
   reading: createIcon(`<path fill="currentColor" d="M25.754 4.626a.88.88 0 0 0-.802-.097L12.16 9.41c-.557.212-1.253.315-1.968.315c-.997.002-2.03-.202-2.747-.48a3.4 3.4 0 0 1-.624-.302q.084-.037.194-.075L18.648 4.43l1.733.654V3.172a.87.87 0 0 0-.373-.714a.88.88 0 0 0-.802-.097L6.415 7.24c-.396.143-.733.313-1.02.565c-.284.244-.527.645-.523 1.09c0 .013.004.032.004.032v17.186l-.003.02c0 .007.003.01.003.017v.017h.002c.028.6.37.983.7 1.255c1.033.803 2.768 1.252 4.613 1.274c.875 0 1.762-.116 2.584-.427l12.796-4.882a.86.86 0 0 0 .558-.81V5.342a.87.87 0 0 0-.374-.714zm-20.082 7.11a.9.9 0 0 1 .07.273l.003.053c.016.264.13.406.363.61c.783.627 2.382 1.08 4.083 1.094a6.8 6.8 0 0 0 1.932-.264v1.79c-.647.144-1.3.207-1.942.207c-1.674-.026-3.266-.353-4.51-1.053zm4.51 12.852c-1.675-.028-3.267-.354-4.51-1.055V20.82a.8.8 0 0 1 .07.276l.003.053c.018.266.13.407.364.612c.782.625 2.38 1.08 4.082 1.09c.67 0 1.327-.08 1.932-.26v1.788a9 9 0 0 1-1.943.208z"/>`, 32),
 }
-export const sceneAliases = {
+export const sceneAliases: Record<string, string> = {
   dim: 'cozy',
   soft: 'cozy',
   orientation: 'night',

@@ -42,7 +42,7 @@ select {
 }
 
 button {
-  background-color: #fbc103;
+  background-color: #f4810e;
   color: black;
 }
 
@@ -78,9 +78,7 @@ body {
 }
 
 header {
-  background-image: linear-gradient(rgba(0, 0, 0, 0.6), rgba(0, 0, 0, 0.8)), url(holybulb.webp);
-  background-size: 550px;
-  background-position: center;
+  background-color: #141311;
   display: flex;
   gap: 8px;
   align-items: center;
@@ -167,40 +165,23 @@ main>h1 {
 
 @media screen and (min-width: 501px) {
   .root {
-    box-shadow: 0 0 256px #fbc10320;
+    box-shadow: 0 0 256px #f4810e20;
   }
 }
 
 .link {
-  position: relative;
-  transition-duration: 0.4s;
-  overflow: hidden;
   cursor: pointer;
   border-radius: 4px;
 }
 
-
-.link:after {
-  content: "";
-  background: #fbc103;
-  display: block;
-  position: absolute;
-  padding-top: 300%;
-  padding-left: 350%;
-  margin-left: -20px !important;
-  margin-top: -120%;
-  opacity: 0;
-  transition: all 0.8s;
-  pointer-events: none;
+.link:hover {
+  background: repeating-linear-gradient(45deg, #ffb06000 0px, #ffb06000 4px, #ffb06030 5px, #ffb06030 9px);
+}
+ 
+.link:active {
+  background: repeating-linear-gradient(45deg, #ffb06000 0px, #ffb06000 4px, #ffb06060 5px, #ffb06060 9px);
 }
 
-
-.link:active:after {
-  padding: 0;
-  margin: 0;
-  opacity: 1;
-  transition: 0s
-}
 
 .circle,
 .squircle {
@@ -245,7 +226,7 @@ main>p {
 .icon {
   width: 24px;
   cursor: pointer;
-  color: #fbc103;
+  color: #f4810e;
 }
 
 .icon.on {
@@ -262,7 +243,7 @@ h1 > .icon {
 }
 
 .banner {
-  background-color: #fbc103;
+  background-color: #f4810e;
   display: flex;
   color: black;
   border-top: 2px solid black;
@@ -283,7 +264,7 @@ h1 > .icon {
 .empty {
   padding: 1em;
   text-align: center;
-  background-color: #fbc10320;
+  background-color: #f4810e20;
 }
 
 label.checkbox {
@@ -349,7 +330,7 @@ main {
   top: 0;
   right: 0;
   bottom: 0;
-  background: repeating-linear-gradient(-45deg, #05090a 0px, #05090a 4px, #29241d 5px, #29241d 9px);
+  background: repeating-linear-gradient(-45deg, #141311 0px, #141311 4px, #2d1803 5px, #2d1803 9px);
 }
 
 main.fadeOut {

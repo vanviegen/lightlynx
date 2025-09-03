@@ -4,6 +4,7 @@
   "description": "",
   "scripts": {
     "build": "vite build src/ --outDir ../public --emptyOutDir --assetsDir .",
+    "build:debug": "vite build src/ --outDir ../public --emptyOutDir --assetsDir . --mode development --sourcemap",
     "watch": "npm run build -- --watch",
     "dev": "vite src/",
     "test": "echo \"Error: no test specified\" && exit 1"
@@ -11,8 +12,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@toolz/local-storage": "^1.0.5",
-    "aberdeen": "^0.2.2",
+    "aberdeen": "^1.0.11",
     "reconnecting-websocket": "^4.4.0"
   },
   "devDependencies": {

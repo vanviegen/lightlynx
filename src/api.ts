@@ -1,45 +1,57 @@
 import ReconnectingWebSocket from "reconnecting-websocket";
-import { local } from "@toolz/local-storage";
-import { Store, observe, peek } from "aberdeen";
+import { proxy, observe, clone, copy, unproxy } from "aberdeen";
 import * as colors from "./colors";
+import { LightState, XYColor, HSColor, ColorValue, isHS, isXY, Store, LightCaps, Device, Group } from "./types";
 
 const TOKEN_LOCAL_STORAGE_ITEM_NAME = "z2m-token-v2";
 const AUTH_FLAG_LOCAL_STORAGE_ITEM_NAME = "z2m-auth-v2";
 const UNAUTHORIZED_ERROR_CODE = 4401;
 
-
-interface Callable {
-    (): void;
+interface PromiseCallbacks {
+    resolve: () => void;
+    reject: () => void;
 }
 
-interface LightState {
-    on?: boolean,
-    level?: number,
-    color?: number|Array<number>,
+interface LightStateDelta {
+    state?: 'ON' | 'OFF';
+    brightness?: number;
+    color?: { hue: number; saturation: number } | XYColor;
+    color_temp?: number;
+    transition?: number; // Added transition property
 }
 
-function objectIsEmpty(obj) {
-    for(let k in obj) return false;
+function objectIsEmpty(obj: object): boolean {
+    for(let _ in obj) return false;
     return true;
 }
 
-function createLightStateDelta(o: LightState, n: LightState): any {
-    let delta: any = {}
+function colorsEqual(a?: ColorValue, b?: ColorValue): boolean {
+    if (a === b) return true;
+    if (!a || !b) return false;
+    if (isHS(a) && isHS(b)) {
+        return a.hue === b.hue && a.saturation === b.saturation;
+    }
+    if (isXY(a) && isXY(b)) {
+        return a.x === b.x && a.y === b.y;
+    }
+    return false;
+}
+
+function createLightStateDelta(o: LightState, n: LightState): LightStateDelta {
+    let delta: LightStateDelta = {};
     if (n.on != null && o.on !== n.on) {
         delta.state = n.on ? 'ON' : 'OFF';
     }
-    if (n.level != null && o.level !== n.level) {
-        delta.brightness = n.level;
+    if (n.brightness != null && o.brightness !== n.brightness) {
+        delta.brightness = n.brightness;
     }
-    if (n.color != null && o.color !== n.color && JSON.stringify(o.color) !== JSON.stringify(n.color)) {
-        if (n.color instanceof Array) {
-            delta.color = {hue: Math.round(n.color[0]), saturation: Math.round(n.color[1]*100)}
-        }
-        else if (n.color.x != null) {
-            delta.color = n.color
-        }
-        else {
-            delta.color_temp = n.color
+    if (n.color != null && !colorsEqual(n.color, o.color)) {
+        if (isHS(n.color)) {
+            delta.color = { hue: Math.round(n.color.hue), saturation: Math.round(n.color.saturation * 100) };
+        } else if (isXY(n.color)) {
+            delta.color = n.color;
+        } else {
+            delta.color_temp = n.color as number;
         }
     }
     return delta;
@@ -52,37 +64,37 @@ function tailorLightState(from: LightState, cap: any): LightState {
         to.on = from.on;
     }
 
-    if (from.color instanceof Array) {
+    if (isHS(from.color)) {
         if (cap.color_hs) {
             to.color = from.color;
         }
         else if (cap.color_xy) {
-            to.color = colors.hsToXy(from.color);
+            to.color = colors.hsToXy(from.color as HSColor);
         }
-        // else if (cap.color_temp) {
-        //     // Convert hue/sat to closest color temperature
-        //     to.color = colors.rgbToMireds(colors.hsvToRgb(from.color[0], from.color[1], 1))
-        // }
     }
     else if (typeof from.color === 'number') {
         if (cap.color_temp) {
             to.color = from.color;
         }
         else if (cap.color_hs) {
-            // Convert color temperature to hue/sat
-            to.color = colors.miredsToHs(from.color);
+            const hsColor = colors.miredsToHs(from.color);
+            to.color = hsColor;
         }
         else if (cap.color_xy) {
-            to.color = colors.hsToXy(colors.miredsToHs(from.color));
+            const hsColor = colors.miredsToHs(from.color);
+            to.color = colors.hsToXy(hsColor);
         }
+    }
+    else if (isXY(from.color)) {
+        to.color = from.color;
     }
     if (typeof to.color === 'number') {
         to.color = Math.min(cap.color_temp.value_max, Math.max(cap.color_temp.value_min, to.color));
     }
-    
-    if (from.level != null) {
+
+    if (from.brightness != null) {
         if (cap.brightness) {
-            to.level = Math.min(cap.brightness.value_max, Math.max(cap.brightness.value_min, 1, from.level));
+            to.brightness = Math.min(cap.brightness.value_max, Math.max(cap.brightness.value_min, 1, from.brightness));
         }
     }
     console.log('api/tailorLightState', 'from', from, 'to', to, 'cap', cap)
@@ -90,13 +102,26 @@ function tailorLightState(from: LightState, cap: any): LightState {
     return to;
 }
 
+function setLocalStorage(key: string, value: any) {
+    localStorage.setItem(key, JSON.stringify(value));
+}
+
+function getLocalStorage(key: string): any {
+    const json = localStorage.getItem(key);
+    return json ? JSON.parse(json) : undefined;
+}
+
 class Api {
     url: string;
-    socket: ReconnectingWebSocket;
-    requests: Map<string, [Callable, Callable]> = new Map<string, [Callable, Callable]>();
+    socket!: ReconnectingWebSocket;
+    requests: Map<string, PromiseCallbacks> = new Map();
     transactionNumber = 1;
     transactionRndPrefix: string;
-    store: Store = new Store({});
+    store: Store = proxy({
+        devices: {},
+        groups: {},
+        permit_join: false
+    });
     errorHandlers: Array<(msg: string) => void> = [];
     nameToIeeeMap: Map<string, string> = new Map();
     
@@ -104,9 +129,9 @@ class Api {
         this.url = url;
         this.transactionRndPrefix = (Math.random() + 1).toString(36).substring(2,7);
 
-        for(let topic of ['bridge/devices', 'bridge/groups']) {
+        for (const topic of ['bridge/devices', 'bridge/groups']) {
             let data = localStorage.getItem(topic);
-            if (data) this.onMessage({data});
+            if (data) this.onMessage({data} as MessageEvent);
         }
     }
     
@@ -119,7 +144,7 @@ class Api {
         if (topic.startsWith('bridge/request/')) {
             const transaction = `${this.transactionRndPrefix}-${this.transactionNumber++}`;
             promise = new Promise<void>((resolve, reject) => {
-                this.requests.set(transaction, [resolve, reject]);
+                this.requests.set(transaction, { resolve, reject });
             });
             payload = { ...payload, transaction };
         } else {
@@ -130,33 +155,35 @@ class Api {
         return promise;
     }
 
-    setLightState(target: string|number, state: LightState) {
-        console.log('api/setLightState', target, state)
+    setLightState(target: string|number, lightState: LightState) {
+        console.log('api/setLightState', target, lightState)
 
-        if (typeof target === 'number') { // target is a group
+        if (typeof target === 'number') {
             let groupId: number = target;
-            for(let ieee of this.store.peek("groups", groupId, "members") || []) {
-                this.setLightState(ieee, state)
+            for(let ieee of this.store.groups[groupId]?.members || []) {
+                this.setLightState(ieee, lightState)
             }
             return;
         }
 
-        // target is a light
         let ieee: string = target;
-        let cap = this.store.peek("devices", ieee, "light");
-        if (!cap) {
-            console.log('api/setLightState invalid target', target)
+        const dev = this.store.devices[ieee];
+        if (!dev?.lightCaps) {
+            console.log('api/setLightState unknown device', target)
+            return;
         }
-        state = tailorLightState(state, cap);
-        let oldState = this.store.peek("devices", ieee, "state") || {};
+        let cap = dev.lightCaps;
+        lightState = tailorLightState(lightState, cap);
+        let oldState = dev.lightState || {};
 
-        let delta = createLightStateDelta(oldState, state);
+        let delta = createLightStateDelta(oldState, lightState);
         if (!objectIsEmpty(delta)) {
-            console.log('merge', this.store.get("devices", ieee, "state"), state)
-            this.store.ref("devices", ieee, "state").merge(state);
+            console.log('merge', dev.lightState, lightState)
+            if (dev.lightState) copy(dev.lightState, lightState);
+            else dev.lightState = lightState;
             let held = this.heldLightDeltas.get(ieee);
             if (held != null) {
-                Object.assign(held, delta);
+                copy(held, delta);
             }
             else {
                 this.heldLightDeltas.set(ieee, delta);
@@ -169,13 +196,13 @@ class Api {
     urlProvider = async () => {
         const url = new URL(this.url)
         let token = new URLSearchParams(window.location.search).get("token")
-            ?? local.getItem<string>(TOKEN_LOCAL_STORAGE_ITEM_NAME);
-        const authRequired = !!local.getItem(AUTH_FLAG_LOCAL_STORAGE_ITEM_NAME);
+            ?? getLocalStorage(TOKEN_LOCAL_STORAGE_ITEM_NAME) as string;
+        const authRequired = !!getLocalStorage(AUTH_FLAG_LOCAL_STORAGE_ITEM_NAME);
         if (authRequired) {
             if (!token) {
                 token = prompt("Enter your z2m admin token") as string;
                 if (token) {
-                    local.setItem(TOKEN_LOCAL_STORAGE_ITEM_NAME, token);
+                    setLocalStorage(TOKEN_LOCAL_STORAGE_ITEM_NAME, token);
                 }
             }
             url.searchParams.append("token", token);
@@ -186,12 +213,12 @@ class Api {
     connect(): void {
         this.socket = new ReconnectingWebSocket(this.urlProvider);
         this.socket.addEventListener("message", this.onMessage);
-        this.socket.addEventListener("close", this.onClose);
+        this.socket.addEventListener("close", this.onClose as any);
     }
 
-    private resolvePromises({transaction, status}): void {
+    private resolvePromises({transaction, status}: any): void {
         if (transaction !== undefined && this.requests.has(transaction)) {
-            const [resolve, reject] = this.requests.get(transaction) as [Callable, Callable];
+            const { resolve, reject } = this.requests.get(transaction)!;
             if (status === "ok" || status === undefined) {
                 resolve();
             } else {
@@ -201,10 +228,11 @@ class Api {
         }
     }
 
-    private onClose = (e: CloseEvent): void => {
-        if (e.code === UNAUTHORIZED_ERROR_CODE) {
-            local.setItem(AUTH_FLAG_LOCAL_STORAGE_ITEM_NAME, true);
-            local.remove(TOKEN_LOCAL_STORAGE_ITEM_NAME);
+    private onClose = (e: Event): void => {
+        const closeEvent = e as CloseEvent;
+        if (closeEvent.code === UNAUTHORIZED_ERROR_CODE) {
+            setLocalStorage(AUTH_FLAG_LOCAL_STORAGE_ITEM_NAME, true);
+            localStorage.removeItem(TOKEN_LOCAL_STORAGE_ITEM_NAME);
             for(let handler of this.errorHandlers) {
                 handler("Unauthorized");
             }
@@ -215,7 +243,7 @@ class Api {
     }
 
     // Used to send at most 3 updates per second to zigbee2mqtt
-    heldLightDeltas: Map<string, any> = new Map();
+    heldLightDeltas: Map<string, LightStateDelta> = new Map();
     heldLightTimeouts: Map<string, ReturnType<typeof setTimeout>> = new Map();
 
     // Used to delay updates from zigbee2mqtt shortly after we've ask it to update state,
@@ -225,28 +253,32 @@ class Api {
     echoLightStates: Map<string, LightState> = new Map();
 
     private handleLightState(ieee: string, payload: any) {
-        let data : LightState = {
+        let lightState : LightState = {
             on: payload.state === 'ON',
-            level: payload.brightness,
+            brightness: payload.brightness,
             color: undefined,
         };
         if (payload.color_mode === 'color_temp') {
-            data.color = payload.color_temp;
+            lightState.color = payload.color_temp;
         }
         else if (payload.color?.hue) {
-            data.color = [payload.color.hue, payload.color.saturation/100];
+            lightState.color = { hue: payload.color.hue, saturation: payload.color.saturation/100 };
         }
         else if (payload.color?.x) {
-            data.color = payload.color
+            lightState.color = payload.color
         }
 
-        console.log("api/handleLightState", ieee, data);
+        console.log("api/handleLightState", ieee, lightState);
 
-        if (this.echoTimeouts.get(ieee)) { // Echo paused, delay set
-            this.echoLightStates.set(ieee, data);
+        if (this.echoTimeouts.get(ieee)) {
+            this.echoLightStates.set(ieee, lightState);
         }
-        else { // Echo unpaused, apply immediately
-            this.store.set("devices", ieee, "state", data);
+        else {
+            const dev = this.store.devices[ieee];
+            if (dev) {
+                dev.lightState ||= {};
+                copy(dev.lightState, lightState);
+            }
         }
     }
 
@@ -254,58 +286,64 @@ class Api {
         observe(() => {
             // In case a group disappeared, this will cause the observe to end without
             // observing anything anymore.
-            if (peek(() => this.store.getType("groups", groupId, "members")) === "undefined") return;
-            let members = this.store.get("groups", groupId, "members");
-            
-            let gstate: LightState = members.length ? this.store.get("devices", members[0], "state") || {} : {};
-            let caps = members.length ? this.store.peek("devices", members[0], "light") : {};
-            
-            for(let memberIndex=1; memberIndex<members.length; memberIndex++) {
-                let ieee = members[memberIndex];
+            if (!unproxy(this.store).groups[groupId]) return;
+            const group = this.store.groups[groupId]!;
 
-                for(let [name,obj] of <any>Object.entries(this.store.peek("devices", ieee, "light")||{})) {
-                    caps[name] = caps[name] || obj;
+            let members = group.members || [];
+
+            let groupState: LightState = {};
+            let groupCaps: LightCaps = {};
+            if (members.length) {
+                let ieee = members[0]!;
+                groupState = clone(this.store.devices[ieee]?.lightState || {});
+                groupCaps = clone(this.store.devices[ieee]?.lightCaps || {});
+            }
+
+            for(let memberIndex=1; memberIndex<members.length; memberIndex++) {
+                let ieee = members[memberIndex]!;
+
+                for(const [name,obj] of Object.entries(this.store.devices[ieee]?.lightCaps||{}) as [keyof LightCaps, any][]) {
+                    const cap = (groupCaps[name] ||= clone(obj));
                     if (obj.value_min != null) {
-                        caps[name].value_min = Math.min(caps[name].value_min, obj.value_min);
-                        caps[name].value_max = Math.max(caps[name].value_max, obj.value_max);
+                        cap.value_min = Math.min(cap.value_min, obj.value_min);
+                        cap.value_max = Math.max(cap.value_max, obj.value_max);
                     }
                 }
                 
-                let lstate: LightState = this.store.get("devices", ieee, 'state') || {};
-                if (!lstate || !gstate) continue;
+                let lightState: LightState = this.store.devices[ieee]?.lightState || {};
+                if (!lightState || !groupState) continue;
 
-                // If one light is on, the group is on.
-                gstate.on = gstate.on || lstate.on;
+                groupState.on = groupState.on || lightState.on;
 
-                if (typeof gstate.color === 'number' && typeof lstate.color === 'number' && Math.abs(gstate.color-lstate.color)<10) {
+                if (typeof groupState.color === 'number' && typeof lightState.color === 'number' && Math.abs(groupState.color-lightState.color)<10) {
                     // Color temp similar enough! Take the average.
-                    gstate.color = Math.round((gstate.color * memberIndex + lstate.color) / (memberIndex+1));
+                    groupState.color = Math.round((groupState.color * memberIndex + lightState.color) / (memberIndex+1));
                 }
-                else if ((gstate.color instanceof Array) && (lstate.color instanceof Array) && Math.abs(lstate.color[0]-gstate.color[0])<20 && Math.abs(lstate.color[1]-gstate.color[1])<0.1) {
+                else if (isHS(groupState.color) && isHS(lightState.color) && Math.abs(lightState.color.hue-groupState.color.hue)<20 && Math.abs(lightState.color.saturation-groupState.color.saturation)<0.1) {
                     // Hue/saturation are close enough! Take the average.
-                    gstate.color[0] = Math.round((gstate.color[0] * memberIndex + lstate.color[0]) / (memberIndex+1));
-                    gstate.color[1] = Math.round((gstate.color[1] * memberIndex + lstate.color[1]) / (memberIndex+1));
+                    groupState.color.hue = Math.round((groupState.color.hue * memberIndex + lightState.color.hue) / (memberIndex+1));
+                    groupState.color.saturation = Math.round((groupState.color.saturation * memberIndex + lightState.color.saturation) / (memberIndex+1));
                 } else {
-                    gstate.color = undefined;
+                    groupState.color = undefined;
                 }
 
-                if (gstate.level!==undefined && lstate.level!==undefined && Math.abs(gstate.level - lstate.level) < 0.2) {
-                    gstate.level = Math.round((gstate.level * memberIndex + lstate.level) / (memberIndex+1));
+                if (groupState.brightness!==undefined && lightState.brightness!==undefined && Math.abs(groupState.brightness - lightState.brightness) < 0.2) {
+                    groupState.brightness = Math.round((groupState.brightness * memberIndex + lightState.brightness) / (memberIndex+1));
                 } else {
-                    gstate.level = undefined;
+                    groupState.brightness = undefined;
                 }
             }
-            console.log('api/streamGroupState update', groupId, gstate);
-            if (gstate) {
-                this.store.set("groups", groupId, "state", gstate);
+            console.log('api/streamGroupState update', groupId, groupState);
+            if (groupState && group) {
+                copy(group.lightState, groupState);
+                copy(group.lightCaps, groupCaps);
             }
-            this.store.set("groups", groupId, "light", caps);
         });
     }
 
     private transmitHeldLightDelta(ieee: string) {
         let delta = this.heldLightDeltas.get(ieee);
-        if (!objectIsEmpty(delta)) {
+        if (delta && !objectIsEmpty(delta)) {
             console.log('api/transmitHeldLightDelta', ieee, 'to', delta);
             delta.transition = 0.333;
             this.send(ieee, "set", delta);
@@ -317,11 +355,14 @@ class Api {
             clearTimeout(this.echoTimeouts.get(ieee));
             this.echoTimeouts.set(ieee, setTimeout(() => {
                 console.log('api/unpause echos', ieee);
-                this.echoTimeouts.delete(ieee)
-                this.store.set("devices", ieee, "state", this.echoLightStates.get(ieee));
+                this.echoTimeouts.delete(ieee);
+                const echoState = this.echoLightStates.get(ieee);
+                const dev = this.store.devices[ieee];
+                if (dev?.lightState && echoState) {
+                    copy(dev.lightState, echoState);
+                }
             }, 1500));
-        }
-        else {
+        } else {
             this.heldLightDeltas.delete(ieee);
             this.heldLightTimeouts.delete(ieee);
         }
@@ -345,20 +386,20 @@ class Api {
                 this.resolvePromises(payload);
             }
             else if (topic === "info") {
-                this.store.set("permit_join", payload.permit_join);
+                this.store.permit_join = payload.permit_join;
             }  
             else if (topic === "info" || topic === "extensions" || topic === "logging") {
                 // Ignore!
             }
             else if (topic === "devices") {
-                let devices = {};
-                for (let orgDev of payload) {
-                    if (!orgDev.definition) continue;
-                    let description = (orgDev.definition.description || orgDev.model_id) + " (" + (orgDev.definition.vender || orgDev.manufacturer) + ")";
-                    let newDev : {name: string, description: string, light?: object, actions?: Array<string>} = {name: orgDev.friendly_name, description};
-                    for (let expose of orgDev.definition.exposes) {
+                let newDevs: Record<string, Device> = {};
+                for (let z2mDev of payload) {
+                    if (!z2mDev.definition) continue;
+                    let description = (z2mDev.definition.description || z2mDev.model_id) + " (" + (z2mDev.definition.vender || z2mDev.manufacturer) + ")";
+                    let newDev : Device = {name: z2mDev.friendly_name, description};
+                    for (let expose of z2mDev.definition.exposes) {
                         if (expose.type === "light" || expose.type === "switch") {
-                            let features = {};
+                            let features: any = {};
                             for (let feature of (expose.features || [])) {
                                 features[feature.name] = {};
                                 if (feature.value_max !== undefined) {
@@ -366,51 +407,49 @@ class Api {
                                     features[feature.name].value_max = feature.value_max;
                                 }
                             }
-                            newDev.light = features;
+                            newDev.lightCaps = features;
                         }
                         else if (expose.name === "action") {
                             newDev.actions = expose.values;
                         }
                     }
-                    let ieee = orgDev.ieee_address;
-                    newDev.state = this.store.get("devices", ieee, "state")
-                    newDev.meta = this.store.get("devices", ieee, "meta")
-            
-                    devices[ieee] = newDev;
+                    let ieee = z2mDev.ieee_address;
+                    const oldDev = this.store.devices[ieee];
+                    newDev.lightState = oldDev?.lightState;
+                    newDev.meta = oldDev?.meta;
+
+                    newDevs[ieee] = newDev;
                     this.nameToIeeeMap.set(newDev.name, ieee);
                 }
-                this.store.set("devices", devices);
+                copy(this.store.devices, newDevs);
             }
             else if (topic === "groups") {
-                let groups = new Map();
+                let groups: Record<number, Group> = {};
                 let newGroupIds: Array<number> = [];
-                for (let orgGroup of payload) {
-                    let newGroup = {
-                        name: orgGroup.friendly_name,
-                        short_name: orgGroup.friendly_name.replace(/ *\(.*\) *$/, ''),
-                        scenes: orgGroup.scenes.map(obj => {
+                for (let z2mGroup of payload) {
+                    const id = z2mGroup.id;
+                    const oldGroup = this.store.groups[z2mGroup.id];
+                    const newGroup: Group = {
+                        name: z2mGroup.friendly_name,
+                        shortName: z2mGroup.friendly_name.replace(/ *\(.*\) *$/, ''),
+                        scenes: z2mGroup.scenes.map((obj: any) => {
                             let m = obj.name.match(/^(.*?)\s*\((.*)\)\s*$/)
                             if (m)
-                                return {id: obj.id, name: obj.name, short_name: m[1], suffix: m[2]}
-                            return {id: obj.id, name: obj.name, short_name: obj.name, suffix: ''}
+                                return {id: obj.id, name: obj.name, shortName: m[1], suffix: m[2]}
+                            return {id: obj.id, name: obj.name, shortName: obj.name, suffix: ''}
                         }),
-                        members: orgGroup.members.map(obj => obj.ieee_address),
+                        members: z2mGroup.members.map((obj: any) => obj.ieee_address),
+                        lightState: oldGroup?.lightState || {},
+                        lightCaps: oldGroup?.lightCaps || {},
                     };
-                    newGroup.state = this.store.get('groups', orgGroup.id, "state")
-                    newGroup.light = this.store.get('groups', orgGroup.id, "light")
-                    groups.set(orgGroup.id, newGroup);
-                    if (this.store.peek("groups", orgGroup.id, "name") == null) {
-                        newGroupIds.push(orgGroup.id);
+                    groups[id] = newGroup;
+                    if (!this.store.groups[id]) {
+                        newGroupIds.push(id);
                     }
                 }
-                this.store.set("groups", groups);
+                copy(this.store.groups, groups);
                 for(let groupId of newGroupIds) {
                     this.streamGroupState(groupId);
-                }
-            }
-            else {
-                if (topic !== 'definitions') {
-                    this.store.set(...topic.split('/'), payload);
                 }
             }
         } else {
@@ -418,26 +457,30 @@ class Api {
                 let deviceName = topic.substr(0,topic.length-13);
                 let ieee = this.nameToIeeeMap.get(deviceName);
                 if (ieee) {
-                    this.store.set("devices", ieee, "meta", "online", payload.state==="online");
+                    const dev = this.store.devices[ieee]!;
+                    dev.meta ||= {};
+                    dev.meta.online = payload.state==="online";
                 }
             }
             else { // A device state
                 let ieee = this.nameToIeeeMap.get(topic);
                 if (payload && ieee) {
+                    const dev = this.store.devices[ieee]!;
                     if (payload.update) {
                         payload.update = payload.update.state;
                     }
-                    for(let key of ['battery', 'linkquality', 'update']) {
+                    for(const key of ['battery', 'linkquality', 'update'] as const) {
                         if (payload[key]!=null) {
-                            this.store.set("devices", ieee, "meta", key, payload[key]);
+                            dev.meta ||= {};
+                            dev.meta[key] = payload[key];
                             delete payload[key];
                         }
                     }
                 
-                    if (payload.state) { // A light state
+                    if (payload.state) {
                         this.handleLightState(ieee, payload)
-                    } else { // Some other device state
-                        this.store.set("devices", ieee, "state", payload);
+                    } else {
+                        dev.otherState = payload;
                     }
                 }
             }

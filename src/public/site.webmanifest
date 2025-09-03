@@ -1,19 +1,19 @@
 {
-  "name": "HolyBulb",
+  "name": "Light Lynx",
   "icons": [
     {
-      "src": "holybulb192.webp",
+      "src": "logo192.webp",
       "type": "image/webp",
       "sizes": "192x192"
     },
     {
-      "src": "holybulb512.webp",
+      "src": "logo512.webp",
       "type": "image/webp",
       "sizes": "512x512"
     }
   ],
   "start_url": "/",
-  "background_color": "#05090a",
-  "theme_color": "#fbc103",
+  "background_color": "#141311",
+  "theme_color": "#f4810e",
   "display": "standalone"
 }
