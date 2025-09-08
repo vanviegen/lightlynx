@@ -1,11 +1,5 @@
-'use strict';
-
-if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/sw.js');
-}
-
-import {$, proxy, ref, onEach, isEmpty, map, copy, dump} from 'aberdeen'
-import {route, Route, persistScroll} from 'aberdeen/route';
+import {$, proxy, ref, onEach, isEmpty, map, copy, dump, unproxy, clone} from 'aberdeen'
+import {route, persistScroll} from 'aberdeen/route';
 import api from './api'
 import * as icons from './icons'
 import * as colors from './colors'
@@ -13,12 +7,24 @@ import {drawColorPicker, drawBulbCircle, getBulbRgb} from "./color-picker"
 import { Device, Group } from './types'
 
 import logoUrl from './logo.webp';
+import swUrl from './sw.ts?worker&url';
 
+if ('serviceWorker' in navigator) {
+	navigator.serviceWorker.register(swUrl);
+	
+	// Listen for reload messages from the service worker
+	navigator.serviceWorker.addEventListener('message', (event) => {
+		if (event.data && event.data.type === 'RELOAD_PAGE') {
+			console.log('Reload on service worker request');
+			window.location.reload();
+		}
+	});
+}
 
 const routeState = proxy({
-    title: '',
-    subTitle: '',
-    drawIcons: undefined as (() => void) | undefined
+	title: '',
+	subTitle: '',
+	drawIcons: undefined as (() => void) | undefined
 });
 
 function isAdmin(): boolean {
@@ -26,13 +32,13 @@ function isAdmin(): boolean {
 }
 
 function drawEmpty(text: string): void {
-    $('div.empty:' + text);
+	$('div.empty:' + text);
 }
 
 function drawBulb(ieee: string): void {
 	let device = api.store.devices[ieee];
 	if (!device) return drawEmpty("No such light")
-	
+		
 	routeState.title = device.name;
 	routeState.subTitle = 'bulb';
 	$("div.item:" + device.description);
@@ -60,9 +66,9 @@ function drawGroup(groupId: number): void {
 	const optGroup = api.store.groups[groupId];
 	if (!optGroup) return drawEmpty('No such group');
 	const group = optGroup;
-
+	
 	if (route.p[2] === 'add') return drawGroupAddDevice(group, groupId);
-
+	
 	function createScene(): void {
 		let name = prompt("What should the new scene be called?")
 		if (!name) return
@@ -71,7 +77,7 @@ function drawGroup(groupId: number): void {
 		while(group.scenes.find(s => s.id === freeId)) freeId++;
 		api.send(group.name, "set", {scene_store: {ID: freeId, name}});
 	}
-
+	
 	routeState.title = group.name;
 	routeState.subTitle = 'group';
 	routeState.drawIcons = isAdmin() ? () => {
@@ -88,21 +94,21 @@ function drawGroup(groupId: number): void {
 			}
 		}});
 	} : undefined;
-
+	
 	drawColorPicker(group, groupId);
 	
 	$("h1", () => {
 		$(":Bulbs");
 		if (isAdmin()) icons.create({click: () => route.p = ['group', ''+groupId, 'add']});
 	});
-
+	
 	$("div.list", () => {
 		const devices = api.store.devices;
 		onEach(group.members, (ieee) => { 
 			let device = devices[ieee]!;
 			drawDeviceItem(device, ieee, group);
 		}, (ieee) => devices[ieee]?.name);
-
+		
 		if (isEmpty(group.members)) {
 			drawEmpty("None yet");
 		}
@@ -125,7 +131,7 @@ function drawGroup(groupId: number): void {
 						e.stopPropagation();
 						if (!confirm(`Are you sure you want to overwrite the '${scene.name}' scene for group '${group.name}' with the current light state?`)) return;
 						api.send(group.name, "set", {scene_store: {ID: scene.id, name: scene.name}});
-
+						
 						for(let ieee of group.members) {
 							if (!api.store.devices[ieee]?.lightState?.on) {
 								api.send(ieee, "set", {scene_add: {ID: scene.id, group_id: groupId, name: scene.name, state: "OFF"}});
@@ -196,23 +202,23 @@ function drawDeviceAdminIcons(device: Device, ieee: string, group?: Group): void
 			api.send("bridge", "request", "device", "rename", {from: device.name, to: name, homeassistant_rename: true});
 		}
 	}});
-
+	
 	let removing = proxy<boolean | string>(false);
 	$(() => {
 		if (group && !removing.value) {
-			icons.remove({click: (e: Event) => {
+			icons.remove({click: () => {
 				api.send("bridge", "request", "group", "members", "remove", {group: group.name, device: device.name});
 				removing.value = true;
 			}});
 		} else if (removing.value !== 'eject') {
-			icons.eject({click: (e: Event) => {
+			icons.eject({click: () => {
 				if (confirm(`Are you sure you want to detach '${device.name}' from zigbee2mqtt?`)) {
 					api.send("bridge", "request", "device", "remove", {id: ieee});
 					removing.value = 'eject';
 				}
 			}});
 		} else {
-			icons.eject({$color: 'red', click: (e: Event) => {
+			icons.eject({$color: 'red', click: () => {
 				if (confirm(`Are you sure you want to FORCE detach '${device.name}' from zigbee2mqtt?`)) {
 					api.send("bridge", "request", "device", "remove", {id: ieee, force: true});
 				}
@@ -224,11 +230,15 @@ function drawDeviceAdminIcons(device: Device, ieee: string, group?: Group): void
 function drawMain(): void {
 	routeState.title = '';
 	routeState.subTitle = '';
-	routeState.drawIcons = isAdmin() ? () => {
-		icons.create({click: permitJoin});
-		icons.createGroup({click: createGroup});
-		icons.bug({click: () => route.p = ['dump']});
-	} : undefined;
+	routeState.drawIcons = () => {
+		if (isAdmin()) {
+			icons.create({click: permitJoin});
+			icons.createGroup({click: createGroup});
+			icons.bug({click: () => route.p = ['dump']});
+		} else {
+			icons.reconnect({click: () => api.store.credentials.change = true});
+		}
+	};
 
 	$("div.grid", () => {
 		onEach(api.store.groups, (group, groupId) => {
@@ -249,13 +259,13 @@ function drawMain(): void {
 				} else {
 					$({$backgroundImage: `linear-gradient(45deg, ${bgs.join(', ')})`});
 				}
-
+				
 				let brightness = totalBrightness / bgs.length / 3;
 				$({
 					".bright": brightness > 127,
 					".off": brightness < 1,
 				});
-
+				
 				$("h2.link:" + (isAdmin() ? group.name : group.shortName), {click: () => route.p = ['group', groupId]});
 				$("div.options", () => {
 					icons.off({click: () => api.setLightState(parseInt(groupId), {on: false}) });
@@ -269,7 +279,7 @@ function drawMain(): void {
 						if (icon) icon(".link", {click: onClick});
 						else $("div.scene.link:" + name, {click: onClick});
 					},  scene => `${scene.suffix}#${scene.name}`);
-
+					
 					if (!group.scenes || group.scenes.length === 0) {
 						icons.scenes.normal({click: () => api.setLightState(parseInt(groupId), {on: false, brightness: 140, color: colors.CT_DEFAULT}) });
 					}
@@ -277,11 +287,52 @@ function drawMain(): void {
 			});
 		}, group => group.name);
 	});
-
+	
 	$("div.list", () => {
 		onEach(api.store.devices, drawDeviceItem, (device, ieee) => {
 			let inGroups = deviceGroups[ieee];
 			return (!inGroups && device.lightCaps) ? device.name : undefined;
+		});
+	});
+}
+
+function drawLogin(): void {
+	routeState.subTitle = 'Login';
+	
+	let formData = clone(unproxy(api.store).credentials);
+	delete formData.change;
+	function handleSubmit(e: Event): void {
+		e.preventDefault();
+		copy(api.store.credentials, formData);
+	}
+	
+	$('div.login-form', () => {
+		$('div.empty.field', () => {
+			$(':'+(api.store.invalidCredentials || "Please provide Zigbee2MQTT credentials."));
+		});
+		
+		$('form', { submit: handleSubmit }, () => {
+			$('div.field', () => {
+				$('label:WebSocket URL');
+				$('input', {
+					type: 'url',
+					bind: ref(formData, 'url'),
+					placeholder: 'wss://your-server.com/api',
+					required: true
+				});
+			});
+			
+			$('div.field', () => {
+				$('label:Z2M password');
+				$('input', {
+					type: 'password',
+					bind: ref(formData, 'token'),
+					placeholder: 'Secret',
+					autocomplete: 'current-password',
+				});
+			});
+			
+			$('button:Connect', { type: 'submit' });
 		});
 	});
 }
@@ -352,18 +403,23 @@ $('div.root', () => {
 			});
 		});
 	});
-
+	
 	$('div.mainContainer', () => {
 		const p = route.p;
-		console.log('p', p);
 		$('main', () => {
-			if (p[0]==='group' && p[1]) drawGroup(parseInt(p[1]));
-			else if (p[0] === 'bulb' && p[1]) drawBulb(p[1]);
-			else if (p[0] === 'dump') drawDump();
-			else drawMain();
+			// Show login form if credentials are invalid
+			if (api.store.invalidCredentials || !api.store.credentials.url || api.store.credentials.change) {
+				drawLogin();
+			} else if (p[0]==='group' && p[1]) {
+				drawGroup(parseInt(p[1]));
+			} else if (p[0] === 'bulb' && p[1]) {
+				drawBulb(p[1]);
+			} else if (p[0] === 'dump') {
+				drawDump();
+			} else {
+				drawMain();
+			}
 			persistScroll();
 		}, {destroy: 'fadeOut', create: route.nav});
 	});
 });
-
-api.connect();

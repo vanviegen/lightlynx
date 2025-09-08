@@ -46,6 +46,10 @@ button {
   color: black;
 }
 
+button:hover {
+  background-color: #e6730d;
+}
+
 button .icon {
   color: black;
   vertical-align: middle;
@@ -353,4 +357,47 @@ main.back {
 
 main.load {
   opacity: 0;
+}
+
+/* Login form styles */
+.login-form {
+  max-width: 400px;
+  margin: 2rem auto;
+  padding: 2rem;
+}
+
+.login-form .field {
+  margin-bottom: 1rem;
+}
+
+.login-form label {
+  display: block;
+  margin-bottom: 0.5rem;
+  color: white;
+  font-weight: bold;
+}
+
+.login-form input {
+  width: 100%;
+  padding: 0.75rem;
+  margin-bottom: 0.5rem;
+  border: 1px solid #555;
+  border-radius: 4px;
+  background-color: #333;
+  color: white;
+}
+
+.login-form input:focus {
+  border-color: #f4810e;
+  outline: none;
+}
+
+.login-form button {
+  width: 100%;
+  padding: 0.75rem;
+  margin-top: 1rem;
+  border: none;
+  border-radius: 4px;
+  font-weight: bold;
+  cursor: pointer;
 }

@@ -76,6 +76,12 @@ export interface Store {
     devices: Record<string, Device>; // IEEE address -> Device
     groups: Record<number, Group>;   // Group ID -> Group
     permit_join: boolean;
+    credentials: {
+        url?: string,
+        token?: string,
+        change?: true
+    },
+    invalidCredentials: string | undefined, // Reason for invalidity, if any
 }
 
 // Helper functions for color type checking

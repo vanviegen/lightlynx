@@ -1,10 +1,10 @@
 {
-  "name": "lights.vanviegen.net",
+  "name": "lightlynx",
   "version": "1.0.0",
   "description": "",
   "scripts": {
     "build": "vite build src/ --outDir ../public --emptyOutDir --assetsDir .",
-    "build:debug": "vite build src/ --outDir ../public --emptyOutDir --assetsDir . --mode development --sourcemap",
+    "build:debug": "vite build src/ --outDir ../public --emptyOutDir --assetsDir . --mode development --sourcemap --minify false",
     "watch": "npm run build -- --watch",
     "dev": "vite src/",
     "test": "echo \"Error: no test specified\" && exit 1"
@@ -12,8 +12,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "aberdeen": "^1.0.11",
-    "reconnecting-websocket": "^4.4.0"
+    "aberdeen": "^1.0.11"
   },
   "devDependencies": {
     "@parcel/packager-raw-url": "^2.13.3",

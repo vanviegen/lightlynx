@@ -1,10 +1,8 @@
-import ReconnectingWebSocket from "reconnecting-websocket";
 import { proxy, observe, clone, copy, unproxy } from "aberdeen";
 import * as colors from "./colors";
 import { LightState, XYColor, HSColor, ColorValue, isHS, isXY, Store, LightCaps, Device, Group } from "./types";
 
-const TOKEN_LOCAL_STORAGE_ITEM_NAME = "z2m-token-v2";
-const AUTH_FLAG_LOCAL_STORAGE_ITEM_NAME = "z2m-auth-v2";
+const CREDENTIALS_LOCAL_STORAGE_ITEM_NAME = "z2m-credentials-v2";
 const UNAUTHORIZED_ERROR_CODE = 4401;
 
 interface PromiseCallbacks {
@@ -112,27 +110,53 @@ function getLocalStorage(key: string): any {
 }
 
 class Api {
-    url: string;
-    socket!: ReconnectingWebSocket;
+    socket?: WebSocket;
     requests: Map<string, PromiseCallbacks> = new Map();
     transactionNumber = 1;
     transactionRndPrefix: string;
     store: Store = proxy({
         devices: {},
         groups: {},
-        permit_join: false
+        permit_join: false,
+        credentials: getLocalStorage(CREDENTIALS_LOCAL_STORAGE_ITEM_NAME) || {},
+        invalidCredentials: undefined,
     });
     errorHandlers: Array<(msg: string) => void> = [];
     nameToIeeeMap: Map<string, string> = new Map();
     
-    constructor(url: string) {
-        this.url = url;
+    // Reconnection state
+    private reconnectAttempts = 0;
+    private reconnectTimeout?: ReturnType<typeof setTimeout>;
+    private shouldReconnect = true;
+    
+    constructor() {
         this.transactionRndPrefix = (Math.random() + 1).toString(36).substring(2,7);
 
+        // Load data cached in localStorage
         for (const topic of ['bridge/devices', 'bridge/groups']) {
             let data = localStorage.getItem(topic);
             if (data) this.onMessage({data} as MessageEvent);
         }
+        
+        // Set up reactive monitoring of credentials
+        this.setupCredentialsReactivity();
+    }
+    
+    private setupCredentialsReactivity(): void {
+        // React to changes in credentials
+        observe(() => {
+            const credentials = this.store.credentials;
+            
+            // Save to localStorage whenever credentials change
+            setLocalStorage(CREDENTIALS_LOCAL_STORAGE_ITEM_NAME, credentials);
+            
+            // Reconnect if credentials are valid and have changed
+            if (credentials.url) {
+                delete this.store.invalidCredentials;
+                credentials.token; // Also subscribe to token changes
+                this.connect();
+            }
+        });
     }
     
     send = (...topicAndPayload: any[]): Promise<void> => {
@@ -150,6 +174,12 @@ class Api {
         } else {
             promise = Promise.resolve();
         }
+        
+        if (!this.socket || this.socket.readyState !== WebSocket.OPEN) {
+            console.warn("api/send - WebSocket not connected, message dropped");
+            return Promise.reject(new Error("WebSocket not connected"));
+        }
+        
         let message = JSON.stringify({topic, payload}, (_, v) => v === undefined ? null : v);
         this.socket.send(message);
         return promise;
@@ -192,30 +222,58 @@ class Api {
         }
     }
 
-
-    urlProvider = async () => {
-        const url = new URL(this.url)
-        let token = new URLSearchParams(window.location.search).get("token")
-            ?? getLocalStorage(TOKEN_LOCAL_STORAGE_ITEM_NAME) as string;
-        const authRequired = !!getLocalStorage(AUTH_FLAG_LOCAL_STORAGE_ITEM_NAME);
-        if (authRequired) {
-            if (!token) {
-                token = prompt("Enter your z2m admin token") as string;
-                if (token) {
-                    setLocalStorage(TOKEN_LOCAL_STORAGE_ITEM_NAME, token);
-                }
-            }
-            url.searchParams.append("token", token);
+    private connect(): void {
+        console.log("api/connect");
+        this.shouldReconnect = true;
+        this.reconnectAttempts += 1;
+        clearTimeout(this.reconnectTimeout);
+        
+        if (this.socket) {
+            this.socket.close();
+            this.socket = undefined;
         }
-        return url.toString();
+        
+        const credentials = this.store.credentials;
+        if (!credentials.url || credentials.change) return;
+
+        const url = new URL(credentials.url);
+        if (credentials.token) url.searchParams.append("token", credentials.token);
+
+        try {
+            this.socket = new WebSocket(url.toString());
+            this.socket.addEventListener("message", this.onMessage);
+            this.socket.addEventListener("close", this.onClose);
+            this.socket.addEventListener("open", this.onOpen);
+            this.socket.addEventListener("error", this.onError);
+        } catch (error) {
+            this.store.invalidCredentials = "Failed to connect: " + (error as Error).message;
+            this.scheduleReconnect();
+        }
+    }
+    
+    private scheduleReconnect(): void {
+        if (!this.shouldReconnect) return;
+        
+        const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts), 30000);
+        console.log(`api/scheduleReconnect in ${delay}ms (attempt ${this.reconnectAttempts + 1})`);
+
+        this.reconnectTimeout = setTimeout(this.connect.bind(this), delay);
+    }
+    
+    private onOpen = (): void => {
+        console.log("api/onOpen - WebSocket connected");
+        // Clear any invalid flag when successfully connected
+        delete this.store.invalidCredentials;
+        // Reset reconnection state on successful connection
+        this.reconnectAttempts = 0;
+        clearTimeout(this.reconnectTimeout);
     }
 
-    connect(): void {
-        this.socket = new ReconnectingWebSocket(this.urlProvider);
-        this.socket.addEventListener("message", this.onMessage);
-        this.socket.addEventListener("close", this.onClose as any);
+    private onError = (event: any): void => {
+        console.error("WebSocket error", event);
+        this.store.invalidCredentials = "Connection error, please check URL";
     }
-
+    
     private resolvePromises({transaction, status}: any): void {
         if (transaction !== undefined && this.requests.has(transaction)) {
             const { resolve, reject } = this.requests.get(transaction)!;
@@ -228,17 +286,13 @@ class Api {
         }
     }
 
-    private onClose = (e: Event): void => {
-        const closeEvent = e as CloseEvent;
-        if (closeEvent.code === UNAUTHORIZED_ERROR_CODE) {
-            setLocalStorage(AUTH_FLAG_LOCAL_STORAGE_ITEM_NAME, true);
-            localStorage.removeItem(TOKEN_LOCAL_STORAGE_ITEM_NAME);
-            for(let handler of this.errorHandlers) {
-                handler("Unauthorized");
-            }
-            setTimeout(() => {
-                window.location.reload();
-            }, 1000);
+    private onClose = (e: CloseEvent): void => {
+        console.log("api/onClose", e.code, e.reason);
+        if (e.code === UNAUTHORIZED_ERROR_CODE) {
+            this.store.invalidCredentials = "Unauthorized, please check your credentials.";
+            this.shouldReconnect = false; // Don't reconnect on auth errors
+        } else if (this.shouldReconnect) {
+            this.scheduleReconnect();
         }
     }
 
@@ -488,5 +542,6 @@ class Api {
     }
 }
 
-const api = new Api(`${location.protocol==='https:' ? 'wss' : 'ws'}://z2m.vanviegen.net/api`);
+const api = new Api();
+
 export default api;
