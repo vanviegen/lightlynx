@@ -12,7 +12,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "aberdeen": "^1.0.11"
+    "aberdeen": "link:aberdeen"
   },
   "devDependencies": {
     "@parcel/packager-raw-url": "^2.13.3",

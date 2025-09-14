@@ -8,7 +8,6 @@ const CACHE_NAME = 'lights-cache-v1';
 
 interface RevalidationResult {
     updated: boolean;
-    error: boolean;
     response?: Response;
 }
 
@@ -63,7 +62,7 @@ async function checkRevalidations(): Promise<void> {
     const results = await Promise.all(revalidationPromises);
     revalidationPromises = []; // Clear the queue
     
-    const shouldReload = results.some(result => result.updated || result.error);
+    const shouldReload = results.some(result => result.updated);
     
     if (shouldReload) {
         console.log('Service Worker: Changes detected, reloading clients.');
@@ -119,28 +118,28 @@ async function revalidate(
             if (isActuallyUpdated) {
                 console.log(`Service Worker: Resource updated: ${request.url}`);
             }
-            
-            return { updated: isActuallyUpdated, error: false, response: networkResponse };
+
+            return { updated: isActuallyUpdated, response: networkResponse };
         }
         
         if (cachedResponseCopy && networkResponse.status === 304) {
             // Not modified.
-            return { updated: false, error: false, response: cachedResponseCopy };
+            return { updated: false, response: cachedResponseCopy };
         }
         
         if (networkResponse.status >= 400 && networkResponse.status < 500) {
             // Client error.
             console.log(`Service Worker: Resource failed with ${networkResponse.status}: ${request.url}`);
-            return { updated: false, error: true, response: networkResponse };
+            return { updated: false, response: networkResponse };
         }
         
         // Other statuses (e.g., 5xx), serve stale content if available.
-        return { updated: false, error: false, response: networkResponse };
-        
+        return { updated: false, response: networkResponse };
+
     } catch (error) {
         console.error(`Service Worker: Network error for ${request.url}:`, error);
         // On error, we don't trigger a reload and serve stale content if we have it.
-        return { updated: false, error: false, response: cachedResponseCopy };
+        return { updated: false, response: cachedResponseCopy };
     }
 }
 

@@ -28,35 +28,6 @@ canvas {
   max-width: 100%;
 }
 
-input,
-textarea,
-button,
-select {
-  font: inherit;
-  padding: 4px 8px;
-  border-radius: 4px;
-  border: 0px;
-  color: white;
-  font-weight: bold;
-  background-color: #555;
-}
-
-button {
-  background-color: #f4810e;
-  color: black;
-}
-
-button:hover {
-  background-color: #e6730d;
-}
-
-button .icon {
-  color: black;
-  vertical-align: middle;
-  height: 20px;
-  margin-right: 4px;
-}
-
 p,
 h1,
 h2,
@@ -130,14 +101,26 @@ main>h1 {
 
 .item {
   display: flex;
-  align-items: center;
+  align-items: stretch;
   margin: 4px 0;
-  padding: 4px;
+  padding: 4px 8px;
   gap: 8px;
   white-space: nowrap;
   background: #ffffff09;
   border-top: 2px solid #ffffff09;
   border-bottom: 2px solid #ffffff09;
+}
+
+small.item {
+  background: none;
+  display: block;
+  color: #f4810ea0;
+  text-align: center;
+}
+
+.item.action {
+  line-height: 32px;
+  cursor: pointer;
 }
 
 
@@ -148,7 +131,6 @@ main>h1 {
 }
 .item>h2.link {
   padding: 0 4px;
-  font-weight: bold;
 }
 
 .item>p {
@@ -233,6 +215,10 @@ main>p {
   color: #f4810e;
 }
 
+.icon:hover {
+  color: #e6730d;
+}
+
 .icon.on {
   color: #fb3403;
 }
@@ -241,9 +227,13 @@ main>p {
   width: 32px;
 }
 
+h1 {
+  position: relative;
+}
 h1 > .icon {
+  position: absolute;
+  right: 8px;
   vertical-align: middle;
-  margin-left: 8px;
 }
 
 .banner {
@@ -266,9 +256,9 @@ h1 > .icon {
 }
 
 .empty {
-  padding: 1em;
+  padding: 8px;
   text-align: center;
-  background-color: #f4810e20;
+  font-style: italic;
 }
 
 label.checkbox {
@@ -347,7 +337,7 @@ main.fadeOut * {
   visibility: hidden;
 }
 
-main.forward, main.push {
+main.forward, main.go {
   transform: translateX(100%);
 }
 
@@ -359,45 +349,146 @@ main.load {
   opacity: 0;
 }
 
-/* Login form styles */
 .login-form {
   max-width: 400px;
   margin: 2rem auto;
   padding: 2rem;
 }
 
-.login-form .field {
+.field {
   margin-bottom: 1rem;
 }
 
-.login-form label {
+label {
   display: block;
-  margin-bottom: 0.5rem;
   color: white;
   font-weight: bold;
+  cursor: pointer;
 }
 
-.login-form input {
-  width: 100%;
-  padding: 0.75rem;
-  margin-bottom: 0.5rem;
-  border: 1px solid #555;
+label > input {
+  vertical-align: middle;
+}
+
+input,
+textarea,
+button,
+select {
+  font: inherit;
+  padding: 4px 8px;
   border-radius: 4px;
-  background-color: #333;
+  border: 0px;
   color: white;
+  font-weight: bold;
+  background-color: #443a30;
+  width: 100%;
 }
 
-.login-form input:focus {
+button {
+  background-color: #f4810e;
+  color: black;
+  cursor: pointer;
+}
+
+button:hover {
+  background-color: #e6730d;
+}
+
+button .icon {
+  color: black;
+  vertical-align: middle;
+  height: 20px;
+  margin-right: 4px;
+}
+
+input:focus {
   border-color: #f4810e;
   outline: none;
 }
 
-.login-form button {
-  width: 100%;
-  padding: 0.75rem;
-  margin-top: 1rem;
-  border: none;
-  border-radius: 4px;
-  font-weight: bold;
-  cursor: pointer;
+.scene-times {
+  border-top: 2px solid #fff3;
+  padding-top: 8px;
+  display: grid;
+  grid-template-columns: auto auto auto auto auto;
+  gap: 8px;
+  justify-content: start;
+  align-items: center;
+}
+
+.scene-times input {
+  width: 3em;
+  -moz-appearance: textfield;
+}
+
+.scene-times input::-webkit-outer-spin-button,
+.scene-times input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+input[type=number].number-to-text {
+    -moz-appearance: textfield;
+}
+
+.row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.item > input, .item > select {
+  width: 3em;
+  flex: 5;
+}
+
+input[type="checkbox"] {
+  flex: 0;
+  box-sizing: border-box;
+  width: 20px;
+  height: 20px;
+  min-width: 20px;
+  margin: 6px 6px 6px 0;
+  padding: 0;
+  border: 2px solid #f4810e;
+  appearance: none;
+  background-color: transparent;
+  outline: none;
+}
+
+input[type="checkbox"]:checked {
+  background-color: #f4810e;
+}
+
+.busy {
+  pointer-events: none;
+  opacity: 0.5;
+  filter: grayscale(0.66);
+  position: relative;
+}
+
+/* spinner */
+.busy::before {
+  content: "";
+  box-sizing: border-box;
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  width: 32px;
+  height: 32px;
+  margin-top: -16px;
+  margin-left: -16px;
+  border-radius: 50%;
+  border: 2px solid #f4810e;
+  border-top-color: transparent;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+hr {
+  border-color: #fff3;
 }

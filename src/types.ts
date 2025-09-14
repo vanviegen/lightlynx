@@ -41,6 +41,7 @@ export interface LightCaps {
 export interface Device {
     name: string;
     description?: string;
+    model?: string;
     lightState?: LightState;
     otherState?: any;
     lightCaps?: LightCaps;
@@ -71,6 +72,12 @@ export interface Group {
     lightCaps: LightCaps;
 }
 
+// Extension interface
+export interface Extension {
+    name: string;
+    code: string;
+}
+
 // Store interface for the global application state
 export interface Store {
     devices: Record<string, Device>; // IEEE address -> Device
@@ -82,6 +89,7 @@ export interface Store {
         change?: true
     },
     invalidCredentials: string | undefined, // Reason for invalidity, if any
+    extensions: Extension[]; // Available Z2M extensions
 }
 
 // Helper functions for color type checking

@@ -1,6 +1,6 @@
-import { proxy, observe, clone, copy, unproxy } from "aberdeen";
+import { $, proxy, clone, copy, unproxy } from "aberdeen";
 import * as colors from "./colors";
-import { LightState, XYColor, HSColor, ColorValue, isHS, isXY, Store, LightCaps, Device, Group } from "./types";
+import { LightState, XYColor, HSColor, ColorValue, isHS, isXY, Store, LightCaps, Device, Group, Extension } from "./types";
 
 const CREDENTIALS_LOCAL_STORAGE_ITEM_NAME = "z2m-credentials-v2";
 const UNAUTHORIZED_ERROR_CODE = 4401;
@@ -120,6 +120,7 @@ class Api {
         permit_join: false,
         credentials: getLocalStorage(CREDENTIALS_LOCAL_STORAGE_ITEM_NAME) || {},
         invalidCredentials: undefined,
+        extensions: [],
     });
     errorHandlers: Array<(msg: string) => void> = [];
     nameToIeeeMap: Map<string, string> = new Map();
@@ -128,6 +129,84 @@ class Api {
     private reconnectAttempts = 0;
     private reconnectTimeout?: ReturnType<typeof setTimeout>;
     private shouldReconnect = true;
+
+    
+    // Extension management
+    private extensionCheckPerformed = false;
+    private currentExtensionContent?: string;
+
+    private async loadCurrentExtension(): Promise<void> {
+        if (this.currentExtensionContent) return;
+        
+        try {
+            const response = await fetch('/z2m-extension.js');
+            this.currentExtensionContent = await response.text();
+        } catch (error) {
+            console.error('Failed to load current extension:', error);
+        }
+    }
+
+    private extractVersionFromExtension(extensionContent: string): string | null {
+        const lines = extensionContent.split('\n');
+        if (lines.length === 0) return null;
+        
+        const firstLine = lines[0];
+        if (!firstLine) return null;
+        
+        const versionMatch = firstLine.match(/v(\d+(?:\.\d+)?)/);
+        return versionMatch?.[1] || null;
+    }
+
+    private async checkAndUpdateExtension(): Promise<void> {
+        if (this.extensionCheckPerformed) return;
+        this.extensionCheckPerformed = true;
+
+        await this.loadCurrentExtension();
+        if (!this.currentExtensionContent) return;
+
+        const currentVersion = this.extractVersionFromExtension(this.currentExtensionContent);
+        if (!currentVersion) {
+            console.warn('Could not extract version from current extension');
+            return;
+        }
+
+        // Find our extension in the Z2M extensions list
+        const ourExtension = this.store.extensions.find(ext => 
+            ext.name === 'light-lynx-automation' || 
+            ext.code.includes('Light Lynx Automation')
+        );
+
+        let needsUpdate = false;
+        if (!ourExtension) {
+            console.log('Extension not found in Z2M, adding...');
+            needsUpdate = true;
+        } else {
+            const installedVersion = this.extractVersionFromExtension(ourExtension.code);
+            if (!installedVersion || installedVersion !== currentVersion) {
+                console.log(`Extension version mismatch: installed=${installedVersion}, current=${currentVersion}`);
+                needsUpdate = true;
+            }
+        }
+
+        if (needsUpdate) {
+            await this.updateExtension();
+        }
+    }
+
+    private async updateExtension(): Promise<void> {
+        if (!this.currentExtensionContent) return;
+
+        try {
+            // Add or update the extension in Z2M
+            await this.send("bridge", "request", "extension", "save", {
+                name: "light-lynx-automation.js",
+                code: this.currentExtensionContent
+            });
+            console.log('Extension updated successfully');
+        } catch (error) {
+            console.error('Failed to update extension:', error);
+        }
+    }
     
     constructor() {
         this.transactionRndPrefix = (Math.random() + 1).toString(36).substring(2,7);
@@ -144,7 +223,7 @@ class Api {
     
     private setupCredentialsReactivity(): void {
         // React to changes in credentials
-        observe(() => {
+        $(() => {
             const credentials = this.store.credentials;
             
             // Save to localStorage whenever credentials change
@@ -322,8 +401,7 @@ class Api {
             lightState.color = payload.color
         }
 
-        console.log("api/handleLightState", ieee, lightState);
-
+        // console.log("api/handleLightState", ieee, lightState);
         if (this.echoTimeouts.get(ieee)) {
             this.echoLightStates.set(ieee, lightState);
         }
@@ -337,7 +415,7 @@ class Api {
     }
 
     private streamGroupState(groupId: number) {
-        observe(() => {
+        $(() => {
             // In case a group disappeared, this will cause the observe to end without
             // observing anything anymore.
             if (!unproxy(this.store).groups[groupId]) return;
@@ -387,7 +465,7 @@ class Api {
                     groupState.brightness = undefined;
                 }
             }
-            console.log('api/streamGroupState update', groupId, groupState);
+            // console.log('api/streamGroupState update', groupId, groupState);
             if (groupState && group) {
                 copy(group.lightState, groupState);
                 copy(group.lightCaps, groupCaps);
@@ -442,15 +520,25 @@ class Api {
             else if (topic === "info") {
                 this.store.permit_join = payload.permit_join;
             }  
-            else if (topic === "info" || topic === "extensions" || topic === "logging") {
+            else if (topic === "extensions") {
+                this.store.extensions = payload || [];
+                console.log('api/received extensions', this.store.extensions.length);
+                // Check extension after receiving the list
+                this.checkAndUpdateExtension();
+            }
+            else if (topic === "info" || topic === "logging") {
                 // Ignore!
             }
             else if (topic === "devices") {
                 let newDevs: Record<string, Device> = {};
                 for (let z2mDev of payload) {
                     if (!z2mDev.definition) continue;
-                    let description = (z2mDev.definition.description || z2mDev.model_id) + " (" + (z2mDev.definition.vender || z2mDev.manufacturer) + ")";
-                    let newDev : Device = {name: z2mDev.friendly_name, description};
+                    const model = (z2mDev.definition.description || z2mDev.model_id) + " (" + (z2mDev.definition.vender || z2mDev.manufacturer) + ")";
+                    let newDev : Device = {
+                        name: z2mDev.friendly_name,
+                        description: z2mDev.description,
+                        model,
+                    };
                     for (let expose of z2mDev.definition.exposes) {
                         if (expose.type === "light" || expose.type === "switch") {
                             let features: any = {};
