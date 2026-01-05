@@ -45,7 +45,7 @@ const groupInputs = partition(api.store.devices, (device: Device, _ieee: string)
 });
 
 function drawEmpty(text: string): void {
-	$('div.empty:' + text);
+	$('div.empty#', text);
 }
 
 function drawBulb(ieee: string): void {
@@ -56,16 +56,16 @@ function drawBulb(ieee: string): void {
 		routeState.title = device.name;
 	});
 	routeState.subTitle = 'bulb';
-	$("div.item:" + device.model);
+	$("div.item#", device.model);
 	
 	drawColorPicker(device, ieee);
 
 	if (!admin.value) return;
 
-	$('h1:Settings');
+	$('h1#Settings');
 	const name = proxy(unproxy(device).name);
 	$('div.item', () => {
-		$('h2:Name');
+		$('h2#Name');
 		$('input', {bind: name});
 	});
 	lazySave(() => {
@@ -77,7 +77,7 @@ function drawBulb(ieee: string): void {
 	});
 
 
-	$('h1:Actions');
+	$('h1#Actions');
 	const removing = proxy(false);
 
 	$(() => {
@@ -85,7 +85,7 @@ function drawBulb(ieee: string): void {
 			const busy = proxy(false);
 			const group = api.store.groups[groupId];
 			if (group) {
-				$('div.item.action', {".busy": busy}, icons.remove, `:Remove from "${group.shortName}"`, {click: async function() {
+				$(`div.item.action#Remove from "${group.shortName}"`, {".busy": busy}, icons.remove, {click: async function() {
 					busy.value = true;
 					try {
 						await api.send("bridge", "request", "group", "members", "remove", {group: group!.name, device: device!.name});
@@ -97,7 +97,7 @@ function drawBulb(ieee: string): void {
 		});
 
 		if (!removing.value) {
-			$('div.item.action', icons.eject, `:Delete`, {click: async function() {
+			$('div.item.action#Delete', icons.eject, {click: async function() {
 				if (confirm(`Are you sure you want to detach '${device.name}' from zigbee2mqtt?`)) {
 					removing.value = true;
 					try {
@@ -108,7 +108,7 @@ function drawBulb(ieee: string): void {
 				}
 			}});
 		} else {
-			$('div.item.action', icons.eject, `:Force delete`, {click: function() {
+			$('div.item.action#Force delete', icons.eject, {click: function() {
 				if (confirm(`Are you sure you want to FORCE detach '${device.name}' from zigbee2mqtt?`)) {
 					api.send("bridge", "request", "device", "remove", {id: ieee, force: true});
 				}
@@ -158,8 +158,7 @@ function drawGroup(groupId: number): void {
 	
 	drawColorPicker(group, groupId);
 	
-	$("h1", () => {
-		$(":Bulbs");
+	$("h1#Bulbs", () => {
 		if (admin.value) icons.create({click: () => route.go(['group', groupId, 'addLight'])});
 	});
 	
@@ -175,8 +174,7 @@ function drawGroup(groupId: number): void {
 		}
 	});
 	
-	$("h1", () => {
-		$(":Scenes");
+	$("h1#Scenes", () => {
 		if (admin.value) icons.create({click: createScene});
 	});
 	
@@ -188,7 +186,7 @@ function drawGroup(groupId: number): void {
 			$("div.item.link", {click: recall}, () => {
 				let icon = icons.scenes[scene.shortName.toLowerCase()] || icons.empty;
 				icon();
-				$('h2:' + (admin.value ? scene.name : scene.shortName));
+				$('h2#', admin.value ? scene.name : scene.shortName);
 				if (admin.value) {
 					function configure(e: Event): void {
 						e.stopPropagation();
@@ -224,7 +222,7 @@ function drawGroupAddLight(group: Group, groupId: number): void {
 		onEach(api.store.devices, (device, ieee) => { 
 			$("div.item", () => {
 				drawBulbCircle(device, ieee);
-				$("h2.link:" + device.name, {click: () => addDevice(ieee)});
+				$("h2.link#", device.name, {click: () => addDevice(ieee)});
 			});
 		}, (device, ieee) => {
 			if (!device.lightCaps) return; // Skip sensors
@@ -251,9 +249,9 @@ function drawGroupAddInput(group: Group, groupId: number): void {
 		onEach(api.store.devices, (device, ieee) => { 
 			$("div.item", () => {
 				drawBulbCircle(device, ieee);
-				$("h2.link:" + device.name, {click: () => addDevice(ieee)});
+				$("h2.link#", device.name, {click: () => addDevice(ieee)});
 			});
-		}, (device, ieee) => {
+		}, (device, _ieee) => {
 			if (device.lightCaps) return; // Skip bulbs
 			let inGroups = getGroupIdsFromDescription(device.description);
 			if (inGroups.includes(groupId)) return; // Skip, already in this group
@@ -265,7 +263,7 @@ function drawGroupAddInput(group: Group, groupId: number): void {
 function drawDeviceItem(device: Device, ieee: string): void {
 	$("div.item", () => {
 		drawBulbCircle(device, ieee);
-		$("h2.link:" + device.name, {click: () => route.go(['bulb', ieee])});
+		$("h2.link#", device.name, {click: () => route.go(['bulb', ieee])});
 	});
 }
 
@@ -288,7 +286,7 @@ function drawMain(): void {
 		$(() => {
 			if (isEmpty(emptyDevices)) return;
 			$('div.banner', () => {
-				$('p:Replace battery for ' + Object.values(emptyDevices).join(' & ') + '!');
+				$('p#Replace battery for ' + Object.values(emptyDevices).join(' & ') + '!');
 			});
 		});
 	});
@@ -320,7 +318,7 @@ function drawMain(): void {
 					".off": brightness < 1,
 				});
 				
-				$("h2.link:" + (admin.value ? group.name : group.shortName), {click: () => {
+				$("h2.link#", admin.value ? group.name : group.shortName, {click: () => {
 					route.go(['group', groupId]);
 				}});
 				$("div.options", () => {
@@ -331,7 +329,7 @@ function drawMain(): void {
 						}
 						const icon = icons.scenes[scene.shortName.toLowerCase()];
 						if (icon) icon(".link", {click: onClick});
-						else $("div.scene.link:" + scene.shortName, {click: onClick});
+						else $("div.scene.link#", scene.shortName, {click: onClick});
 					},  scene => `${scene.suffix || 'x'}#${scene.name}`);
 					
 					if (!group.scenes || group.scenes.length === 0) {
@@ -362,12 +360,12 @@ function drawLogin(): void {
 	
 	$('div.login-form', () => {
 		$('div.empty.field', () => {
-			$(':'+(api.store.invalidCredentials || "Please provide Zigbee2MQTT credentials."));
+			$('#', api.store.invalidCredentials || "Please provide Zigbee2MQTT credentials.");
 		});
 		
 		$('form', { submit: handleSubmit }, () => {
 			$('div.field', () => {
-				$('label:WebSocket URL');
+				$('label#WebSocket URL');
 				$('input', {
 					type: 'url',
 					bind: ref(formData, 'url'),
@@ -377,7 +375,7 @@ function drawLogin(): void {
 			});
 			
 			$('div.field', () => {
-				$('label:Z2M password');
+				$('label#Z2M password');
 				$('input', {
 					type: 'password',
 					bind: ref(formData, 'token'),
@@ -392,10 +390,10 @@ function drawLogin(): void {
 					checked: !!formData.autoReconnect,
 					change: (e: Event) => formData.autoReconnect = (e.target as HTMLInputElement).checked
 				});
-				$(': Install/update Z2M extension');
+				$('#Install/update Z2M extension');
 			});
 
-			$('button:Connect', { type: 'submit' });
+			$('button#Connect', { type: 'submit' });
 		});
 	});
 }
@@ -423,9 +421,9 @@ $('div.root', () => {
 			}
 			$("h1.title", () => {
 				let title = routeState.title || "Light Lynx";
-				$(`:${title}`);
+				$(`#`, title);
 				if (routeState.subTitle) {
-					$('span.subTitle: ' + routeState.subTitle);
+					$('span.subTitle#', routeState.subTitle);
 				}
 			});
 		});
@@ -446,7 +444,7 @@ $('div.root', () => {
 	$(() => {
 		if (api.store.permit_join) {
 			$('div.banner', () => {
-				$('p:Permitting devices to join...');
+				$('p#Permitting devices to join...');
 				icons.stop({click: disableJoin});
 			});
 		}
@@ -613,11 +611,11 @@ export function drawSceneEditor(group: Group, groupId: number): void {
         };
     }));
     
-    $('h1:Settings');
+    $('h1#Settings');
     
     // Scene name
     $('div.item', () => {
-        $('h2:Name');
+        $('h2#Name');
         $('input', {
             type: 'text',
             bind: ref(sceneState, 'shortName'),
@@ -625,7 +623,7 @@ export function drawSceneEditor(group: Group, groupId: number): void {
         });
     });
     
-    $('h1:Triggers', () => {
+    $('h1Triggers', () => {
         icons.create({click:  () => sceneState.triggers.push({type: '1'}) });
     });
         
@@ -640,13 +638,13 @@ export function drawSceneEditor(group: Group, groupId: number): void {
         $('div.item', {$flexDirection: 'column'}, () => {
             $('div.row', {$justifyContent: 'space-between'}, () =>{
                 $('select', {$width: 'inherit'}, () => {
-                    $('option', { value: '1' }, ':Single Tap');
-                    $('option', { value: '2' }, ':Double Tap');
-                    $('option', { value: '3' }, ':Triple Tap');
-                    $('option', { value: '4' }, ':Quadruple Tap');
-                    $('option', { value: '5' }, ':Quintuple Tap');
-                    $('option', { value: 'motion' }, ':Motion Sensor');
-                    $('option', { value: 'time' }, ':Time-based');
+                    $('option#Single Tap', { value: '1' });
+                    $('option#Double Tap', { value: '2' });
+                    $('option#Triple Tap', { value: '3' });
+                    $('option#Quadruple Tap', { value: '4' });
+                    $('option#Quintuple Tap', { value: '5' });
+                    $('option#Motion Sensor', { value: 'motion' });
+                    $('option#Time-based', { value: 'time' });
                     $({bind: ref(trigger, 'type')});
                 });
                 
@@ -667,7 +665,7 @@ export function drawSceneEditor(group: Group, groupId: number): void {
                                     }
                                 }
                             });
-                            $(': Time range');
+                            $('#Time range');
                         });
                     }
                 })
@@ -677,9 +675,9 @@ export function drawSceneEditor(group: Group, groupId: number): void {
             $(() => {
                 if (trigger.startTime && trigger.endTime) {
                     $('div.scene-times', {$create: grow}, () => {
-						$('label:From ')
+						$('label#From ')
                         drawTimeEditor(trigger.startTime!);
-						$('label:Until ')
+						$('label#Until ')
                         drawTimeEditor(trigger.endTime!);
                     })
                 }
@@ -689,7 +687,7 @@ export function drawSceneEditor(group: Group, groupId: number): void {
     });
 
 
-	$('h1:Actions');
+	$('h1#Actions');
 	function save(e: Event): void {
 		e.stopPropagation();
 		if (!confirm(`Are you sure you want to overwrite the '${scene.name}' scene for group '${group.name}' with the current light state?`)) return;
@@ -706,8 +704,8 @@ export function drawSceneEditor(group: Group, groupId: number): void {
 		if (!confirm(`Are you sure you want to delete the '${scene.name}' scene for group '${group.name}'?`)) return;
 		api.send(group.name, "set", {scene_remove: scene.id});
 	}
-	$('div.item.action', {click: save}, icons.save, ':Save current state');
-	$('div.item.action', {click: remove}, icons.remove, ':Delete scene');
+	$('div.item.action#Save current state', {click: save}, icons.save);
+	$('div.item.action#Delete scene', {click: remove}, icons.remove);
 
     const newName = proxy('');
     lazySave(() => {
@@ -728,21 +726,21 @@ export function drawSceneEditor(group: Group, groupId: number): void {
         }
     });
 
-    $('small.item', {text: newName});
+    $('small.item#', newName);
 }
 
 // Time range editor component
 function drawTimeEditor(range: Time): void {
     // Start time
 	$('input.hour', {type: 'number', min: 0, max: 23, bind: ref(range, 'hour')});
-	$('b: : ');
+	$('b# : ');
 	$('input.minute', {type: 'number', min: 0, max: 59, value: unproxy(range).minute.toString().padStart(2, '0'), input: (event: any) => range.minute = parseInt(event.target.value)});
 	$('select.time-type', () => {
-		$('option', { value: 'wall' }, ':wall time');
-		$('option', { value: 'br' }, ':before sunrise');
-		$('option', { value: 'ar' }, ':after sunrise');
-		$('option', { value: 'bs' }, ':before sunset');
-		$('option', { value: 'as' }, ':after sunset');
+		$('option#wall time', { value: 'wall' });
+		$('option#before sunrise', { value: 'br' });
+		$('option#after sunrise', { value: 'ar' });
+		$('option#before sunset', { value: 'bs' });
+		$('option#after sunset', { value: 'as' });
 		$({bind: ref(range, 'type')});
 	});
 }
@@ -774,13 +772,13 @@ export function drawGroupConfigurationEditor(group: Group, groupId: number): voi
     }));
 
 	$("h1", () => {
-		$(":Buttons and sensors");
+		$("#Buttons and sensors");
 		icons.create({click: () => route.go(['group', groupId, 'addInput'])});
 	});
 	onEach(groupInputs[groupId] || {}, (device, ieee) => {
 		$("div.item", () => {
 			drawBulbCircle(device, ieee);
-			$("h2:" + device.name);
+			$("h2#", device.name);
 			icons.remove('.link', 'click=', () => {
 				const description = buildDescriptionWithGroupIds(device.description, (getGroupIdsFromDescription(device.description) || []).filter(id => id !== groupId));
 				api.send("bridge", "request", "device", "options", {id: ieee, options: {description}});
@@ -791,11 +789,11 @@ export function drawGroupConfigurationEditor(group: Group, groupId: number): voi
 		drawEmpty("None yet");
 	}
 
-    $('h1:Settings');
+    $('h1#Settings');
     
     // Group name
     $('div.item', () => {
-        $('h2:Name');
+        $('h2#Name');
         $('input', {
             type: 'text',
             bind: ref(groupState, 'shortName'),
@@ -817,32 +815,32 @@ export function drawGroupConfigurationEditor(group: Group, groupId: number): voi
                 }
             }
         });
-        $('h2:Lights off timer');
+        $('h2#Lights off timer');
     });
 
     // Timer configuration (only show if checkbox is set)
     $(() => {
         if (!groupState.timeout) return;
         $('label.item', () => {
-            $('h2:Turn off lights after');
+            $('h2#Turn off lights after');
             $('input', {
                 type: 'number',
                 min: 1,
                 bind: ref(groupState.timeout!, 'value'),
             });
             $('select', () => {
-                $('option', { value: 's' }, ':seconds');
-                $('option', { value: 'm' }, ':minutes');
-                $('option', { value: 'h' }, ':hours');
-                $('option', { value: 'd' }, ':days');
+                $('option#seconds', { value: 's' });
+                $('option#minutes', { value: 'm' });
+                $('option#hours', { value: 'h' });
+                $('option#days', { value: 'd' });
                 $({bind: ref(groupState.timeout!, 'unit')});
 
             });
         });
     });
 
-	$('h1:Actions');
-	$('div.item.action', icons.remove, ':Delete group', 'click=', () => {
+	$('h1#Actions');
+	$('div.item.action#Delete group', icons.remove, 'click=', () => {
 		if (!confirm(`Are you sure you want to delete group '${group.name}'?`)) return;
 		api.send("bridge", "request", "group", "remove", {id: group.name});
 		route.back('/');
@@ -863,5 +861,5 @@ export function drawGroupConfigurationEditor(group: Group, groupId: number): voi
         }
     });
 
-    $('small.item', {text: newName});
+    $('small.item#',newName);
 }
