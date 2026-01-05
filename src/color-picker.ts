@@ -31,7 +31,7 @@ export function drawBulbCircle(device: Device, ieee: string): void {
     function onClick(): void {
         api.setLightState(ieee, { on: !device.lightState?.on });
     }
-    $('div.circle', { click: onClick }, () => {
+    $('div.circle click=', onClick, () => {
         const rgb = getBulbRgb(device);
         $({
             $backgroundColor: rgb,
@@ -83,14 +83,8 @@ export function drawColorWheel(target: Device | Group, targetId: string | number
     
     let canvas: HTMLCanvasElement;
 
-    $('p.wheel', { $position: 'relative' }, () => {
-        let canvasEl = $('canvas', {
-            width: 1,
-            height: 1,
-            $width: "100%",
-            mousedown: startTrack,
-            touchstart: startTrack,
-        }) as HTMLCanvasElement;
+    $('p.wheel position:relative', () => {
+        let canvasEl = $('canvas width=1 height=1 width:100% mousedown=', startTrack, 'touchstart=', startTrack) as HTMLCanvasElement;
 
         canvas = canvasEl;
         setTimeout(paintColorWheelCanvas, 0);
@@ -206,7 +200,7 @@ export function drawColorPicker(target: Device | Group, targetId: string | numbe
     const capabilities = target.lightCaps;
     if (!capabilities) return;
             
-    $('p', { $display: 'flex', $gap: '16px', $alignItems: 'center' }, () => {
+    $('p display:flex gap:16px align-items:center', () => {
         if ('members' in target) { // group
             drawBulbCircle(target as Device, targetId as string);
         }
@@ -228,21 +222,11 @@ export function drawColorPicker(target: Device | Group, targetId: string | numbe
 }
 
 function drawScale(target: Device | Group, targetId: string | number, colorTempRange?: [number, number]): void {
-    $('p', {
-        $border: '1px solid #333',
-        $position: 'relative',
-        $height: '40px',
-        $borderRadius: '3px'
-    }, () => {
+    $('p border:', '1px solid #333', 'position:relative height:40px border-radius:3px', () => {
 
         let state = target.lightState || {};
 
-        let canvasEl = $('canvas', {
-            width: 300,
-            height: 1,
-            $height: '100%',
-            $width: '100%'
-        }) as HTMLCanvasElement;
+        let canvasEl = $('canvas width=300 height=1 height:100% width:100%') as HTMLCanvasElement;
 
         let ctx = canvasEl.getContext("2d")!;
         var imageData = ctx.getImageData(0, 0, canvasEl.width, canvasEl.height);
@@ -297,10 +281,7 @@ function drawScale(target: Device | Group, targetId: string | number, colorTempR
             tracking = { event, setPosition: (pageX: number) => setPosition(pageX) };
         }
 
-        $({
-            mousedown: startTrack,
-            touchstart: startTrack,
-        });
+        $('mousedown=', startTrack, 'touchstart=', startTrack);
     });
 }
 

@@ -159,7 +159,7 @@ function drawGroup(groupId: number): void {
 	drawColorPicker(group, groupId);
 	
 	$("h1#Bulbs", () => {
-		if (admin.value) icons.create({click: () => route.go(['group', groupId, 'addLight'])});
+		if (admin.value) icons.create('click=', () => route.go(['group', groupId, 'addLight']));
 	});
 	
 	$("div.list", () => {
@@ -175,7 +175,7 @@ function drawGroup(groupId: number): void {
 	});
 	
 	$("h1#Scenes", () => {
-		if (admin.value) icons.create({click: createScene});
+		if (admin.value) icons.create('click=', createScene);
 	});
 	
 	$('div.list', () => {
@@ -183,7 +183,7 @@ function drawGroup(groupId: number): void {
 			function recall(): void {
 				api.send(group.name, "set", {scene_recall: scene.id});
 			}
-			$("div.item.link", {click: recall}, () => {
+			$('div.item.link click=', recall, () => {
 				let icon = icons.scenes[scene.shortName.toLowerCase()] || icons.empty;
 				icon();
 				$('h2#', admin.value ? scene.name : scene.shortName);
@@ -192,7 +192,7 @@ function drawGroup(groupId: number): void {
 						e.stopPropagation();
 						route.go(['group', groupId, 'scene', scene.id]);
 					}
-					icons.configure({click: configure});
+					icons.configure('click=', configure);
 				}
 			});
 		}, (scene) => `${scene.suffix || "x"}#${scene.shortName}`);
@@ -222,7 +222,7 @@ function drawGroupAddLight(group: Group, groupId: number): void {
 		onEach(api.store.devices, (device, ieee) => { 
 			$("div.item", () => {
 				drawBulbCircle(device, ieee);
-				$("h2.link#", device.name, {click: () => addDevice(ieee)});
+				$('h2.link#', device.name, 'click=', () => addDevice(ieee));
 			});
 		}, (device, ieee) => {
 			if (!device.lightCaps) return; // Skip sensors
@@ -249,7 +249,7 @@ function drawGroupAddInput(group: Group, groupId: number): void {
 		onEach(api.store.devices, (device, ieee) => { 
 			$("div.item", () => {
 				drawBulbCircle(device, ieee);
-				$("h2.link#", device.name, {click: () => addDevice(ieee)});
+				$('h2.link#', device.name, 'click=', () => addDevice(ieee));
 			});
 		}, (device, _ieee) => {
 			if (device.lightCaps) return; // Skip bulbs
@@ -263,7 +263,7 @@ function drawGroupAddInput(group: Group, groupId: number): void {
 function drawDeviceItem(device: Device, ieee: string): void {
 	$("div.item", () => {
 		drawBulbCircle(device, ieee);
-		$("h2.link#", device.name, {click: () => route.go(['bulb', ieee])});
+		$('h2.link#', device.name, 'click=', () => route.go(['bulb', ieee]));
 	});
 }
 
@@ -272,11 +272,11 @@ function drawMain(): void {
 	routeState.subTitle = '';
 	routeState.drawIcons = () => {
 		if (admin.value) {
-			icons.create({click: permitJoin});
-			icons.createGroup({click: createGroup});
-			icons.bug({click: () => route.go(['dump'])});
+			icons.create('click=', permitJoin);
+			icons.createGroup('click=', createGroup);
+			icons.bug('click=', () => route.go(['dump']));
 		} else {
-			icons.reconnect({click: () => api.store.credentials.change = true});
+			icons.reconnect('click=', () => api.store.credentials.change = true);
 		}
 	};
 
@@ -318,22 +318,20 @@ function drawMain(): void {
 					".off": brightness < 1,
 				});
 				
-				$("h2.link#", admin.value ? group.name : group.shortName, {click: () => {
-					route.go(['group', groupId]);
-				}});
+				$('h2.link#', admin.value ? group.name : group.shortName, 'click=', () => route.go(['group', groupId]));
 				$("div.options", () => {
-					icons.off({click: () => api.setLightState(parseInt(groupId), {on: false}) });
+					icons.off('click=', () => api.setLightState(parseInt(groupId), {on: false}));
 					onEach(group.scenes, (scene) => {
 						function onClick(): void {
 							api.send(group.name, "set", {scene_recall: scene.id});
 						}
 						const icon = icons.scenes[scene.shortName.toLowerCase()];
-						if (icon) icon(".link", {click: onClick});
-						else $("div.scene.link#", scene.shortName, {click: onClick});
+						if (icon) icon('.link click=', onClick);
+						else $('div.scene.link#', scene.shortName, 'click=', onClick);
 					},  scene => `${scene.suffix || 'x'}#${scene.name}`);
 					
 					if (!group.scenes || group.scenes.length === 0) {
-						icons.scenes.normal({click: () => api.setLightState(parseInt(groupId), {on: false, brightness: 140, color: colors.CT_DEFAULT}) });
+						icons.scenes.normal('click=', () => api.setLightState(parseInt(groupId), {on: false, brightness: 140, color: colors.CT_DEFAULT}));
 					}
 				});
 			});
@@ -363,37 +361,23 @@ function drawLogin(): void {
 			$('#', api.store.invalidCredentials || "Please provide Zigbee2MQTT credentials.");
 		});
 		
-		$('form', { submit: handleSubmit }, () => {
+		$('form submit=', handleSubmit, () => {
 			$('div.field', () => {
 				$('label#WebSocket URL');
-				$('input', {
-					type: 'url',
-					bind: ref(formData, 'url'),
-					placeholder: 'wss://your-server.com/api',
-					required: true
-				});
+				$('input type=url placeholder=wss://your-server.com/api required=', true, 'bind=', ref(formData, 'url'));
 			});
 			
 			$('div.field', () => {
 				$('label#Z2M password');
-				$('input', {
-					type: 'password',
-					bind: ref(formData, 'token'),
-					placeholder: 'Secret',
-					autocomplete: 'current-password',
-				});
+				$('input type=password placeholder=Secret autocomplete=current-password bind=', ref(formData, 'token'));
 			});
 
 			$('div.field', 'label', () => {
-				$('input', {
-					type: 'checkbox',
-					checked: !!formData.autoReconnect,
-					change: (e: Event) => formData.autoReconnect = (e.target as HTMLInputElement).checked
-				});
+				$('input type=checkbox', {checked: !!formData.autoReconnect}, 'change=', (e: Event) => formData.autoReconnect = (e.target as HTMLInputElement).checked);
 				$('#Install/update Z2M extension');
 			});
 
-			$('button#Connect', { type: 'submit' });
+			$('button#Connect type=submit');
 		});
 	});
 }
@@ -414,10 +398,10 @@ function disableJoin(): void {
 
 $('div.root', () => {
 	$('header', () => {
-		$("img.logo", {src: logoUrl, click: () => route.back('/') });
+		$('img.logo src=', logoUrl, 'click=', () => route.back('/'));
 		$(() => {
 			if (route.current.path !== '/') {
-				icons.back({click: route.up});
+				icons.back('click=', route.up);
 			}
 			$("h1.title", () => {
 				let title = routeState.title || "Light Lynx";
@@ -434,10 +418,7 @@ $('div.root', () => {
 		});
 		$(() => {
 			if (!api.store.credentials.url || api.store.credentials.change) return;
-			icons.admin({
-				click: () => admin.value = !admin.value,
-				'.on': ref(route.current.search, 'admin'),
-			});
+			icons.admin('click=', () => admin.value = !admin.value, {'.on': ref(route.current.search, 'admin')});
 		});
 	});
 	
@@ -445,7 +426,7 @@ $('div.root', () => {
 		if (api.store.permit_join) {
 			$('div.banner', () => {
 				$('p#Permitting devices to join...');
-				icons.stop({click: disableJoin});
+				icons.stop('click=', disableJoin);
 			});
 		}
 	});
@@ -624,7 +605,7 @@ export function drawSceneEditor(group: Group, groupId: number): void {
     });
     
     $('h1Triggers', () => {
-        icons.create({click:  () => sceneState.triggers.push({type: '1'}) });
+        icons.create('click=', () => sceneState.triggers.push({type: '1'}));
     });
         
     onEach(sceneState.triggers, (trigger, triggerIndex) => {
@@ -635,34 +616,29 @@ export function drawSceneEditor(group: Group, groupId: number): void {
                 trigger.endTime = {hour: 22, minute: 0, type: 'wall'};
             }
         });
-        $('div.item', {$flexDirection: 'column'}, () => {
-            $('div.row', {$justifyContent: 'space-between'}, () =>{
-                $('select', {$width: 'inherit'}, () => {
-                    $('option#Single Tap', { value: '1' });
-                    $('option#Double Tap', { value: '2' });
-                    $('option#Triple Tap', { value: '3' });
-                    $('option#Quadruple Tap', { value: '4' });
-                    $('option#Quintuple Tap', { value: '5' });
-                    $('option#Motion Sensor', { value: 'motion' });
-                    $('option#Time-based', { value: 'time' });
-                    $({bind: ref(trigger, 'type')});
+        $('div.item flex-direction:column', () => {
+            $('div.row justify-content:space-between', () =>{
+                $('select width:inherit bind=', ref(trigger, 'type'), () => {
+                    $('option value=1 #Single Tap');
+                    $('option value=2 #Double Tap');
+                    $('option value=3 #Triple Tap');
+                    $('option value=4 #Quadruple Tap');
+                    $('option value=5 #Quintuple Tap');
+                    $('option value=motion #Motion Sensor');
+                    $('option value=time #Time-based');
                 });
                 
                 $(() => {
                     if (trigger.type !== 'time') {
                         $('label', () => {
-                            $('input', {
-                                type: 'checkbox',
-                                checked: !!trigger.startTime,
-                                change: (e: Event) => {
-                                    const target = e.target as HTMLInputElement;
-                                    if (target.checked) {
-                                        trigger.startTime = {hour: 0, minute: 30, type: 'bs'};
-                                        trigger.endTime = {hour: 22, minute: 30, type: 'wall'};
-                                    } else {
-                                        trigger.startTime = undefined;
-                                        trigger.endTime = undefined;
-                                    }
+                            $('input type=checkbox', {checked: !!trigger.startTime}, 'change=', (e: Event) => {
+                                const target = e.target as HTMLInputElement;
+                                if (target.checked) {
+                                    trigger.startTime = {hour: 0, minute: 30, type: 'bs'};
+                                    trigger.endTime = {hour: 22, minute: 30, type: 'wall'};
+                                } else {
+                                    trigger.startTime = undefined;
+                                    trigger.endTime = undefined;
                                 }
                             });
                             $('#Time range');
@@ -670,7 +646,7 @@ export function drawSceneEditor(group: Group, groupId: number): void {
                     }
                 })
 
-                icons.remove({click: () => sceneState.triggers.splice(triggerIndex, 1)});
+                icons.remove('click=', () => sceneState.triggers.splice(triggerIndex, 1));
             });
             $(() => {
                 if (trigger.startTime && trigger.endTime) {
@@ -704,8 +680,8 @@ export function drawSceneEditor(group: Group, groupId: number): void {
 		if (!confirm(`Are you sure you want to delete the '${scene.name}' scene for group '${group.name}'?`)) return;
 		api.send(group.name, "set", {scene_remove: scene.id});
 	}
-	$('div.item.action#Save current state', {click: save}, icons.save);
-	$('div.item.action#Delete scene', {click: remove}, icons.remove);
+	$('div.item.action#Save current state click=', save, icons.save);
+	$('div.item.action#Delete scene click=', remove, icons.remove);
 
     const newName = proxy('');
     lazySave(() => {
@@ -732,16 +708,15 @@ export function drawSceneEditor(group: Group, groupId: number): void {
 // Time range editor component
 function drawTimeEditor(range: Time): void {
     // Start time
-	$('input.hour', {type: 'number', min: 0, max: 23, bind: ref(range, 'hour')});
+	$('input.hour type=number min=0 max=23 bind=', ref(range, 'hour'));
 	$('b# : ');
-	$('input.minute', {type: 'number', min: 0, max: 59, value: unproxy(range).minute.toString().padStart(2, '0'), input: (event: any) => range.minute = parseInt(event.target.value)});
-	$('select.time-type', () => {
-		$('option#wall time', { value: 'wall' });
-		$('option#before sunrise', { value: 'br' });
-		$('option#after sunrise', { value: 'ar' });
-		$('option#before sunset', { value: 'bs' });
-		$('option#after sunset', { value: 'as' });
-		$({bind: ref(range, 'type')});
+	$('input.minute type=number min=0 max=59 value=', unproxy(range).minute.toString().padStart(2, '0'), 'input=', (event: any) => range.minute = parseInt(event.target.value));
+	$('select.time-type bind=', ref(range, 'type'), () => {
+		$('option value=wall #wall time');
+		$('option value=br #before sunrise');
+		$('option value=ar #after sunrise');
+		$('option value=bs #before sunset');
+		$('option value=as #after sunset');
 	});
 }
 
@@ -773,13 +748,13 @@ export function drawGroupConfigurationEditor(group: Group, groupId: number): voi
 
 	$("h1", () => {
 		$("#Buttons and sensors");
-		icons.create({click: () => route.go(['group', groupId, 'addInput'])});
+		icons.create('click=', () => route.go(['group', groupId, 'addInput']));
 	});
 	onEach(groupInputs[groupId] || {}, (device, ieee) => {
 		$("div.item", () => {
 			drawBulbCircle(device, ieee);
 			$("h2#", device.name);
-			icons.remove('.link', 'click=', () => {
+			icons.remove('.link click=', () => {
 				const description = buildDescriptionWithGroupIds(device.description, (getGroupIdsFromDescription(device.description) || []).filter(id => id !== groupId));
 				api.send("bridge", "request", "device", "options", {id: ieee, options: {description}});
 			});
@@ -803,16 +778,12 @@ export function drawGroupConfigurationEditor(group: Group, groupId: number): voi
     
     // Lights off timer checkbox
     $('label.item', () => {
-        $('input', {
-            type: 'checkbox',
-            checked: !!groupState.timeout,
-            change: (e: Event) => {
-                const target = e.target as HTMLInputElement;
-                if (target.checked) {
-                    groupState.timeout = { value: 30, unit: 'm' };
-                } else {
-                    groupState.timeout = null;
-                }
+        $('input type=checkbox', {checked: !!groupState.timeout}, 'change=', (e: Event) => {
+            const target = e.target as HTMLInputElement;
+            if (target.checked) {
+                groupState.timeout = { value: 30, unit: 'm' };
+            } else {
+                groupState.timeout = null;
             }
         });
         $('h2#Lights off timer');
@@ -823,28 +794,22 @@ export function drawGroupConfigurationEditor(group: Group, groupId: number): voi
         if (!groupState.timeout) return;
         $('label.item', () => {
             $('h2#Turn off lights after');
-            $('input', {
-                type: 'number',
-                min: 1,
-                bind: ref(groupState.timeout!, 'value'),
-            });
-            $('select', () => {
-                $('option#seconds', { value: 's' });
-                $('option#minutes', { value: 'm' });
-                $('option#hours', { value: 'h' });
-                $('option#days', { value: 'd' });
-                $({bind: ref(groupState.timeout!, 'unit')});
-
+            $('input type=number min=1 bind=', ref(groupState.timeout!, 'value'));
+            $('select bind=', ref(groupState.timeout!, 'unit'), () => {
+                $('option value=s #seconds');
+                $('option value=m #minutes');
+                $('option value=h #hours');
+                $('option value=d #days');
             });
         });
     });
 
 	$('h1#Actions');
-	$('div.item.action#Delete group', icons.remove, 'click=', () => {
+	$('div.item.action#Delete group click=', () => {
 		if (!confirm(`Are you sure you want to delete group '${group.name}'?`)) return;
 		api.send("bridge", "request", "group", "remove", {id: group.name});
 		route.back('/');
-	});
+	}, icons.remove);
 
     const newName = proxy('');
     lazySave(() => {
