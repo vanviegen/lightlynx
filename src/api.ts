@@ -1,9 +1,14 @@
 import { $, proxy, clone, copy, unproxy } from "aberdeen";
 import * as colors from "./colors";
-import { LightState, XYColor, HSColor, ColorValue, isHS, isXY, Store, LightCaps, Device, Group } from "./types";
+import { LightState, XYColor, HSColor, ColorValue, isHS, isXY, Store, LightCaps, Device, Group, ServerCredentials } from "./types";
 
-const CREDENTIALS_LOCAL_STORAGE_ITEM_NAME = "z2m-credentials-v2";
+const CREDENTIALS_LOCAL_STORAGE_ITEM_NAME = "lightlynx-servers";
 const UNAUTHORIZED_ERROR_CODE = 4401;
+
+export const EXTENSION_VERSIONS: Record<string, string> = {
+    'lightlynx-api': '1',
+    'lightlynx-automation': '1',
+};
 
 interface PromiseCallbacks {
     resolve: () => void;
@@ -118,7 +123,8 @@ class Api {
         devices: {},
         groups: {},
         permit_join: false,
-        credentials: getLocalStorage(CREDENTIALS_LOCAL_STORAGE_ITEM_NAME) || {},
+        servers: getLocalStorage(CREDENTIALS_LOCAL_STORAGE_ITEM_NAME) || [],
+        activeServerIndex: -1,
         invalidCredentials: undefined,
         extensions: [],
     });
@@ -133,18 +139,6 @@ class Api {
     
     // Extension management
     private extensionCheckPerformed = false;
-    private currentExtensionContent?: string;
-
-    private async loadCurrentExtension(): Promise<void> {
-        if (this.currentExtensionContent) return;
-        
-        try {
-            const response = await fetch('/z2m-extension.js');
-            this.currentExtensionContent = await response.text();
-        } catch (error) {
-            console.error('Failed to load current extension:', error);
-        }
-    }
 
     private extractVersionFromExtension(extensionContent: string): string | null {
         const lines = extensionContent.split('\n');
@@ -157,54 +151,40 @@ class Api {
         return versionMatch?.[1] || null;
     }
 
-    private async checkAndUpdateExtension(): Promise<void> {
+    private async checkAndUpdateExtensions(): Promise<void> {
         if (this.extensionCheckPerformed) return;
         this.extensionCheckPerformed = true;
 
-        await this.loadCurrentExtension();
-        if (!this.currentExtensionContent) return;
-
-        const currentVersion = this.extractVersionFromExtension(this.currentExtensionContent);
-        if (!currentVersion) {
-            console.warn('Could not extract version from current extension');
-            return;
-        }
-
-        // Find our extension in the Z2M extensions list
-        const ourExtension = this.store.extensions.find(ext => 
-            ext.name === 'light-lynx-automation' || 
-            ext.code.includes('Light Lynx Automation')
-        );
-
-        let needsUpdate = false;
-        if (!ourExtension) {
-            console.log('Extension not found in Z2M, adding...');
-            needsUpdate = true;
-        } else {
-            const installedVersion = this.extractVersionFromExtension(ourExtension.code);
-            if (!installedVersion || installedVersion !== currentVersion) {
-                console.log(`Extension version mismatch: installed=${installedVersion}, current=${currentVersion}`);
-                needsUpdate = true;
+        for (const [name, expectedVersion] of Object.entries(EXTENSION_VERSIONS)) {
+            const ext = this.store.extensions.find(e => e.name === name + '.js');
+            const installedVersion = ext ? this.extractVersionFromExtension(ext.code) : null;
+            
+            if (!ext || installedVersion !== expectedVersion) {
+                console.log(`Extension ${name} version mismatch: installed=${installedVersion}, expected=${expectedVersion}`);
+                await this.updateExtension(name, expectedVersion);
             }
-        }
-
-        if (needsUpdate) {
-            await this.updateExtension();
         }
     }
 
-    private async updateExtension(): Promise<void> {
-        if (!this.currentExtensionContent) return;
-
+    private async updateExtension(name: string, version: string): Promise<void> {
         try {
-            // Add or update the extension in Z2M
+            const response = await fetch(`/extensions/${name}.js`);
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            let code = await response.text();
+            
+            // Ensure first line is the version comment
+            const firstLine = `// ${name} v${version}`;
+            if (!code.startsWith(firstLine)) {
+                code = firstLine + '\n' + code;
+            }
+
             await this.send("bridge", "request", "extension", "save", {
-                name: "light-lynx-automation.js",
-                code: this.currentExtensionContent
+                name: `${name}.js`,
+                code
             });
-            console.log('Extension updated successfully');
+            console.log(`Extension ${name} updated to v${version} successfully`);
         } catch (error) {
-            console.error('Failed to update extension:', error);
+            console.error(`Failed to update extension ${name}:`, error);
         }
     }
     
@@ -222,17 +202,20 @@ class Api {
     }
     
     private setupCredentialsReactivity(): void {
-        // React to changes in credentials
+        // Initialize activeServerIndex if we have servers but none active
+        if (this.store.activeServerIndex === -1 && this.store.servers.length > 0) {
+            this.store.activeServerIndex = 0;
+        }
+
+        // React to changes in servers list
         $(() => {
-            const credentials = this.store.credentials;
-            
-            // Save to localStorage whenever credentials change
-            setLocalStorage(CREDENTIALS_LOCAL_STORAGE_ITEM_NAME, credentials);
-            
-            // Reconnect if credentials are valid and have changed
-            if (credentials.url) {
+            setLocalStorage(CREDENTIALS_LOCAL_STORAGE_ITEM_NAME, this.store.servers);
+        });
+
+        // Reconnect if active server change
+        $(() => {
+            if (this.store.activeServerIndex >= 0) {
                 delete this.store.invalidCredentials;
-                credentials.token; // Also subscribe to token changes
                 this.connect();
             }
         });
@@ -312,11 +295,30 @@ class Api {
             this.socket = undefined;
         }
         
-        const credentials = this.store.credentials;
-        if (!credentials.url || credentials.change) return;
+        const index = this.store.activeServerIndex;
+        if (index < 0 || index >= this.store.servers.length) return;
+        
+        const server = this.store.servers[index]!;
+        const protocol = server.useHttps ? 'wss' : 'ws';
+        const urlStr = `${protocol}://${server.hostname}:${server.port}/api`;
+        const url = new URL(urlStr);
 
-        const url = new URL(credentials.url);
-        if (credentials.token) url.searchParams.append("token", credentials.token);
+        // Protocol Switching: switch to HTTP if connecting to a non-secure Z2M server from HTTPS
+        if (window.location.protocol === 'https:' && !server.useHttps) {
+            console.log("Switching to HTTP to connect to non-secure Z2M server");
+            window.location.protocol = 'http:';
+            return;
+        }
+
+        if (server.username) url.searchParams.append("username", server.username);
+        if (server.password) {
+            if (server.username === 'admin') {
+                url.searchParams.append("token", server.password);
+            } else {
+                url.searchParams.append("password", server.password);
+            }
+        }
+        url.searchParams.append("lightlynx", "1");
 
         try {
             this.socket = new WebSocket(url.toString());
@@ -524,7 +526,7 @@ class Api {
                 this.store.extensions = payload || [];
                 console.log('api/received extensions', this.store.extensions.length);
                 // Check extension after receiving the list
-                this.checkAndUpdateExtension();
+                this.checkAndUpdateExtensions();
             }
             else if (topic === "info" || topic === "logging") {
                 // Ignore!

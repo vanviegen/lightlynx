@@ -1,11 +1,11 @@
 import {$, proxy, ref, onEach, isEmpty, map, copy, dump, unproxy, clone, peek, partition} from 'aberdeen';
 import * as route from 'aberdeen/route';
-import {grow} from 'aberdeen/transitions';
-import api from './api';
+import { grow } from 'aberdeen/transitions';
+import api, { EXTENSION_VERSIONS } from './api';
 import * as icons from './icons';
 import * as colors from './colors';
-import {drawColorPicker, drawBulbCircle, getBulbRgb} from "./color-picker";
-import { Device, Group } from './types';
+import { drawColorPicker, drawBulbCircle, getBulbRgb } from "./color-picker";
+import { Device, Group, ServerCredentials } from './types';
 
 import logoUrl from './logo.webp';
 import swUrl from './sw.ts?worker&url';
@@ -276,7 +276,7 @@ function drawMain(): void {
 			icons.createGroup('click=', createGroup);
 			icons.bug('click=', () => route.go(['dump']));
 		} else {
-			icons.reconnect('click=', () => api.store.credentials.change = true);
+			icons.reconnect('click=', () => api.store.activeServerIndex = -1);
 		}
 	};
 
@@ -349,11 +349,27 @@ function drawMain(): void {
 function drawLogin(): void {
 	routeState.subTitle = 'Login';
 	
-	let formData = clone(unproxy(api.store).credentials);
-	delete formData.change;
+	const formData = proxy({
+		hostname: '',
+		port: 8080,
+		useHttps: false,
+		username: 'admin',
+		password: '',
+	});
+
 	function handleSubmit(e: Event): void {
 		e.preventDefault();
-		copy(api.store.credentials, formData);
+		const server: ServerCredentials = {
+			name: formData.hostname,
+			hostname: formData.hostname,
+			port: formData.port,
+			useHttps: formData.useHttps,
+			username: formData.username,
+			password: formData.password,
+			lastConnected: Date.now()
+		};
+		api.store.servers.push(server);
+		api.store.activeServerIndex = api.store.servers.length - 1;
 	}
 	
 	$('div.login-form', () => {
@@ -363,13 +379,28 @@ function drawLogin(): void {
 		
 		$('form submit=', handleSubmit, () => {
 			$('div.field', () => {
-				$('label#WebSocket URL');
-				$('input type=url placeholder=wss://your-server.com/api required=', true, 'bind=', ref(formData, 'url'));
+				$('label#Hostname');
+				$('input placeholder=your-server.com required=', true, 'bind=', ref(formData, 'hostname'));
+			});
+
+			$('div.field', () => {
+				$('label#Port');
+				$('input type=number required=', true, 'bind=', ref(formData, 'port'));
+			});
+
+			$('div.field', () => {
+				$('label#Use HTTPS');
+				$('input type=checkbox bind=', ref(formData, 'useHttps'));
 			});
 			
 			$('div.field', () => {
-				$('label#Z2M password');
-				$('input type=password placeholder=Secret autocomplete=current-password bind=', ref(formData, 'token'));
+				$('label#Username');
+				$('input placeholder=admin bind=', ref(formData, 'username'));
+			});
+
+			$('div.field', () => {
+				$('label#Password/Token');
+				$('input type=password placeholder=Secret autocomplete=current-password bind=', ref(formData, 'password'));
 			});
 
 			$('button#Connect type=submit');
@@ -412,7 +443,7 @@ $('div.root', () => {
 			}
 		});
 		$(() => {
-			if (!api.store.credentials.url || api.store.credentials.change) return;
+			if (api.store.activeServerIndex < 0) return;
 			icons.admin('click=', () => admin.value = !admin.value, {'.on': ref(route.current.search, 'admin')});
 		});
 	});
@@ -433,8 +464,8 @@ $('div.root', () => {
 			routeState.subTitle = '';
 			delete routeState.drawIcons;
 
-			// Show login form if credentials are invalid
-			if (api.store.invalidCredentials || !api.store.credentials.url || api.store.credentials.change) {
+			// Show login form if credentials are invalid or no server active
+			if (api.store.activeServerIndex < 0 || api.store.invalidCredentials) {
 				drawLogin();
 			} else if (p[0]==='group' && p[1]) {
 				drawGroup(parseInt(p[1]));

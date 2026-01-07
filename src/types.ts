@@ -79,16 +79,23 @@ export interface Extension {
     code: string;
 }
 
+export interface ServerCredentials {
+    name: string;      // user-friendly name (hostname or user-provided)
+    hostname: string;
+    port: number;
+    useHttps: boolean;
+    username: string;
+    password: string;
+    lastConnected?: number;  // timestamp
+}
+
 // Store interface for the global application state
 export interface Store {
     devices: Record<string, Device>; // IEEE address -> Device
     groups: Record<number, Group>;   // Group ID -> Group
     permit_join: boolean;
-    credentials: {
-        url?: string,
-        token?: string,
-        change?: true
-    },
+    servers: ServerCredentials[];    // All saved servers
+    activeServerIndex: number;       // Index of currently active server (-1 if none)
     invalidCredentials: string | undefined, // Reason for invalidity, if any
     extensions: Extension[]; // Available Z2M extensions
 }
