@@ -126,7 +126,6 @@ class Api {
         servers: getLocalStorage(CREDENTIALS_LOCAL_STORAGE_ITEM_NAME) || [],
         activeServerIndex: -1,
         connected: false,
-        invalidCredentials: undefined,
         extensions: [],
         users: {},
     });
@@ -136,7 +135,6 @@ class Api {
     // Reconnection state
     private reconnectAttempts = 0;
     private reconnectTimeout?: ReturnType<typeof setTimeout>;
-    private shouldReconnect = true;
 
     
     // Extension management
@@ -219,11 +217,22 @@ class Api {
 
         // Reconnect if active server or its details change
         $(() => {
-            if (this.store.activeServerIndex >= 0) {
-                delete this.store.invalidCredentials;
+            if (this.store.activeServerIndex >= 0 && this.store.connectMode !== 'disabled') {
                 this.connect();
             }
         });
+    }
+    
+    private setError(message: string): void {
+        this.store.lastConnectError = message;
+        if (this.store.connectMode === 'setup') {
+            this.store.connectMode = 'disabled';
+        }
+    }
+    
+    private clearError(): void {
+        delete this.store.lastConnectError;
+        delete this.store.connectMode;  // Success = normal mode with reconnects
     }
     
     send = (...topicAndPayload: any[]): Promise<void> => {
@@ -291,7 +300,6 @@ class Api {
 
     private connect(): void {
         console.log("api/connect");
-        this.shouldReconnect = true;
         this.reconnectAttempts += 1;
         clearTimeout(this.reconnectTimeout);
         
@@ -332,13 +340,12 @@ class Api {
             this.socket.addEventListener("open", this.onOpen);
             this.socket.addEventListener("error", this.onError);
         } catch (error) {
-            this.store.invalidCredentials = "Failed to connect: " + (error as Error).message;
-            this.scheduleReconnect();
+            this.setError("Failed to connect: " + (error as Error).message);
         }
     }
     
     private scheduleReconnect(): void {
-        if (!this.shouldReconnect) return;
+        if (this.store.connectMode) return;  // Don't reconnect in setup or disabled mode
         
         const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts), 30000);
         console.log(`api/scheduleReconnect in ${delay}ms (attempt ${this.reconnectAttempts + 1})`);
@@ -349,9 +356,7 @@ class Api {
     private onOpen = (): void => {
         console.log("api/onOpen - WebSocket connected");
         this.store.connected = true;
-        // Clear any invalid flag when successfully connected
-        delete this.store.invalidCredentials;
-        // Reset reconnection state on successful connection
+        this.clearError();
         this.reconnectAttempts = 0;
         clearTimeout(this.reconnectTimeout);
     }
@@ -359,7 +364,7 @@ class Api {
     private onError = (event: any): void => {
         console.error("WebSocket error", event);
         this.store.connected = false;
-        this.store.invalidCredentials = "Connection error, please check URL";
+        this.setError("Connection error, please check URL");
     }
     
     private resolvePromises({transaction, status}: any): void {
@@ -378,9 +383,8 @@ class Api {
         console.log("api/onClose", e.code, e.reason);
         this.store.connected = false;
         if (e.code === UNAUTHORIZED_ERROR_CODE) {
-            this.store.invalidCredentials = "Unauthorized, please check your credentials.";
-            this.shouldReconnect = false; // Don't reconnect on auth errors
-        } else if (this.shouldReconnect) {
+            this.setError("Unauthorized, please check your credentials.");
+        } else {
             this.scheduleReconnect();
         }
     }

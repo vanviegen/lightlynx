@@ -49,14 +49,21 @@ function drawEmpty(text: string): void {
 	$('div.empty#', text);
 }
 
+function isExtensionInstalled(ext: 'api' | 'automation'): boolean {
+	return api.store.extensions.some(e => e.name === `lightlynx-${ext}.js`);
+}
+
 function promptInstallExtension(ext: 'api' | 'automation', reason: string): boolean {
-	const isInstalled = api.store.extensions.some(e => e.name === `lightlynx-${ext}.js`);
+	const isInstalled = isExtensionInstalled(ext);
 	$(() => {
 		if (admin.value && !api.store.extensions.some(e => e.name === `lightlynx-${ext}.js`)) {
-			$('div.banner.warning', () => {
-				$('p#', reason);
+			$('section.row gap:1rem align-items:start', () => {
+				$('p flex:1 #', `${reason} requires our `, () => {
+					$('strong#', ext);
+					$('# extension.');
+				});
 				const busy = proxy(false);
-				$('button.primary#Install now', {'.busy': busy, click: async () => {
+				$(`button.secondary flex:0 margin-top:0.5rem #Install`, {'.busy': busy, click: async () => {
 					busy.value = true;
 					try {
 						await api.installExtension(`lightlynx-${ext}`);
@@ -444,6 +451,9 @@ function drawConnectionPage(): void {
 	routeState.title = 'Connect';
 	routeState.subTitle = 'Zigbee2MQTT';
 	
+	// Stop any reconnection attempts while on this page
+	api.store.connectMode = 'disabled';
+	
 	const activeServer = api.store.servers[api.store.activeServerIndex];
 	const formData = proxy({
 		hostname: activeServer?.hostname || '',
@@ -452,6 +462,7 @@ function drawConnectionPage(): void {
 		username: activeServer?.username || 'admin',
 		password: activeServer?.password || '',
 	});
+	const hasAttempted = proxy(false);
 
 	// Auto-switch port on HTTPS toggle if it's default
 	$(() => {
@@ -459,8 +470,16 @@ function drawConnectionPage(): void {
 		if (!formData.useHttps && formData.port === 443) formData.port = 8080;
 	});
 
+	// Watch for connection result and navigate on success
+	$(() => {
+		if (hasAttempted.value && api.store.connectMode === undefined) {
+			route.back('/');
+		}
+	});
+
 	function handleSubmit(e: Event): void {
 		e.preventDefault();
+		
 		const server: ServerCredentials = {
 			name: formData.hostname,
 			hostname: formData.hostname,
@@ -471,23 +490,27 @@ function drawConnectionPage(): void {
 			lastConnected: Date.now()
 		};
 		
-		if (api.store.activeServerIndex >= 0 && api.store.invalidCredentials) {
-			// Update existing server
+		// Clear any previous error and set setup mode
+		delete api.store.lastConnectError;
+		api.store.connectMode = 'setup';
+		hasAttempted.value = true;
+		
+		const isUpdate = api.store.activeServerIndex >= 0;
+		if (isUpdate) {
+			// Update existing server credentials
 			Object.assign(api.store.servers[api.store.activeServerIndex]!, server);
-			api.store.invalidCredentials = undefined; // Clear error
 		} else {
 			// Add new server
 			api.store.servers.push(server);
 			api.store.activeServerIndex = api.store.servers.length - 1;
 		}
-		route.go(['/']);
 	}
 	
 	$('div.login-form', () => {
 		$(() => {
-			if (api.store.invalidCredentials) {
-				$('div.banner.error', () => {
-					$('p#', api.store.invalidCredentials);
+			if (api.store.lastConnectError) {
+				$('div.banner.error margin-bottom:1em ', () => {
+					$('p#', api.store.lastConnectError);
 				});
 			} else {
 				$('div.empty#Please provide your Zigbee2MQTT frontend API server details.');
@@ -525,9 +548,14 @@ function drawConnectionPage(): void {
 
 			$('div.row', () => {
 				$('button.secondary#Cancel', 'click=', () => {
-					route.go(['/']);
+					route.back('/');
 				});
-				$('button#Connect', 'type=submit');
+				$(() => {
+					const connecting = api.store.connectMode === 'setup';
+					$('button type=submit', {'.busy': connecting}, () => {
+						$(connecting ? '#Connecting...' : '#Connect');
+					});
+				});
 			});
 		});
 	});
@@ -572,7 +600,8 @@ $('div.root', () => {
 			});
 			$(() => {
 				if (api.store.activeServerIndex >= 0 && !api.store.connected) {
-					icons.reconnect('.off');
+					const spinning = api.store.connectMode !== 'disabled';
+					icons.reconnect('.off=', spinning, 'click=', () => route.go(['connect']));
 				}
 			});
 			$(() => {
@@ -671,8 +700,6 @@ $('div.root', () => {
 				drawSslGuide();
 			} else if (api.store.activeServerIndex < 0) {
 				drawLandingPage();
-			} else if (api.store.invalidCredentials) {
-				drawConnectionPage();
 			} else if (p[0]==='group' && p[1]) {
 				drawGroup(parseInt(p[1]));
 			} else if (p[0] === 'bulb' && p[1]) {
@@ -838,7 +865,7 @@ export function drawSceneEditor(group: Group, groupId: number): void {
         });
     });
 	    
-    if (promptInstallExtension('automation', 'The Light Lynx Automation extension is required for scene triggers.')) {
+    if (promptInstallExtension('automation', 'Triggering scenes from buttons and sensors')) {
     
 		$('h1Triggers', () => {
 			icons.create('click=', () => sceneState.triggers.push({type: '1'}));
@@ -1015,28 +1042,34 @@ export function drawGroupConfigurationEditor(group: Group, groupId: number): voi
         }
     }));
 
+	
+	const hasExtension = isExtensionInstalled('automation');
+
 	$("h1", () => {
 		$("#Buttons and sensors");
-		icons.create('click=', () => route.go(['group', groupId, 'addInput']));
+		if (hasExtension) icons.create('click=', () => route.go(['group', groupId, 'addInput']));
 	});
-	onEach(groupInputs[groupId] || {}, (device, ieee) => {
-		$("div.item", () => {
-			drawBulbCircle(device, ieee);
-			$("h2#", device.name);
-			icons.remove('.link click=', () => {
-				const description = buildDescriptionWithGroupIds(device.description, (getGroupIdsFromDescription(device.description) || []).filter(id => id !== groupId));
-				api.send("bridge", "request", "device", "options", {id: ieee, options: {description}});
+
+	if (hasExtension) {
+		onEach(groupInputs[groupId] || {}, (device, ieee) => {
+			$("div.item", () => {
+				drawBulbCircle(device, ieee);
+				$("h2#", device.name);
+				icons.remove('.link click=', () => {
+					const description = buildDescriptionWithGroupIds(device.description, (getGroupIdsFromDescription(device.description) || []).filter(id => id !== groupId));
+					api.send("bridge", "request", "device", "options", {id: ieee, options: {description}});
+				});
 			});
 		});
-	});
-	if (isEmpty(groupInputs[groupId] || {})) {
-		drawEmpty("None yet");
+		if (isEmpty(groupInputs[groupId] || {})) {
+			drawEmpty("None yet");
+		}
+	} else {
+	    promptInstallExtension('automation', 'Connecting buttons and sensors to a group requires our automation Z2M extension.');
 	}
 
     $('h1#Settings');
     
-    promptInstallExtension('automation', 'The Light Lynx Automation extension is required for the lights off timer.');
-
     // Group name
     $('div.item', () => {
         $('h2#Name');
@@ -1047,33 +1080,37 @@ export function drawGroupConfigurationEditor(group: Group, groupId: number): voi
         });
     });
     
-    // Lights off timer checkbox
-    $('label.item', () => {
-        $('input type=checkbox', {checked: !!groupState.timeout}, 'change=', (e: Event) => {
-            const target = e.target as HTMLInputElement;
-            if (target.checked) {
-                groupState.timeout = { value: 30, unit: 'm' };
-            } else {
-                groupState.timeout = null;
-            }
-        });
-        $('h2#Lights off timer');
-    });
+	if (hasExtension) {
+		// Lights off timer checkbox
+		$('label.item', () => {
+			$('input type=checkbox', {checked: !!groupState.timeout}, 'change=', (e: Event) => {
+				const target = e.target as HTMLInputElement;
+				if (target.checked) {
+					groupState.timeout = { value: 30, unit: 'm' };
+				} else {
+					groupState.timeout = null;
+				}
+			});
+			$('h2#Lights off timer');
+		});
 
-    // Timer configuration (only show if checkbox is set)
-    $(() => {
-        if (!groupState.timeout) return;
-        $('label.item', () => {
-            $('h2#Turn off lights after');
-            $('input type=number min=1 bind=', ref(groupState.timeout!, 'value'));
-            $('select bind=', ref(groupState.timeout!, 'unit'), () => {
-                $('option value=s #seconds');
-                $('option value=m #minutes');
-                $('option value=h #hours');
-                $('option value=d #days');
-            });
-        });
-    });
+		// Timer configuration (only show if checkbox is set)
+		$(() => {
+			if (!groupState.timeout) return;
+			$('label.item', () => {
+				$('h2#Turn off lights after');
+				$('input type=number min=1 bind=', ref(groupState.timeout!, 'value'));
+				$('select bind=', ref(groupState.timeout!, 'unit'), () => {
+					$('option value=s #seconds');
+					$('option value=m #minutes');
+					$('option value=h #hours');
+					$('option value=d #days');
+				});
+			});
+		});
+	} else {
+		promptInstallExtension('automation', 'The auto-off timer requires our automation Z2M extension.');
+	}
 
 	$('h1#Actions');
 	$('div.item.action#Delete group', 'click=', () => {
@@ -1098,13 +1135,16 @@ export function drawGroupConfigurationEditor(group: Group, groupId: number): voi
 }
 
 function drawUsersSection(): void {
-	const isApiInstalled = promptInstallExtension('api', 'The Light Lynx API extension is required for user management and optimized performance.');
+	const isApiInstalled = isExtensionInstalled('api');
 
 	$("h1#Users", () => {
 		if (isApiInstalled) icons.create('click=', () => route.go(['user', 'new']));
 	});
 	
-	if (!isApiInstalled) return;
+	if (!isApiInstalled) {
+		promptInstallExtension('api', 'The Light Lynx API extension is required for user management.');
+		return;
+	}
 
 	$('div.list', () => {
 		// Implicit admin user
@@ -1140,13 +1180,15 @@ function drawExtensionsSection(): void {
 		if (confirm(warning)) {
 			busy.value = true;
 			try {
-				await api.send("bridge", "request", "extension", "remove", {name});
 				if (name === 'lightlynx-api.js') {
-					if (confirm("Extension removed. Would you like to re-enable the native Zigbee2MQTT frontend and restart?")) {
-						await api.send("bridge", "request", "options", {options: {frontend: {enabled: true}}});
+					if (confirm("Would you like to re-enable the native Zigbee2MQTT frontend and restart?")) {
+						api.send("bridge", "request", "options", {options: {frontend: {enabled: true}}});
+						api.send("bridge", "request", "extension", "remove", {name});
 						await api.send("bridge", "request", "restart", "");
+						return;
 					}
 				}
+				await api.send("bridge", "request", "extension", "remove", {name});
 			} finally {
 				busy.value = false;
 			}

@@ -549,7 +549,8 @@ input[type=number].number-to-text {
   width: auto;
 }
 
-.login-form {
+section, .login-form {
+  margin: 0;
   padding: 1rem;
 }
 

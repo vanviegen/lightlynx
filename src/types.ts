@@ -105,7 +105,8 @@ export interface Store {
     servers: ServerCredentials[];    // All saved servers
     activeServerIndex: number;       // Index of currently active server (-1 if none)
     connected: boolean;              // Connection status
-    invalidCredentials: string | undefined, // Reason for invalidity, if any
+    connectMode?: 'setup' | 'disabled';  // 'setup' = single attempt, 'disabled' = don't connect, undefined = normal with reconnects
+    lastConnectError?: string;       // Last connection error message
     extensions: Extension[]; // Available Z2M extensions
     users: Record<string, User>;    // Users from lightlynx-api
 }
