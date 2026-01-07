@@ -340,6 +340,60 @@ label.checkbox {
   overflow: hidden;
 }
 
+.menu-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 100;
+}
+
+.menu {
+  position: absolute;
+  top: 48px;
+  right: 8px;
+  background-color: #222;
+  border: 1px solid #444;
+  border-radius: 8px;
+  padding: 8px 0;
+  z-index: 101;
+  min-width: 200px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+}
+
+.menu-item {
+  padding: 12px 16px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 16px;
+}
+
+.menu-item:hover {
+  background-color: #333;
+}
+
+.menu-item.danger {
+  color: #f44;
+}
+
+.menu-item .icon {
+  width: 24px;
+  height: 24px;
+}
+
+.menu-item .icon.on {
+  color: #0d8;
+}
+
+.menu-divider {
+  height: 1px;
+  background-color: #444;
+  margin: 4px 0;
+}
+
 main {
   overflow: auto;
   overflow-x: hidden;

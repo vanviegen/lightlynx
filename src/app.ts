@@ -31,6 +31,7 @@ const routeState = proxy({
 });
 
 const admin = proxy(!!route.current.search.admin);
+const menuOpen = proxy(false);
 $(() => {
 	route.current.search.admin; // subscribe to this, so we'll force-update it when it changes
 	if (admin.value) route.current.search.admin = 'y';
@@ -549,9 +550,66 @@ $('div.root', () => {
 			});
 			$(() => {
 				if (api.store.activeServerIndex < 0) return;
-				icons.admin('click=', () => admin.value = !admin.value, {'.on': ref(route.current.search, 'admin')});
+				icons.more('click=', () => menuOpen.value = !menuOpen.value);
 			});
 		});
+
+	$(() => {
+		if (!menuOpen.value) return;
+		$('div.menu-overlay click=', () => menuOpen.value = false);
+		$('div.menu', () => {
+			// Admin Toggle
+			$('div.menu-item click=', () => {
+				admin.value = !admin.value;
+				menuOpen.value = false;
+			}, () => {
+				icons.admin('.on=', admin.value);
+				$(`# ${admin.value ? 'Leave' : 'Enter'} Admin Mode`);
+			});
+
+			$('div.menu-divider');
+
+			// Switch servers
+			onEach(api.store.servers, (server, index) => {
+				if (index === api.store.activeServerIndex) return;
+				$('div.menu-item click=', () => {
+					api.store.activeServerIndex = index;
+					menuOpen.value = false;
+					route.go(['/']);
+				}, () => {
+					icons.server();
+					$(`# Switch to ${server.name || server.hostname}`);
+				});
+			});
+
+			if (api.store.servers.length > 1) {
+				$('div.menu-divider');
+			}
+
+			// Connect to another
+			$('div.menu-item click=', () => {
+				menuOpen.value = false;
+				route.go(['connect']);
+			}, () => {
+				icons.create();
+				$(`# Connect to another server`);
+			});
+
+			// Logout
+			$('div.menu-item.danger click=', () => {
+				if (confirm('Are you sure you want to log out and remove these credentials?')) {
+					const index = api.store.activeServerIndex;
+					api.store.servers.splice(index, 1);
+					api.store.activeServerIndex = api.store.servers.length - 1; // May be -1 if none left
+					menuOpen.value = false;
+					route.go(['/']);
+				}
+			}, () => {
+				icons.eject();
+				$(`# Logout from server`);
+			});
+		});
+	});
 	
 	$(() => {
 		if (api.store.permit_join) {
