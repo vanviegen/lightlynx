@@ -8,7 +8,8 @@
     "watch": "npm run build -- --watch",
     "dev": "vite src/ --host",
     "test": "echo \"Error: no test specified\" && exit 1",
-    "deploy": "npm run build && dotenv -- bash -c 'rclone sync public/ :sftp,host=$DEPLOY_HOST,user=$DEPLOY_USER,pass=$DEPLOY_PASS_OBSCURED,key_use_agent=false:/ --progress --inplace --sftp-disable-hashcheck'"
+    "purge-cache": "dotenv -- bash -c 'curl --request POST --url https://api.bunny.net/pullzone/$BUNNY_PZ_ID/purgeCache --header \"AccessKey: $BUNNY_ACCESS_KEY\" --header \"accept: application/json\" --header \"content-type: application/json\" --data \"{}\"'",
+    "deploy": "npm run build && dotenv -- bash -c 'rclone sync public/ :sftp,host=$DEPLOY_HOST,user=$DEPLOY_USER,pass=$DEPLOY_PASS_OBSCURED,key_use_agent=false:/ --progress --inplace --sftp-shell-type=none' && npm run purge-cache"
   },
   "author": "",
   "license": "ISC",
