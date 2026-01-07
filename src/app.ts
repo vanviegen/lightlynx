@@ -49,6 +49,27 @@ function drawEmpty(text: string): void {
 	$('div.empty#', text);
 }
 
+function promptInstallExtension(ext: 'api' | 'automation', reason: string): boolean {
+	const isInstalled = api.store.extensions.some(e => e.name === `lightlynx-${ext}.js`);
+	$(() => {
+		if (admin.value && !api.store.extensions.some(e => e.name === `lightlynx-${ext}.js`)) {
+			$('div.banner.warning', () => {
+				$('p#', reason);
+				const busy = proxy(false);
+				$('button.primary#Install now', {'.busy': busy, click: async () => {
+					busy.value = true;
+					try {
+						await api.checkAndUpdateExtensions(true);
+					} finally {
+						busy.value = false;
+					}
+				}});
+			});
+		}
+	});
+	return isInstalled;
+}
+
 function drawBulb(ieee: string): void {
 	let device = api.store.devices[ieee];
 	if (!device) return drawEmpty("No such light")
@@ -349,7 +370,10 @@ function drawMain(): void {
 	});
 
 	$(() => {
-		if (admin.value) drawUsersSection();
+		if (admin.value) {
+			drawUsersSection();
+			drawExtensionsSection();
+		}
 	});
 }
 
@@ -802,64 +826,67 @@ export function drawSceneEditor(group: Group, groupId: number): void {
             placeholder: 'Scene name',
         });
     });
+	    
+    if (promptInstallExtension('automation', 'The Light Lynx Automation extension is required for scene triggers.')) {
     
-    $('h1Triggers', () => {
-        icons.create('click=', () => sceneState.triggers.push({type: '1'}));
-    });
-        
-    onEach(sceneState.triggers, (trigger, triggerIndex) => {
-        $(() => {
-            // There must be a time range for time-based triggers
-            if (trigger.type === 'time' && !trigger.startTime) {
-                trigger.startTime = {hour: 18, minute: 0, type: 'wall'};
-                trigger.endTime = {hour: 22, minute: 0, type: 'wall'};
-            }
-        });
-        $('div.item flex-direction:column', () => {
-            $('div.row justify-content:space-between', () =>{
-                $('select width:inherit bind=', ref(trigger, 'type'), () => {
-                    $('option value=1 #Single Tap');
-                    $('option value=2 #Double Tap');
-                    $('option value=3 #Triple Tap');
-                    $('option value=4 #Quadruple Tap');
-                    $('option value=5 #Quintuple Tap');
-                    $('option value=motion #Motion Sensor');
-                    $('option value=time #Time-based');
-                });
-                
-                $(() => {
-                    if (trigger.type !== 'time') {
-                        $('label', () => {
-                            $('input type=checkbox', {checked: !!trigger.startTime}, 'change=', (e: Event) => {
-                                const target = e.target as HTMLInputElement;
-                                if (target.checked) {
-                                    trigger.startTime = {hour: 0, minute: 30, type: 'bs'};
-                                    trigger.endTime = {hour: 22, minute: 30, type: 'wall'};
-                                } else {
-                                    trigger.startTime = undefined;
-                                    trigger.endTime = undefined;
-                                }
-                            });
-                            $('#Time range');
-                        });
-                    }
-                })
+		$('h1Triggers', () => {
+			icons.create('click=', () => sceneState.triggers.push({type: '1'}));
+		});
+			
+		onEach(sceneState.triggers, (trigger, triggerIndex) => {
+			$(() => {
+				// There must be a time range for time-based triggers
+				if (trigger.type === 'time' && !trigger.startTime) {
+					trigger.startTime = {hour: 18, minute: 0, type: 'wall'};
+					trigger.endTime = {hour: 22, minute: 0, type: 'wall'};
+				}
+			});
+			$('div.item flex-direction:column', () => {
+				$('div.row justify-content:space-between', () =>{
+					$('select width:inherit bind=', ref(trigger, 'type'), () => {
+						$('option value=1 #Single Tap');
+						$('option value=2 #Double Tap');
+						$('option value=3 #Triple Tap');
+						$('option value=4 #Quadruple Tap');
+						$('option value=5 #Quintuple Tap');
+						$('option value=motion #Motion Sensor');
+						$('option value=time #Time-based');
+					});
+					
+					$(() => {
+						if (trigger.type !== 'time') {
+							$('label', () => {
+								$('input type=checkbox', {checked: !!trigger.startTime}, 'change=', (e: Event) => {
+									const target = e.target as HTMLInputElement;
+									if (target.checked) {
+										trigger.startTime = {hour: 0, minute: 30, type: 'bs'};
+										trigger.endTime = {hour: 22, minute: 30, type: 'wall'};
+									} else {
+										trigger.startTime = undefined;
+										trigger.endTime = undefined;
+									}
+								});
+								$('#Time range');
+							});
+						}
+					})
 
-                icons.remove('click=', () => sceneState.triggers.splice(triggerIndex, 1));
-            });
-            $(() => {
-                if (trigger.startTime && trigger.endTime) {
-                    $('div.scene-times', {$create: grow}, () => {
-						$('label#From ')
-                        drawTimeEditor(trigger.startTime!);
-						$('label#Until ')
-                        drawTimeEditor(trigger.endTime!);
-                    })
-                }
-            })
+					icons.remove('click=', () => sceneState.triggers.splice(triggerIndex, 1));
+				});
+				$(() => {
+					if (trigger.startTime && trigger.endTime) {
+						$('div.scene-times', {$create: grow}, () => {
+							$('label#From ')
+							drawTimeEditor(trigger.startTime!);
+							$('label#Until ')
+							drawTimeEditor(trigger.endTime!);
+						})
+					}
+				})
 
-        })
-    });
+			})
+		});
+	}
 
 
 	$('h1#Actions');
@@ -997,6 +1024,8 @@ export function drawGroupConfigurationEditor(group: Group, groupId: number): voi
 
     $('h1#Settings');
     
+    promptInstallExtension('automation', 'The Light Lynx Automation extension is required for the lights off timer.');
+
     // Group name
     $('div.item', () => {
         $('h2#Name');
@@ -1058,27 +1087,13 @@ export function drawGroupConfigurationEditor(group: Group, groupId: number): voi
 }
 
 function drawUsersSection(): void {
-	const isApiInstalled = api.store.extensions.some(e => e.name === 'lightlynx-api.js');
+	const isApiInstalled = promptInstallExtension('api', 'The Light Lynx API extension is required for user management and optimized performance.');
 
 	$("h1#Users", () => {
 		if (isApiInstalled) icons.create('click=', () => route.go(['user', 'new']));
 	});
 	
-	if (!isApiInstalled) {
-		$('div.item', () => {
-			$('p#The Light Lynx API extension is required for user management and optimized performance.');
-			const busy = proxy(false);
-			$('button.primary#Install now', {'.busy': busy, click: async () => {
-				busy.value = true;
-				try {
-					await api.checkAndUpdateExtensions(true);
-				} finally {
-					busy.value = false;
-				}
-			}});
-		});
-		return;
-	}
+	if (!isApiInstalled) return;
 
 	$('div.list', () => {
 		// Implicit admin user
@@ -1096,6 +1111,43 @@ function drawUsersSection(): void {
 				$('h2#', username);
 				if (user.allowRemote) $('span.badge#Remote');
 			});
+		});
+	});
+}
+
+function drawExtensionsSection(): void {
+	$('h1#Extensions');
+	$('div.list', () => {
+		onEach(api.store.extensions, (ext) => {
+			if (!ext.name.startsWith('lightlynx-')) return;
+			
+			$('div.item', () => {
+				icons.extension();
+				$('h2#', ext.name);
+				const version = api.extractVersionFromExtension(ext.code);
+				if (version) $('p#v' + version);
+				
+				const busy = proxy(false);
+				icons.remove('.link', {'.busy': busy, click: async () => {
+					let warning = `Are you sure you want to uninstall '${ext.name}'?`;
+					if (ext.name === 'lightlynx-api.js') {
+						warning += "\n\nWARNING: Non-admin users will no longer be able to log in!";
+					}
+					if (confirm(warning)) {
+						busy.value = true;
+						try {
+							await api.send("bridge", "request", "extension", "remove", {name: ext.name});
+						} finally {
+							busy.value = false;
+						}
+					}
+				}});
+			});
+		}, ext => ext.name);
+		
+		$(() => {
+			const hasLightLynxExt = api.store.extensions.some(e => e.name.startsWith('lightlynx-'));
+			if (!hasLightLynxExt) drawEmpty("No Light Lynx extensions installed.");
 		});
 	});
 }

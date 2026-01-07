@@ -142,7 +142,7 @@ class Api {
     // Extension management
     private extensionCheckPerformed = false;
 
-    private extractVersionFromExtension(extensionContent: string): string | null {
+    public extractVersionFromExtension(extensionContent: string): string | null {
         const lines = extensionContent.split('\n');
         if (lines.length === 0) return null;
         
