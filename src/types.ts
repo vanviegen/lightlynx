@@ -60,16 +60,17 @@ export interface Scene {
     name: string;
     shortName: string;
     suffix?: string;
+    description?: string;
 }
 
 // Group interface
 export interface Group {
     name: string;
-    shortName: string;
     members: string[];
     scenes: Scene[];
     lightState: LightState;
     lightCaps: LightCaps;
+    description?: string;
 }
 
 // Extension interface

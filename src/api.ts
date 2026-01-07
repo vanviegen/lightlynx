@@ -1,6 +1,6 @@
 import { $, proxy, clone, copy, unproxy } from "aberdeen";
 import * as colors from "./colors";
-import { LightState, XYColor, HSColor, ColorValue, isHS, isXY, Store, LightCaps, Device, Group, Extension } from "./types";
+import { LightState, XYColor, HSColor, ColorValue, isHS, isXY, Store, LightCaps, Device, Group } from "./types";
 
 const CREDENTIALS_LOCAL_STORAGE_ITEM_NAME = "z2m-credentials-v2";
 const UNAUTHORIZED_ERROR_CODE = 4401;
@@ -573,8 +573,9 @@ class Api {
                     const oldGroup = this.store.groups[z2mGroup.id];
                     const newGroup: Group = {
                         name: z2mGroup.friendly_name,
-                        shortName: z2mGroup.friendly_name.replace(/ *\(.*\) *$/, ''),
+                        description: z2mGroup.description,
                         scenes: z2mGroup.scenes.map((obj: any) => {
+                            // Scenes use parentheses suffix for metadata (triggers, etc)
                             let m = obj.name.match(/^(.*?)\s*\((.*)\)\s*$/)
                             if (m)
                                 return {id: obj.id, name: obj.name, shortName: m[1], suffix: m[2]}

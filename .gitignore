@@ -2,3 +2,5 @@ node_modules
 /public
 .parcel_cache
 _webcentral_data
+tmp
+

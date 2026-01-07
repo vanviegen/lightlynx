@@ -38,7 +38,7 @@ $(() => {
 })
 
 // All non-light devices, partitioned group id (-1 for). {suffix: {ieee: Device}}
-const GROUPS_REGEXP = /^groups=(\d+(,\d+)*)$/m;
+const GROUPS_REGEXP = /^lightlynx-groups (\d+(,\d+)*)$/m;
 const groupInputs = partition(api.store.devices, (device: Device, _ieee: string): number[] | undefined => {
 	if (device.lightCaps) return; // Ignore lights
 	return getGroupIdsFromDescription(device.description);
@@ -85,7 +85,7 @@ function drawBulb(ieee: string): void {
 			const busy = proxy(false);
 			const group = api.store.groups[groupId];
 			if (group) {
-				$(`div.item.action#Remove from "${group.shortName}"`, {".busy": busy}, icons.remove, {click: async function() {
+				$(`div.item.action#Remove from "${group.name}"`, {".busy": busy}, icons.remove, {click: async function() {
 					busy.value = true;
 					try {
 						await api.send("bridge", "request", "group", "members", "remove", {group: group!.name, device: device!.name});
@@ -152,27 +152,11 @@ function drawGroup(groupId: number): void {
 	}
 	
 	$(() => {
-		routeState.title = group.shortName;
+		routeState.title = group.name;
 		routeState.subTitle = 'group';
 	})
 	
 	drawColorPicker(group, groupId);
-	
-	$("h1#Bulbs", () => {
-		if (admin.value) icons.create('click=', () => route.go(['group', groupId, 'addLight']));
-	});
-	
-	$("div.list", () => {
-		const devices = api.store.devices;
-		onEach(group.members, (ieee) => { 
-			let device = devices[ieee]!;
-			drawDeviceItem(device, ieee);
-		}, (ieee) => devices[ieee]?.name);
-		
-		if (isEmpty(group.members)) {
-			drawEmpty("None yet");
-		}
-	});
 	
 	$("h1#Scenes", () => {
 		if (admin.value) icons.create('click=', createScene);
@@ -200,7 +184,23 @@ function drawGroup(groupId: number): void {
 			if (isEmpty(group.scenes)) drawEmpty("None yet");
 		});
 	});
+
+		$("h1#Bulbs", () => {
+		if (admin.value) icons.create('click=', () => route.go(['group', groupId, 'addLight']));
+	});
 	
+	$("div.list", () => {
+		const devices = api.store.devices;
+		onEach(group.members, (ieee) => { 
+			let device = devices[ieee]!;
+			drawDeviceItem(device, ieee);
+		}, (ieee) => devices[ieee]?.name);
+		
+		if (isEmpty(group.members)) {
+			drawEmpty("None yet");
+		}
+	});
+
 	// Group configuration section for admin users
 	$(() => {
 		if (admin.value) {
@@ -318,7 +318,7 @@ function drawMain(): void {
 					".off": brightness < 1,
 				});
 				
-				$('h2.link#', admin.value ? group.name : group.shortName, 'click=', () => route.go(['group', groupId]));
+				$('h2.link#', group.name, 'click=', () => route.go(['group', groupId]));
 				$("div.options", () => {
 					icons.off('click=', () => api.setLightState(parseInt(groupId), {on: false}));
 					onEach(group.scenes, (scene) => {
@@ -372,11 +372,6 @@ function drawLogin(): void {
 				$('input type=password placeholder=Secret autocomplete=current-password bind=', ref(formData, 'token'));
 			});
 
-			$('div.field', 'label', () => {
-				$('input type=checkbox', {checked: !!formData.autoReconnect}, 'change=', (e: Event) => formData.autoReconnect = (e.target as HTMLInputElement).checked);
-				$('#Install/update Z2M extension');
-			});
-
 			$('button#Connect type=submit');
 		});
 	});
@@ -407,7 +402,7 @@ $('div.root', () => {
 				let title = routeState.title || "Light Lynx";
 				$(`#`, title);
 				if (routeState.subTitle) {
-					$('span.subTitle#', routeState.subTitle);
+					$('span.subTitle# '+routeState.subTitle);
 				}
 			});
 		});
@@ -580,7 +575,7 @@ export function drawSceneEditor(group: Group, groupId: number): void {
 	if (!scene) return drawEmpty('Scene not found');
 
 	$(() => {
-		routeState.title = group.shortName + ' · ' + scene.shortName;
+		routeState.title = group.name + ' · ' + scene.shortName;
 	});
 	routeState.subTitle = "scene";
 	routeState.drawIcons = undefined;
@@ -680,8 +675,8 @@ export function drawSceneEditor(group: Group, groupId: number): void {
 		if (!confirm(`Are you sure you want to delete the '${scene.name}' scene for group '${group.name}'?`)) return;
 		api.send(group.name, "set", {scene_remove: scene.id});
 	}
-	$('div.item.action#Save current state click=', save, icons.save);
-	$('div.item.action#Delete scene click=', remove, icons.remove);
+	$('div.item.action#Save current state', 'click=', save, icons.save);
+	$('div.item.action#Delete scene', 'click=', remove, icons.remove);
 
     const newName = proxy('');
     lazySave(() => {
@@ -727,22 +722,54 @@ function getGroupIdsFromDescription(description: string | undefined): number[] {
 }
 
 function buildDescriptionWithGroupIds(description: string | undefined, groupIds: number[]): string {
-	let groupStr = groupIds.length ? `groups=${groupIds.join(',')}` : '';
+	let groupStr = groupIds.length ? `lightlynx-groups ${groupIds.join(',')}` : '';
 	let replaced = false;
 	description = (description || '').replace(GROUPS_REGEXP, () => {
 		replaced = true;
 		return groupStr;
 	}).trim();
-	return description.length ? description + "\n" + groupStr : groupStr;
+	if (!replaced && groupStr) {
+		return description.length ? description + "\n" + groupStr : groupStr;
+	}
+	return description;
 }
+
+// Parse group timeout from description (lightlynx- metadata)
+function getGroupTimeoutFromDescription(description: string | undefined): GroupTimeout | null {
+	if (!description) return null;
+	const m = description.match(/^lightlynx-timeout (\d+(?:\.\d+)?)([smhd])$/m);
+	if (!m) return null;
+	return {
+		value: parseFloat(m[1]!),
+		unit: m[2] as TimeUnit
+	};
+}
+
+// Build description with group timeout metadata
+function buildDescriptionWithGroupTimeout(description: string | undefined, timeout: GroupTimeout | null): string {
+	const TIMEOUT_REGEXP = /^lightlynx-timeout \d+(?:\.\d+)?[smhd]$/m;
+	let timeoutStr = timeout ? `lightlynx-timeout ${timeout.value}${timeout.unit}` : '';
+	let replaced = false;
+	description = (description || '').replace(TIMEOUT_REGEXP, () => {
+		replaced = true;
+		return timeoutStr;
+	}).trim();
+	if (!replaced && timeoutStr) {
+		return description.length ? description + "\n" + timeoutStr : timeoutStr;
+	}
+	return description;
+}
+
+// Note: Scene trigger functions removed - Z2M scenes don't have description fields,
+// so we can't move scene metadata to descriptions. Scene metadata stays in names.
 
 // Enhanced group configuration editor 
 export function drawGroupConfigurationEditor(group: Group, groupId: number): void {
     const groupState = proxy(peek(() => { // Keep in sync with upstream changes
         return {
             name: group.name,
-            shortName: group.shortName,
-            timeout: parseGroupTimeout(group.name.match(/\((.*)\)$/)?.[1] || ''),
+            description: group.description,
+            timeout: getGroupTimeoutFromDescription(group.description),
         }
     }));
 
@@ -771,7 +798,7 @@ export function drawGroupConfigurationEditor(group: Group, groupId: number): voi
         $('h2#Name');
         $('input', {
             type: 'text',
-            bind: ref(groupState, 'shortName'),
+            bind: ref(groupState, 'name'),
             placeholder: 'Group name',
         });
     });
@@ -805,26 +832,23 @@ export function drawGroupConfigurationEditor(group: Group, groupId: number): voi
     });
 
 	$('h1#Actions');
-	$('div.item.action#Delete group click=', () => {
+	$('div.item.action#Delete group', 'click=', () => {
 		if (!confirm(`Are you sure you want to delete group '${group.name}'?`)) return;
 		api.send("bridge", "request", "group", "remove", {id: group.name});
 		route.back('/');
 	}, icons.remove);
 
-    const newName = proxy('');
+    const newDescription = proxy('');
     lazySave(() => {
-        const timeoutSuffix = buildGroupTimeoutSuffix(groupState.timeout);
-        newName.value = `${groupState.shortName}${timeoutSuffix ? ` (${timeoutSuffix})` : ''}`;
+        // Update description with timeout metadata
+        newDescription.value = buildDescriptionWithGroupTimeout(groupState.description, groupState.timeout);
         
         return function() {
-            api.send("bridge", "request", "group", "rename", {
-                from: groupState.name,
-                to: newName.value,
-                homeassistant_rename: true
-            });
-            groupState.name = newName.value;
+            // Update description with timeout metadata
+			if (groupState.description !== newDescription.value) {
+	            api.send("bridge", "request", "group", "options", {id: groupId, options: {description: newDescription.value}});
+				groupState.description = newDescription.value;
+			}
         }
     });
-
-    $('small.item#',newName);
 }
