@@ -73,6 +73,14 @@ export interface Group {
     description?: string;
 }
 
+export interface User {
+    isAdmin: boolean;
+    allowedDevices: string[];
+    allowedGroups: number[];
+    allowRemote: boolean;
+    password?: string; // Only used for UI editing, not stored in state dump
+}
+
 // Extension interface
 export interface Extension {
     name: string;
@@ -99,6 +107,7 @@ export interface Store {
     connected: boolean;              // Connection status
     invalidCredentials: string | undefined, // Reason for invalidity, if any
     extensions: Extension[]; // Available Z2M extensions
+    users: Record<string, User>;    // Users from lightlynx-api
 }
 
 // Helper functions for color type checking

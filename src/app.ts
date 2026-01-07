@@ -1,11 +1,11 @@
-import {$, proxy, ref, onEach, isEmpty, map, copy, dump, unproxy, peek, partition} from 'aberdeen';
+import {$, proxy, ref, onEach, isEmpty, map, copy, dump, unproxy, peek, partition, clone} from 'aberdeen';
 import * as route from 'aberdeen/route';
 import { grow } from 'aberdeen/transitions';
 import api from './api';
 import * as icons from './icons';
 import * as colors from './colors';
 import { drawColorPicker, drawBulbCircle, getBulbRgb } from "./color-picker";
-import { Device, Group, ServerCredentials } from './types';
+import { Device, Group, ServerCredentials, User } from './types';
 
 import logoUrl from './logo.webp';
 import swUrl from './sw.ts?worker&url';
@@ -347,6 +347,10 @@ function drawMain(): void {
 			return (!inGroups && device.lightCaps) ? device.name : undefined;
 		});
 	});
+
+	$(() => {
+		if (admin.value) drawUsersSection();
+	});
 }
 
 function drawLandingPage(): void {
@@ -638,6 +642,8 @@ $('div.root', () => {
 				drawGroup(parseInt(p[1]));
 			} else if (p[0] === 'bulb' && p[1]) {
 				drawBulb(p[1]);
+			} else if (p[0] === 'user' && p[1]) {
+				drawUserEditor();
 			} else if (p[0] === 'dump') {
 				drawDump();
 			} else {
@@ -1049,4 +1055,176 @@ export function drawGroupConfigurationEditor(group: Group, groupId: number): voi
 			}
         }
     });
+}
+
+function drawUsersSection(): void {
+	const isApiInstalled = api.store.extensions.some(e => e.name === 'lightlynx-api.js');
+
+	$("h1#Users", () => {
+		if (isApiInstalled) icons.create('click=', () => route.go(['user', 'new']));
+	});
+	
+	if (!isApiInstalled) {
+		$('div.item', () => {
+			$('p#The Light Lynx API extension is required for user management and optimized performance.');
+			const busy = proxy(false);
+			$('button.primary#Install now', {'.busy': busy, click: async () => {
+				busy.value = true;
+				try {
+					await api.checkAndUpdateExtensions(true);
+				} finally {
+					busy.value = false;
+				}
+			}});
+		});
+		return;
+	}
+
+	$('div.list', () => {
+		// Implicit admin user
+		if (!api.store.users['admin']) {
+			$('div.item.link', {click: () => route.go(['user', 'admin'])}, () => {
+				icons.shield();
+				$('h2#admin');
+				$('p#System Administrator');
+			});
+		}
+
+		onEach(api.store.users, (user, username) => {
+			$('div.item.link', {click: () => route.go(['user', username])}, () => {
+				(user.isAdmin ? icons.shield : icons.user)();
+				$('h2#', username);
+				if (user.allowRemote) $('span.badge#Remote');
+			});
+		});
+	});
+}
+
+function drawUserEditor(): void {
+	const username = route.current.p[1]!;
+	const isNew = username === 'new';
+	const isAdminUser = username === 'admin';
+	
+	const storeUser = api.store.users[username];
+	const user = isNew ? proxy<User>({
+		isAdmin: false,
+		allowedDevices: [],
+		allowedGroups: [],
+		allowRemote: true,
+		password: ''
+	}) : proxy(clone(unproxy(storeUser || {
+		isAdmin: true,
+		allowedDevices: [],
+		allowedGroups: [],
+		allowRemote: false,
+		password: ''
+	})));
+	
+	const newUsername = proxy('');
+
+	$(() => {
+		routeState.title = isNew ? 'New User' : username;
+		routeState.subTitle = 'user';
+	});
+
+	$('h1#Settings');
+	if (isNew) {
+		$('div.item', () => {
+			$('h2#Username');
+			$('input', {bind: newUsername, placeholder: 'Username'});
+		});
+	}
+
+	$('div.item', () => {
+		$('h2#Password');
+		$('input type=password', {bind: ref(user, 'password'), placeholder: isNew ? 'Required' : 'Leave empty to keep current'});
+	});
+
+	if (!isAdminUser) {
+		$('label.item', () => {
+			$('input type=checkbox bind=', ref(user, 'isAdmin'));
+			$('h2#Admin access');
+		});
+
+		$('label.item', () => {
+			$('input type=checkbox bind=', ref(user, 'allowRemote'));
+			$('h2#Allow remote access');
+		});
+	}
+
+	$(() => {
+		if (user.isAdmin) return;
+
+		$('h1#Permissions');
+		$('h2#Allowed Groups');
+		$('div.list', () => {
+			onEach(api.store.groups, (group, groupId) => {
+				$('label.item', () => {
+					const gid = parseInt(groupId);
+					const checked = user.allowedGroups.includes(gid);
+					$('input type=checkbox', {
+						checked,
+						change: (e: any) => {
+							if (e.target.checked) user.allowedGroups.push(gid);
+							else user.allowedGroups = user.allowedGroups.filter((id: number) => id !== gid);
+						}
+					});
+					$('h2#', group.name);
+				});
+			});
+			$(() => { if (isEmpty(api.store.groups)) drawEmpty("No groups"); });
+		});
+
+		$('h2#Allowed Devices');
+		$('div.list', () => {
+			onEach(api.store.devices, (device, ieee) => {
+				if (!device.lightCaps) return;
+				$('label.item', () => {
+					const checked = user.allowedDevices.includes(ieee);
+					$('input type=checkbox', {
+						checked,
+						change: (e: any) => {
+							if (e.target.checked) user.allowedDevices.push(ieee);
+							else user.allowedDevices = user.allowedDevices.filter((id: string) => id !== ieee);
+						}
+					});
+					$('h2#', device.name);
+				});
+			});
+			$(() => { if (isEmpty(api.store.devices)) drawEmpty("No devices"); });
+		});
+	});
+
+	$('h1#Actions');
+	const busy = proxy(false);
+	$('div.item.action#Save', {'.busy': busy}, icons.save, 'click=', async () => {
+		busy.value = true;
+		try {
+			const finalUsername = isNew ? newUsername.value : username;
+			if (!finalUsername) throw new Error("Username required");
+			const payload: any = unproxy(user);
+			if (!user.password) delete payload.password;
+			
+			await api.send("bridge", "request", "lightlynx", "users", isNew ? "add" : "update", {
+				username: finalUsername,
+				...payload
+			});
+			route.up();
+		} catch (e: any) {
+			alert(e.message || "Failed to save user");
+		} finally {
+			busy.value = false;
+		}
+	});
+
+	if (!isNew && !isAdminUser) {
+		$('div.item.action.danger#Delete user', icons.remove, {
+			click: async () => {
+				if (confirm(`Are you sure you want to delete user '${username}'?`)) {
+					await api.send("bridge", "request", "lightlynx", "users", "delete", {username});
+					route.up();
+				}
+			}
+		});
+	}
 }

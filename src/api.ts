@@ -1,6 +1,6 @@
 import { $, proxy, clone, copy, unproxy } from "aberdeen";
 import * as colors from "./colors";
-import { LightState, XYColor, HSColor, ColorValue, isHS, isXY, Store, LightCaps, Device, Group, ServerCredentials } from "./types";
+import { LightState, XYColor, HSColor, ColorValue, isHS, isXY, Store, LightCaps, Device, Group } from "./types";
 
 const CREDENTIALS_LOCAL_STORAGE_ITEM_NAME = "lightlynx-servers";
 const UNAUTHORIZED_ERROR_CODE = 4401;
@@ -128,6 +128,7 @@ class Api {
         connected: false,
         invalidCredentials: undefined,
         extensions: [],
+        users: {},
     });
     errorHandlers: Array<(msg: string) => void> = [];
     nameToIeeeMap: Map<string, string> = new Map();
@@ -152,8 +153,8 @@ class Api {
         return versionMatch?.[1] || null;
     }
 
-    private async checkAndUpdateExtensions(): Promise<void> {
-        if (this.extensionCheckPerformed) return;
+    public async checkAndUpdateExtensions(force: boolean = false): Promise<void> {
+        if (this.extensionCheckPerformed && !force) return;
         this.extensionCheckPerformed = true;
 
         for (const [name, expectedVersion] of Object.entries(EXTENSION_VERSIONS)) {
@@ -534,6 +535,9 @@ class Api {
             }
             else if (topic === "info" || topic === "logging") {
                 // Ignore!
+            }
+            else if (topic === "lightlynx/users") {
+                copy(this.store.users, payload || {});
             }
             else if (topic === "devices") {
                 let newDevs: Record<string, Device> = {};
