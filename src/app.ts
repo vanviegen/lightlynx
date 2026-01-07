@@ -427,8 +427,8 @@ function drawLandingPage(): void {
 		});
 
 		$('small.item', () => {
-			$('For the best experience, your Zigbee2MQTT server API should be secured with HTTPS. ');
-			$('a href=# click=', (e: Event) => { e.preventDefault(); route.go(['ssl-setup']); }, 'Read setup guide.');
+			$('#For the best experience, your Zigbee2MQTT server API should be secured with HTTPS. ');
+			$('a href=# click=', (e: Event) => { e.preventDefault(); route.go(['ssl-setup']); }, '#Read setup guide.');
 		});
 	});
 }

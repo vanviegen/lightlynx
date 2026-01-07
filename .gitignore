@@ -3,4 +3,5 @@ node_modules
 .parcel_cache
 _webcentral_data
 tmp
+.env
 

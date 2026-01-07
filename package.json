@@ -7,7 +7,8 @@
     "build:debug": "vite build src/ --outDir ../public --emptyOutDir --assetsDir . --mode development --sourcemap --minify false",
     "watch": "npm run build -- --watch",
     "dev": "vite src/ --host",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "deploy": "npm run build && dotenv -- bash -c 'rclone sync public/ :sftp,host=$DEPLOY_HOST,user=$DEPLOY_USER,pass=$DEPLOY_PASS_OBSCURED,key_use_agent=false:/ --progress --inplace --sftp-disable-hashcheck'"
   },
   "author": "",
   "license": "ISC",
@@ -18,6 +19,7 @@
   "devDependencies": {
     "@parcel/packager-raw-url": "^2.13.3",
     "@parcel/transformer-webmanifest": "^2.13.3",
+    "dotenv-cli": "^11.0.0",
     "vite": "^6.0.7"
   }
 }

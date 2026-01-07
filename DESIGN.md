@@ -6,7 +6,7 @@ Light Lynx is a turnkey web application for controlling Zigbee2MQTT lights, desi
 
 ### Hosting
 - Static web server serving HTML/JS/CSS/Service Worker
-- Deployed as BunnyCDN storage zone (FTP upload) from a package.json 'deploy' script
+- Deployed as BunnyCDN storage zone (SFTP upload) from a package.json 'deploy' script
 - Default serving on HTTPS; dynamically switches to HTTP when connecting to non-HTTPS Z2M servers
 
 ### Connection Modes
