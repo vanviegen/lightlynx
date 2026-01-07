@@ -379,7 +379,6 @@ function drawMain(): void {
 
 function drawLandingPage(): void {
 	routeState.title = 'Light Lynx';
-	routeState.subTitle = 'Zigbee2MQTT lighting';
 	
 	$('div.landing', () => {
 		$('div.hero', () => {
@@ -515,24 +514,22 @@ function drawConnectionPage(): void {
 					$('p#', api.store.invalidCredentials);
 				});
 			} else {
-				$('div.empty.field', () => {
-					$('#Please provide your Zigbee2MQTT server details.');
-				});
+				$('div.empty#Please provide your Zigbee2MQTT frontend API server details.');
 			}
 		});
 		
 		$('form submit=', handleSubmit, () => {
 			$('div.field', () => {
-				$('label#Hostname/IP');
+				$('label#Hostname or IP');
 				$('input placeholder=your-server.com required=', true, 'bind=', ref(formData, 'hostname'));
 			});
 
-			$('div.field', () => {
+			$('div.field.checkbox-field', () => {
 				$('label', () => {
 					$('input type=checkbox bind=', ref(formData, 'useHttps'));
 					$('# Use HTTPS ');
-					$('a href=# click=', (e: Event) => { e.preventDefault(); route.go(['ssl-setup']); }, '#(read more)');
 				});
+				$('a href=# click=', (e: Event) => { e.preventDefault(); route.go(['ssl-setup']); }, '#(read more)');
 			});
 
 			$('div.field', () => {
@@ -546,13 +543,15 @@ function drawConnectionPage(): void {
 			});
 
 			$('div.field', () => {
-				$('label#Password/Token');
+				$('label#Password or token');
 				$('input type=password placeholder=Secret autocomplete=current-password bind=', ref(formData, 'password'));
 			});
 
-			$('button#Connect', 'type=submit');
-			$('button.secondary#Cancel', 'click=', () => {
-				route.go(['/']);
+			$('div.row', () => {
+				$('button.secondary#Cancel', 'click=', () => {
+					route.go(['/']);
+				});
+				$('button#Connect', 'type=submit');
 			});
 		});
 	});
@@ -586,7 +585,7 @@ $('div.root', () => {
 					let title = routeState.title || "Light Lynx";
 					$(`#`, title);
 					if (routeState.subTitle) {
-						$('span.subTitle# '+routeState.subTitle);
+						$('span.subTitle#'+routeState.subTitle);
 					}
 				});
 			});
