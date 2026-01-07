@@ -96,6 +96,7 @@ export interface Store {
     permit_join: boolean;
     servers: ServerCredentials[];    // All saved servers
     activeServerIndex: number;       // Index of currently active server (-1 if none)
+    connected: boolean;              // Connection status
     invalidCredentials: string | undefined, // Reason for invalidity, if any
     extensions: Extension[]; // Available Z2M extensions
 }

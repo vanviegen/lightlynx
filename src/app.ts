@@ -275,9 +275,11 @@ function drawMain(): void {
 			icons.create('click=', permitJoin);
 			icons.createGroup('click=', createGroup);
 			icons.bug('click=', () => route.go(['dump']));
-		} else {
-			icons.reconnect('click=', () => api.store.activeServerIndex = -1);
 		}
+		icons.server('click=', () => {
+			api.store.activeServerIndex = -1;
+			route.go(['/']);
+		});
 	};
 
 		
@@ -346,20 +348,74 @@ function drawMain(): void {
 	});
 }
 
-function drawLogin(): void {
-	routeState.subTitle = 'Login';
+function drawLandingPage(): void {
+	routeState.title = 'Light Lynx';
+	routeState.subTitle = 'Zigbee2MQTT lighting';
 	
+	$('div.landing', () => {
+		$('div.hero', () => {
+			$('h1#Control your lights, simply.');
+			$('p#Light Lynx is a modern, fast, and mobile-friendly interface for Zigbee2MQTT. No hubs, no clouds, just your home.');
+		});
+
+		if (api.store.servers.length > 0) {
+			$('h2#Your Servers');
+			$('div.list', () => {
+				onEach(api.store.servers, (server, index) => {
+					$('div.item.link', {
+						click: () => {
+							api.store.invalidCredentials = undefined;
+							api.store.activeServerIndex = index;
+							route.go(['/']);
+						}
+					}, () => {
+						icons.server();
+						$('h2#', server.name || server.hostname);
+						$('p#', `${server.useHttps ? 'https://' : 'http://'}${server.hostname}:${server.port}`);
+					});
+				});
+			});
+		}
+
+		$('button.primary#Connect to a server', {click: () => route.go(['connect'])});
+		
+		$('div.features', () => {
+			$('div.feature', () => {
+				icons.zap();
+				$('h3#Reactive UI');
+				$('p#Instant feedback with optimistic updates. No more waiting for your lights to catch up.');
+			});
+			$('div.feature', () => {
+				icons.palette();
+				$('h3#Full Control');
+				$('p#Manage groups, scenes, and automation triggers directly from your phone.');
+			});
+			$('div.feature', () => {
+				icons.cloudOff();
+				$('h3#Local First');
+				$('p#Works entirely on your local network. Your data stays your data.');
+			});
+		});
+	});
+}
+
+function drawConnectionPage(): void {
+	routeState.title = 'Connect';
+	routeState.subTitle = 'Zigbee2MQTT';
+	
+	const activeServer = api.store.servers[api.store.activeServerIndex];
 	const formData = proxy({
-		hostname: '',
-		port: 443,
-		useHttps: true,
-		username: 'admin',
-		password: '',
+		hostname: activeServer?.hostname || '',
+		port: activeServer?.port || 443,
+		useHttps: activeServer?.useHttps !== false,
+		username: activeServer?.username || 'admin',
+		password: activeServer?.password || '',
 	});
 
-	// Auto-switch port on HTTPS toggle
+	// Auto-switch port on HTTPS toggle if it's default
 	$(() => {
-		formData.port = formData.useHttps ? 443 : 8080;
+		if (formData.useHttps && formData.port === 8080) formData.port = 443;
+		if (!formData.useHttps && formData.port === 443) formData.port = 8080;
 	});
 
 	function handleSubmit(e: Event): void {
@@ -373,13 +429,30 @@ function drawLogin(): void {
 			password: formData.password,
 			lastConnected: Date.now()
 		};
-		api.store.servers.push(server);
-		api.store.activeServerIndex = api.store.servers.length - 1;
+		
+		if (api.store.activeServerIndex >= 0 && api.store.invalidCredentials) {
+			// Update existing server
+			Object.assign(api.store.servers[api.store.activeServerIndex]!, server);
+			api.store.invalidCredentials = undefined; // Clear error
+		} else {
+			// Add new server
+			api.store.servers.push(server);
+			api.store.activeServerIndex = api.store.servers.length - 1;
+		}
+		route.go(['/']);
 	}
 	
 	$('div.login-form', () => {
-		$('div.empty.field', () => {
-			$('#', api.store.invalidCredentials || "Please provide Zigbee2MQTT credentials.");
+		$(() => {
+			if (api.store.invalidCredentials) {
+				$('div.banner.error', () => {
+					$('p#', api.store.invalidCredentials);
+				});
+			} else {
+				$('div.empty.field', () => {
+					$('#Please provide your Zigbee2MQTT server details.');
+				});
+			}
 		});
 		
 		$('form submit=', handleSubmit, () => {
@@ -411,7 +484,10 @@ function drawLogin(): void {
 				$('input type=password placeholder=Secret autocomplete=current-password bind=', ref(formData, 'password'));
 			});
 
-			$('button#Connect type=submit');
+			$('button#Connect', 'type=submit');
+			$('button.secondary#Cancel', 'click=', () => {
+				route.go(['/']);
+			});
 		});
 	});
 }
@@ -431,30 +507,51 @@ function disableJoin(): void {
 }
 
 $('div.root', () => {
-	$('header', () => {
-		$('img.logo src=', logoUrl, 'click=', () => route.back('/'));
-		$(() => {
-			if (route.current.path !== '/') {
-				icons.back('click=', route.up);
-			}
-			$("h1.title", () => {
-				let title = routeState.title || "Light Lynx";
-				$(`#`, title);
-				if (routeState.subTitle) {
-					$('span.subTitle# '+routeState.subTitle);
+	$(() => {
+		$({'.landing-page': api.store.activeServerIndex < 0 && route.current.p[0] !== 'connect'});
+	});
+		$('header', () => {
+			$('img.logo src=', logoUrl, 'click=', () => route.back('/'));
+			$(() => {
+				if (route.current.path !== '/') {
+					icons.back('click=', route.up);
+				}
+				$("h1.title", () => {
+					let title = routeState.title || "Light Lynx";
+					$(`#`, title);
+					if (routeState.subTitle) {
+						$('span.subTitle# '+routeState.subTitle);
+					}
+				});
+			});
+			$(() => {
+				if (routeState.drawIcons) {
+					routeState.drawIcons();
 				}
 			});
+			$(() => {
+				if (api.store.activeServerIndex >= 0) {
+					const isClickable = admin.value || api.store.servers.length > 1;
+					const props: any = {
+						'.on': api.store.connected,
+						'.off': !api.store.connected,
+						click: isClickable ? () => {
+							api.store.activeServerIndex = -1;
+							route.go(['/']);
+						} : undefined
+					};
+					if (api.store.connected) {
+						icons.server(props);
+					} else {
+						icons.reconnect(props);
+					}
+				}
+			});
+			$(() => {
+				if (api.store.activeServerIndex < 0) return;
+				icons.admin('click=', () => admin.value = !admin.value, {'.on': ref(route.current.search, 'admin')});
+			});
 		});
-		$(() => {
-			if (routeState.drawIcons) {
-				routeState.drawIcons();
-			}
-		});
-		$(() => {
-			if (api.store.activeServerIndex < 0) return;
-			icons.admin('click=', () => admin.value = !admin.value, {'.on': ref(route.current.search, 'admin')});
-		});
-	});
 	
 	$(() => {
 		if (api.store.permit_join) {
@@ -472,9 +569,13 @@ $('div.root', () => {
 			routeState.subTitle = '';
 			delete routeState.drawIcons;
 
-			// Show login form if credentials are invalid or no server active
-			if (api.store.activeServerIndex < 0 || api.store.invalidCredentials) {
-				drawLogin();
+			// Show Landing page if no server active
+			if (p[0] === 'connect') {
+				drawConnectionPage();
+			} else if (api.store.activeServerIndex < 0) {
+				drawLandingPage();
+			} else if (api.store.invalidCredentials) {
+				drawConnectionPage();
 			} else if (p[0]==='group' && p[1]) {
 				drawGroup(parseInt(p[1]));
 			} else if (p[0] === 'bulb' && p[1]) {

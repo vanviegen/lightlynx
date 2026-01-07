@@ -50,6 +50,11 @@ body {
   height: 100%;
   display: flex;
   flex-direction: column;
+  transition: max-width 0.2s ease-in-out;
+}
+
+.root.landing-page {
+  max-width: 900px;
 }
 
 header {
@@ -77,6 +82,27 @@ header>.title {
 header>.title>.subTitle {
   color: #bbb;
   font-weight: normal;
+}
+
+header .icon {
+  width: 32px;
+  height: 32px;
+  cursor: pointer;
+  color: #888;
+}
+
+header .icon.on {
+  color: #0d8;
+}
+
+header .icon.off {
+  color: #f44;
+  animation: header-spin 2s linear infinite;
+}
+
+@keyframes header-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(-360deg); }
 }
 
 /* Hide the scrollbar */
@@ -491,4 +517,110 @@ input[type="checkbox"]:checked {
 }
 hr {
   border-color: #fff3;
+}
+
+/* Landing Page */
+.landing {
+  padding: 32px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 48px;
+}
+
+.landing .hero {
+  text-align: center;
+  padding: 24px 0;
+}
+
+.landing .hero h1 {
+  font-size: 2.8rem;
+  margin-bottom: 16px;
+  line-height: 1.1;
+  background: linear-gradient(45deg, #f4810e, #fb3403);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  font-weight: 800;
+}
+
+.landing .hero p {
+  font-size: 1.25rem;
+  color: #aaa;
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.landing .features {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 32px;
+}
+
+.landing .feature {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 20px;
+  background: #ffffff05;
+  border-radius: 12px;
+  border: 1px solid #ffffff08;
+}
+
+.landing .feature .icon {
+  color: #ed8c01;
+  width: 48px;
+  height: 48px;
+}
+
+.landing .feature h3 {
+  font-size: 1.2rem;
+  color: #f4810e;
+}
+
+.landing .feature p {
+  font-size: 1rem;
+  color: #888;
+}
+
+.landing button.primary {
+  align-self: center;
+  width: auto;
+  min-width: 280px;
+  padding: 16px 32px;
+  font-size: 1.2rem;
+  border-radius: 50px;
+  box-shadow: 0 4px 15px #f4810e40;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.landing button.primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px #f4810e60;
+}
+
+.landing .list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.landing h2 {
+  font-size: 1.5rem;
+  color: #888;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-bottom: -24px;
+}
+
+button.secondary {
+  background: transparent;
+  color: #f4810e;
+  border: 2px solid #f4810e;
+  padding: 10px 24px;
+  margin-top: 16px;
+}
+
+button.secondary:hover {
+  background: #f4810e20;
 }

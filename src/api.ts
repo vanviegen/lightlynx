@@ -125,6 +125,7 @@ class Api {
         permit_join: false,
         servers: getLocalStorage(CREDENTIALS_LOCAL_STORAGE_ITEM_NAME) || [],
         activeServerIndex: -1,
+        connected: false,
         invalidCredentials: undefined,
         extensions: [],
     });
@@ -343,6 +344,7 @@ class Api {
     
     private onOpen = (): void => {
         console.log("api/onOpen - WebSocket connected");
+        this.store.connected = true;
         // Clear any invalid flag when successfully connected
         delete this.store.invalidCredentials;
         // Reset reconnection state on successful connection
@@ -352,6 +354,7 @@ class Api {
 
     private onError = (event: any): void => {
         console.error("WebSocket error", event);
+        this.store.connected = false;
         this.store.invalidCredentials = "Connection error, please check URL";
     }
     
@@ -369,6 +372,7 @@ class Api {
 
     private onClose = (e: CloseEvent): void => {
         console.log("api/onClose", e.code, e.reason);
+        this.store.connected = false;
         if (e.code === UNAUTHORIZED_ERROR_CODE) {
             this.store.invalidCredentials = "Unauthorized, please check your credentials.";
             this.shouldReconnect = false; // Don't reconnect on auth errors
