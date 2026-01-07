@@ -1,7 +1,7 @@
-import {$, proxy, ref, onEach, isEmpty, map, copy, dump, unproxy, clone, peek, partition} from 'aberdeen';
+import {$, proxy, ref, onEach, isEmpty, map, copy, dump, unproxy, peek, partition} from 'aberdeen';
 import * as route from 'aberdeen/route';
 import { grow } from 'aberdeen/transitions';
-import api, { EXTENSION_VERSIONS } from './api';
+import api from './api';
 import * as icons from './icons';
 import * as colors from './colors';
 import { drawColorPicker, drawBulbCircle, getBulbRgb } from "./color-picker";
@@ -351,10 +351,15 @@ function drawLogin(): void {
 	
 	const formData = proxy({
 		hostname: '',
-		port: 8080,
-		useHttps: false,
+		port: 443,
+		useHttps: true,
 		username: 'admin',
 		password: '',
+	});
+
+	// Auto-switch port on HTTPS toggle
+	$(() => {
+		formData.port = formData.useHttps ? 443 : 8080;
 	});
 
 	function handleSubmit(e: Event): void {
@@ -379,18 +384,21 @@ function drawLogin(): void {
 		
 		$('form submit=', handleSubmit, () => {
 			$('div.field', () => {
-				$('label#Hostname');
+				$('label#Hostname/IP');
 				$('input placeholder=your-server.com required=', true, 'bind=', ref(formData, 'hostname'));
+			});
+
+			$('div.field', () => {
+				$('label', () => {
+					$('input type=checkbox bind=', ref(formData, 'useHttps'));
+					$('# Use HTTPS ');
+					$('a href=# click=', (e: Event) => { e.preventDefault(); route.go(['ssl-setup']); }, '#(read more)');
+				});
 			});
 
 			$('div.field', () => {
 				$('label#Port');
 				$('input type=number required=', true, 'bind=', ref(formData, 'port'));
-			});
-
-			$('div.field', () => {
-				$('label#Use HTTPS');
-				$('input type=checkbox bind=', ref(formData, 'useHttps'));
 			});
 			
 			$('div.field', () => {

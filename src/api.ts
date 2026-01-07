@@ -212,7 +212,7 @@ class Api {
             setLocalStorage(CREDENTIALS_LOCAL_STORAGE_ITEM_NAME, this.store.servers);
         });
 
-        // Reconnect if active server change
+        // Reconnect if active server or its details change
         $(() => {
             if (this.store.activeServerIndex >= 0) {
                 delete this.store.invalidCredentials;
