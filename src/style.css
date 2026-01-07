@@ -678,3 +678,49 @@ button.secondary {
 button.secondary:hover {
   background: #f4810e20;
 }
+
+/* Guide Page */
+.guide {
+  padding: 32px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.guide h1 {
+  font-size: 2rem;
+  color: #f4810e;
+}
+
+.guide h2 {
+  font-size: 1.5rem;
+  margin-top: 16px;
+}
+
+.guide p {
+  color: #ccc;
+}
+
+.guide pre {
+  background: #1a1a1a;
+  padding: 16px;
+  border-radius: 8px;
+  overflow-x: auto;
+  border: 1px solid #333;
+}
+
+.guide code {
+  font-family: 'Courier New', Courier, monospace;
+  color: #ed8c01;
+  font-size: 0.9rem;
+  white-space: pre-wrap;
+}
+
+.guide a {
+  color: #f4810e;
+  text-decoration: none;
+}
+
+.guide a:hover {
+  text-decoration: underline;
+}

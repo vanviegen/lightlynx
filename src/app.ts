@@ -425,6 +425,43 @@ function drawLandingPage(): void {
 				$('p#Works entirely on your local network. Your data stays your data.');
 			});
 		});
+
+		$('small.item', () => {
+			$('For the best experience, your Zigbee2MQTT server API should be secured with HTTPS. ');
+			$('a href=# click=', (e: Event) => { e.preventDefault(); route.go(['ssl-setup']); }, 'Read setup guide.');
+		});
+	});
+}
+
+function drawSslGuide(): void {
+	routeState.title = 'SSL Setup';
+	routeState.subTitle = 'Guide';
+	
+	$('div.guide', () => {
+		$('h1#Secure your connection');
+		$('p#HTTPS is recommended for full PWA benefits (like offline functionality) and to keep your credentials secure.');
+
+		$('h2#Option 1: Webcentral (Recommended)');
+		$('p#If you don\'t have a reverse proxy yet, we recommend Webcentral. It\'s easy to set up and handles SSL automatically.');
+		
+		$('pre', () => {
+			$('code#curl -LsSf https://github.com/vanviegen/webcentral/releases/latest/download/webcentral-$(uname -m)-unknown-linux-musl.tar.xz | sudo tar xJf - -C /usr/local/bin --strip-components=1 \'*/webcentral\'\nsudo webcentral --email YOUR_EMAIL_ADDRESS --systemd');
+		});
+
+		$('p#You\'ll need a domain. If you don\'t have one, we suggest ', () => {
+			$('a href=https://freemyip.com/ target=_blank#freemyip.com');
+			$('span#.');
+		});
+
+		$('p#Create a project directory and add a webcentral.ini:');
+		$('pre', () => {
+			$('code#mkdir -p ~/webcentral-projects/YOURNAME.freemyip.com\ncat > ~/webcentral-projects/YOURNAME.freemyip.com/webcentral.ini <<EOF\nport = 8080  # Your Z2M frontend port\nEOF');
+		});
+
+		$('h2#Option 2: Other Reverse Proxies');
+		$('p#You can also use Nginx, Caddy, or Traefik. Just make sure to forward WebSocket connections correctly.');
+		
+		$('button.secondary#Back', {click: () => route.go(['/'])});
 	});
 }
 
@@ -658,6 +695,8 @@ $('div.root', () => {
 			// Show Landing page if no server active
 			if (p[0] === 'connect') {
 				drawConnectionPage();
+			} else if (p[0] === 'ssl-setup') {
+				drawSslGuide();
 			} else if (api.store.activeServerIndex < 0) {
 				drawLandingPage();
 			} else if (api.store.invalidCredentials) {
