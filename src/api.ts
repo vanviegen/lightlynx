@@ -153,22 +153,25 @@ class Api {
         return versionMatch?.[1] || null;
     }
 
-    public async checkAndUpdateExtensions(force: boolean = false): Promise<void> {
-        if (this.extensionCheckPerformed && !force) return;
+    public async checkAndUpdateExtensions(): Promise<void> {
+        if (this.extensionCheckPerformed) return;
         this.extensionCheckPerformed = true;
 
         for (const [name, expectedVersion] of Object.entries(EXTENSION_VERSIONS)) {
             const ext = this.store.extensions.find(e => e.name === name + '.js');
             const installedVersion = ext ? this.extractVersionFromExtension(ext.code) : null;
             
-            if (!ext || installedVersion !== expectedVersion) {
+            if (ext && installedVersion !== expectedVersion) {
                 console.log(`Extension ${name} version mismatch: installed=${installedVersion}, expected=${expectedVersion}`);
-                await this.updateExtension(name, expectedVersion);
+                await this.installExtension(name);
             }
         }
     }
 
-    private async updateExtension(name: string, version: string): Promise<void> {
+    public async installExtension(name: string): Promise<void> {
+        const version = EXTENSION_VERSIONS[name];
+        if (!version) return;
+
         try {
             const response = await fetch(`/extensions/${name}.js`);
             if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -184,9 +187,9 @@ class Api {
                 name: `${name}.js`,
                 code
             });
-            console.log(`Extension ${name} updated to v${version} successfully`);
+            console.log(`Extension ${name} installed successfully`);
         } catch (error) {
-            console.error(`Failed to update extension ${name}:`, error);
+            console.error(`Failed to install extension ${name}:`, error);
         }
     }
     

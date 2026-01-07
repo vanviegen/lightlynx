@@ -59,7 +59,7 @@ function promptInstallExtension(ext: 'api' | 'automation', reason: string): bool
 				$('button.primary#Install now', {'.busy': busy, click: async () => {
 					busy.value = true;
 					try {
-						await api.checkAndUpdateExtensions(true);
+						await api.installExtension(`lightlynx-${ext}`);
 					} finally {
 						busy.value = false;
 					}
@@ -296,12 +296,7 @@ function drawMain(): void {
 		if (admin.value) {
 			icons.create('click=', permitJoin);
 			icons.createGroup('click=', createGroup);
-			icons.bug('click=', () => route.go(['dump']));
 		}
-		icons.server('click=', () => {
-			api.store.activeServerIndex = -1;
-			route.go(['/']);
-		});
 	};
 
 		
@@ -385,25 +380,6 @@ function drawLandingPage(): void {
 			$('h1#Control your lights, simply.');
 			$('p#Light Lynx is a modern, fast, and mobile-friendly interface for Zigbee2MQTT. No hubs, no clouds, just your home.');
 		});
-
-		if (api.store.servers.length > 0) {
-			$('h2#Your Servers');
-			$('div.list', () => {
-				onEach(api.store.servers, (server, index) => {
-					$('div.item.link', {
-						click: () => {
-							api.store.invalidCredentials = undefined;
-							api.store.activeServerIndex = index;
-							route.go(['/']);
-						}
-					}, () => {
-						icons.server();
-						$('h2#', server.name || server.hostname);
-						$('p#', `${server.useHttps ? 'https://' : 'http://'}${server.hostname}:${server.port}`);
-					});
-				});
-			});
-		}
 
 		$('button.primary#Connect to a server', {click: () => route.go(['connect'])});
 		
@@ -595,21 +571,8 @@ $('div.root', () => {
 				}
 			});
 			$(() => {
-				if (api.store.activeServerIndex >= 0) {
-					const isClickable = admin.value || api.store.servers.length > 1;
-					const props: any = {
-						'.on': api.store.connected,
-						'.off': !api.store.connected,
-						click: isClickable ? () => {
-							api.store.activeServerIndex = -1;
-							route.go(['/']);
-						} : undefined
-					};
-					if (api.store.connected) {
-						icons.server(props);
-					} else {
-						icons.reconnect(props);
-					}
+				if (api.store.activeServerIndex >= 0 && !api.store.connected) {
+					icons.reconnect('.off');
 				}
 			});
 			$(() => {
@@ -631,6 +594,16 @@ $('div.root', () => {
 				$(`# ${admin.value ? 'Leave' : 'Enter'} Admin Mode`);
 			});
 
+			if (admin.value) {
+				$('div.menu-item click=', () => {
+					menuOpen.value = false;
+					route.go(['dump']);
+				}, () => {
+					icons.bug();
+					$(`# State dump (debug)`);
+				});
+			}
+
 			$('div.menu-divider');
 
 			// Switch servers
@@ -641,7 +614,7 @@ $('div.root', () => {
 					menuOpen.value = false;
 					route.go(['/']);
 				}, () => {
-					icons.server();
+					icons.reconnect();
 					$(`# Switch to ${server.name || server.hostname}`);
 				});
 			});
@@ -1154,39 +1127,64 @@ function drawUsersSection(): void {
 }
 
 function drawExtensionsSection(): void {
-	$('h1#Extensions');
+	$('h1#Z2M Extensions');
+
+	const uninstall = async (name: string, busy: {value: boolean}) => {
+		let warning = `Are you sure you want to uninstall '${name}'?`;
+		if (name === 'lightlynx-api.js') {
+			warning += "\n\nWARNING: Non-admin users will no longer be able to log in!";
+		} else if (name === 'lightlynx-automation.js') {
+			warning += "\n\nWARNING: Buttons and sensors will no longer trigger actions!";
+		}
+
+		if (confirm(warning)) {
+			busy.value = true;
+			try {
+				await api.send("bridge", "request", "extension", "remove", {name});
+				if (name === 'lightlynx-api.js') {
+					if (confirm("Extension removed. Would you like to re-enable the native Zigbee2MQTT frontend and restart?")) {
+						await api.send("bridge", "request", "options", {options: {frontend: {enabled: true}}});
+						await api.send("bridge", "request", "restart", "");
+					}
+				}
+			} finally {
+				busy.value = false;
+			}
+		}
+	};
+
 	$('div.list', () => {
-		onEach(api.store.extensions, (ext) => {
-			if (!ext.name.startsWith('lightlynx-')) return;
-			
-			$('div.item', () => {
-				icons.extension();
-				$('h2#', ext.name);
-				const version = api.extractVersionFromExtension(ext.code);
-				if (version) $('p#v' + version);
-				
-				const busy = proxy(false);
-				icons.remove('.link', {'.busy': busy, click: async () => {
-					let warning = `Are you sure you want to uninstall '${ext.name}'?`;
-					if (ext.name === 'lightlynx-api.js') {
-						warning += "\n\nWARNING: Non-admin users will no longer be able to log in!";
+		const standard = ['api', 'automation'];
+		for (const name of standard) {
+			const fullName = `lightlynx-${name}.js`;
+			$(() => {
+				const ext = api.store.extensions.find(e => e.name === fullName);
+				$('div.item', () => {
+					icons.extension();
+					$('h2 flex:1 #', name);
+					if (ext) {
+						const version = api.extractVersionFromExtension(ext.code);
+						if (version) $('p#v' + version);
+						
+						const busy = proxy(false);
+						icons.remove('.link', {'.busy': busy, click: () => {
+							uninstall(fullName, busy);
+						}});
+					} else {
+						$('p#N/A');
+						const busy = proxy(false);
+						icons.create('.link', {'.busy': busy, click: async () => {
+							busy.value = true;
+							try {
+								await api.installExtension(`lightlynx-${name}`);
+							} finally {
+								busy.value = false;
+							}
+						}});
 					}
-					if (confirm(warning)) {
-						busy.value = true;
-						try {
-							await api.send("bridge", "request", "extension", "remove", {name: ext.name});
-						} finally {
-							busy.value = false;
-						}
-					}
-				}});
+				});
 			});
-		}, ext => ext.name);
-		
-		$(() => {
-			const hasLightLynxExt = api.store.extensions.some(e => e.name.startsWith('lightlynx-'));
-			if (!hasLightLynxExt) drawEmpty("No Light Lynx extensions installed.");
-		});
+		}
 	});
 }
 

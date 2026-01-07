@@ -26,17 +26,24 @@ class LightLynxAPI {
     }
 
     async start() {
+        const frontendSettings = this.settings.get().frontend || {};
+        
+        // If native frontend is enabled, disable it and restart Z2M.
+        // We do this because we cannot bind to the same port until it's released.
+        if (frontendSettings.enabled !== false) {
+            this.logger.info('LightLynx API: Disabling native frontend and requesting restart...');
+            this.mqtt.onMessage(`${this.mqttBaseTopic}/bridge/request/options`, JSON.stringify({
+                options: { frontend: { enabled: false } }
+            }));
+            this.mqtt.onMessage(`${this.mqttBaseTopic}/bridge/request/restart`, '');
+            return;
+        }
+
         this.logger.info('LightLynx API starting...');
         
         // Fetch external IP for local IP detection
         this.fetchExternalIP();
         
-        // Disable original frontend
-        this.mqtt.onMessage(`${this.mqttBaseTopic}/bridge/request/options`, JSON.stringify({
-            options: { frontend: { enabled: false } }
-        }));
-
-        const frontendSettings = this.settings.get().frontend || {};
         const port = frontendSettings.port || 8080;
         const host = frontendSettings.host;
         const sslKey = frontendSettings.ssl_key;
