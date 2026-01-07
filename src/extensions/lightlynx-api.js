@@ -147,24 +147,21 @@ class LightLynxAPI {
         });
     }
 
+    getClientIP(req) {
+        let ip = req.socket.remoteAddress;
+        if (this.isLocalIP(ip) && req.headers['x-forwarded-for'])
+            ip = req.headers['x-forwarded-for'].split(',')[0].trim();
+        return ip && ip.startsWith('::ffff:') ? ip.slice(7) : ip;
+    }
+
     isLocalIP(ip) {
         if (!ip) return false;
-        // Handle IPv6-mapped IPv4
         if (ip.startsWith('::ffff:')) ip = ip.slice(7);
-        // Localhost
-        if (ip === '127.0.0.1' || ip === '::1' || ip === 'localhost') return true;
-        // Our own external IP counts as local
-        if (this.externalIP && ip === this.externalIP) return true;
-        // Private ranges
-        const parts = ip.split('.').map(Number);
-        if (parts.length === 4) {
-            if (parts[0] === 10) return true;
-            if (parts[0] === 192 && parts[1] === 168) return true;
-            if (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) return true;
-        }
-        // IPv6 private (fc00::/7)
-        if (ip.toLowerCase().startsWith('fc') || ip.toLowerCase().startsWith('fd')) return true;
-        return false;
+        if (ip === '::1' || ip === 'localhost' || ip === this.externalIP) return true;
+        const parts = ip.split('.');
+        if (parts.length !== 4) return ip.toLowerCase().startsWith('fc') || ip.toLowerCase().startsWith('fd');
+        const a = Number(parts[0]), b = Number(parts[1]);
+        return a === 127 || a === 10 || (a === 192 && b === 168) || (a === 172 && b >= 16 && b <= 31);
     }
 
     getUsersForBroadcast() {
@@ -193,7 +190,7 @@ class LightLynxAPI {
         const username = url.searchParams.get('username') || 'admin';
         const password = url.searchParams.get('password') || url.searchParams.get('token') || '';
         const isLightLynx = url.searchParams.get('lightlynx') === '1';
-        const clientIP = req.socket.remoteAddress;
+        const clientIP = this.getClientIP(req);
 
         const user = this.validateUser(username, password);
         if (!user) {
@@ -324,37 +321,17 @@ class LightLynxAPI {
     checkPermission(clientInfo, topic, payload) {
         if (clientInfo.isAdmin) return true;
 
-        // Extract target from topic
         const parts = topic.split('/');
-
-        // Device control: <device_name>/set
-        if (parts.length === 2 && parts[1] === 'set') {
-            const deviceName = parts[0];
-            const device = this.findDeviceByName(deviceName);
-            if (device && clientInfo.allowedDevices?.includes(device.ieeeAddr)) return true;
-            return false;
-        }
-
-        // Group control: bridge/request/group/members/... or <group_name>/set
-        if (parts[0] === 'bridge' && parts[1] === 'request' && parts[2] === 'group') {
-            return false; // Non-admin cannot modify groups
-        }
-
-        // Group set
-        const group = this.findGroupByName(parts[0]);
-        if (group && parts[1] === 'set') {
-            if (clientInfo.allowedGroups?.includes(group.id)) return true;
-            return false;
-        }
-
-        // Bridge admin operations
-        if (topic.startsWith('bridge/request/')) {
-            // Allow scene recall for allowed groups
-            if (parts[2] === 'group' && parts[3] === 'scenes' && parts[4] === 'recall') {
-                const groupId = payload?.group_id || payload?.id;
-                if (clientInfo.allowedGroups?.includes(groupId)) return true;
+        if (parts[1] === 'set') {
+            const device = this.findDeviceByName(parts[0]);
+            if (device) {
+                if (clientInfo.allowedDevices?.includes(device.ieeeAddr)) return true;
+            } else {
+                const group = this.findGroupByName(parts[0]);
+                if (group) {
+                    if (clientInfo.allowedGroups?.includes(group.id)) return true;
+                }
             }
-            return false;
         }
 
         return false;
