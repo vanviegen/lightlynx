@@ -1,6 +1,6 @@
 import { $, proxy, clone, copy, unproxy } from "aberdeen";
 import * as colors from "./colors";
-import { LightState, XYColor, HSColor, ColorValue, isHS, isXY, Store, LightCaps, Device, Group } from "./types";
+import { LightState, XYColor, HSColor, ColorValue, isHS, isXY, Store, LightCaps, Device, Group, ServerCredentials } from "./types";
 
 const CREDENTIALS_LOCAL_STORAGE_ITEM_NAME = "lightlynx-servers";
 const UNAUTHORIZED_ERROR_CODE = 4401;
@@ -126,6 +126,7 @@ class Api {
         servers: getLocalStorage(CREDENTIALS_LOCAL_STORAGE_ITEM_NAME) || [],
         activeServerIndex: -1,
         connected: false,
+        connectionState: 'idle',
         extensions: [],
         users: {},
     });
@@ -135,6 +136,8 @@ class Api {
     // Reconnection state
     private reconnectAttempts = 0;
     private reconnectTimeout?: ReturnType<typeof setTimeout>;
+    private currentServer?: ServerCredentials;  // The server we're connected/connecting to
+    private shouldReconnect = false;  // Only reconnect after a successful connection drops
 
     
     // Extension management
@@ -200,39 +203,88 @@ class Api {
             if (data) this.onMessage({data} as MessageEvent);
         }
         
-        // Set up reactive monitoring of credentials
-        this.setupCredentialsReactivity();
-    }
-    
-    private setupCredentialsReactivity(): void {
-        // Initialize activeServerIndex if we have servers but none active
-        if (this.store.activeServerIndex === -1 && this.store.servers.length > 0) {
-            this.store.activeServerIndex = 0;
-        }
-
-        // React to changes in servers list
+        // Persist servers list to localStorage on changes
         $(() => {
             setLocalStorage(CREDENTIALS_LOCAL_STORAGE_ITEM_NAME, this.store.servers);
         });
-
-        // Reconnect if active server or its details change
-        $(() => {
-            if (this.store.activeServerIndex >= 0 && this.store.connectMode !== 'disabled') {
-                this.connect();
+        
+        // Auto-connect to saved server on startup
+        if (this.store.servers.length > 0) {
+            if (this.store.activeServerIndex === -1) {
+                this.store.activeServerIndex = 0;
             }
-        });
-    }
-    
-    private setError(message: string): void {
-        this.store.lastConnectError = message;
-        if (this.store.connectMode === 'setup') {
-            this.store.connectMode = 'disabled';
+            const server = this.store.servers[this.store.activeServerIndex];
+            if (server) {
+                this.connect(clone(unproxy(server)));
+            }
         }
     }
     
-    private clearError(): void {
+    /**
+     * Connect to a server with the given credentials.
+     * This is the only way to initiate a connection - no reactive triggers.
+     */
+    connect(server: ServerCredentials): void {
+        console.log("api/connect", server.hostname);
+        
+        // Stop any existing connection
+        this.disconnect();
+        
+        // Store the server we're connecting to
+        this.currentServer = server;
+        this.store.connectionState = 'connecting';
+        this.store.connected = false;
         delete this.store.lastConnectError;
-        delete this.store.connectMode;  // Success = normal mode with reconnects
+        
+        const protocol = server.useHttps ? 'wss' : 'ws';
+        const urlStr = `${protocol}://${server.hostname}:${server.port}/api`;
+        const url = new URL(urlStr);
+
+        // Protocol Switching: switch to HTTP if connecting to a non-secure Z2M server from HTTPS
+        if (window.location.protocol === 'https:' && !server.useHttps) {
+            console.log("Switching to HTTP to connect to non-secure Z2M server");
+            window.location.protocol = 'http:';
+            return;
+        }
+
+        if (server.username) url.searchParams.append("username", server.username);
+        if (server.password) {
+            if (server.username === 'admin') {
+                url.searchParams.append("token", server.password);
+            } else {
+                url.searchParams.append("password", server.password);
+            }
+        }
+        url.searchParams.append("lightlynx", "1");
+
+        try {
+            this.socket = new WebSocket(url.toString());
+            this.socket.addEventListener("message", this.onMessage);
+            this.socket.addEventListener("close", this.onClose);
+            this.socket.addEventListener("open", this.onOpen);
+            this.socket.addEventListener("error", this.onError);
+        } catch (error) {
+            this.store.connectionState = 'error';
+            this.store.lastConnectError = "Failed to connect: " + (error as Error).message;
+        }
+    }
+    
+    /**
+     * Disconnect from the current server and stop any reconnection attempts.
+     */
+    disconnect(): void {
+        console.log("api/disconnect");
+        this.shouldReconnect = false;
+        this.reconnectAttempts = 0;
+        clearTimeout(this.reconnectTimeout);
+        
+        if (this.socket) {
+            this.socket.close();
+            this.socket = undefined;
+        }
+        
+        this.store.connectionState = 'idle';
+        this.store.connected = false;
     }
     
     send = (...topicAndPayload: any[]): Promise<void> => {
@@ -298,30 +350,28 @@ class Api {
         }
     }
 
-    private connect(): void {
-        console.log("api/connect");
+    private scheduleReconnect(): void {
+        if (!this.shouldReconnect || !this.currentServer) return;
+        
         this.reconnectAttempts += 1;
-        clearTimeout(this.reconnectTimeout);
-        
-        if (this.socket) {
-            this.socket.close();
-            this.socket = undefined;
-        }
-        
-        const index = this.store.activeServerIndex;
-        if (index < 0 || index >= this.store.servers.length) return;
-        
-        const server = this.store.servers[index]!;
+        const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts - 1), 30000);
+        console.log(`api/scheduleReconnect in ${delay}ms (attempt ${this.reconnectAttempts})`);
+
+        this.reconnectTimeout = setTimeout(() => {
+            if (this.currentServer) {
+                this.store.connectionState = 'connecting';
+                this.connectInternal(this.currentServer);
+            }
+        }, delay);
+    }
+    
+    /**
+     * Internal connection method used for reconnection (doesn't reset state)
+     */
+    private connectInternal(server: ServerCredentials): void {
         const protocol = server.useHttps ? 'wss' : 'ws';
         const urlStr = `${protocol}://${server.hostname}:${server.port}/api`;
         const url = new URL(urlStr);
-
-        // Protocol Switching: switch to HTTP if connecting to a non-secure Z2M server from HTTPS
-        if (window.location.protocol === 'https:' && !server.useHttps) {
-            console.log("Switching to HTTP to connect to non-secure Z2M server");
-            window.location.protocol = 'http:';
-            return;
-        }
 
         if (server.username) url.searchParams.append("username", server.username);
         if (server.password) {
@@ -340,31 +390,22 @@ class Api {
             this.socket.addEventListener("open", this.onOpen);
             this.socket.addEventListener("error", this.onError);
         } catch (error) {
-            this.setError("Failed to connect: " + (error as Error).message);
+            this.store.connectionState = 'error';
+            this.store.lastConnectError = "Failed to connect: " + (error as Error).message;
         }
     }
     
-    private scheduleReconnect(): void {
-        if (this.store.connectMode) return;  // Don't reconnect in setup or disabled mode
-        
-        const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts), 30000);
-        console.log(`api/scheduleReconnect in ${delay}ms (attempt ${this.reconnectAttempts + 1})`);
-
-        this.reconnectTimeout = setTimeout(this.connect.bind(this), delay);
-    }
-    
     private onOpen = (): void => {
-        console.log("api/onOpen - WebSocket connected");
-        this.store.connected = true;
-        this.clearError();
-        this.reconnectAttempts = 0;
+        console.log("api/onOpen - WebSocket opened, awaiting authentication");
+        // Don't mark as connected yet - wait for first message to confirm auth succeeded
+        this.store.connectionState = 'authenticating';
+        delete this.store.lastConnectError;
         clearTimeout(this.reconnectTimeout);
     }
 
     private onError = (event: any): void => {
         console.error("WebSocket error", event);
-        this.store.connected = false;
-        this.setError("Connection error, please check URL");
+        // Don't set error state here - wait for onClose which always follows onError
     }
     
     private resolvePromises({transaction, status}: any): void {
@@ -382,10 +423,19 @@ class Api {
     private onClose = (e: CloseEvent): void => {
         console.log("api/onClose", e.code, e.reason);
         this.store.connected = false;
+        this.socket = undefined;
+        
         if (e.code === UNAUTHORIZED_ERROR_CODE) {
-            this.setError("Unauthorized, please check your credentials.");
-        } else {
+            this.store.connectionState = 'error';
+            this.store.lastConnectError = "Unauthorized, please check your credentials.";
+            this.shouldReconnect = false;  // Don't retry bad credentials
+        } else if (this.shouldReconnect) {
+            // Connection dropped after successful connection - try to reconnect
             this.scheduleReconnect();
+        } else {
+            // Initial connection failed
+            this.store.connectionState = 'error';
+            this.store.lastConnectError = "Connection failed. Please check the server address.";
         }
     }
 
@@ -515,6 +565,15 @@ class Api {
     }
 
     private onMessage = (event: MessageEvent): void => {
+        // First message confirms authentication succeeded
+        if (this.store.connectionState === 'authenticating') {
+            console.log("api/onMessage - Authentication confirmed");
+            this.store.connected = true;
+            this.store.connectionState = 'connected';
+            this.reconnectAttempts = 0;
+            this.shouldReconnect = true;  // Enable auto-reconnect after successful connection
+        }
+        
         let {topic, payload} = JSON.parse(event.data);
         if (topic==='bridge/devices' || topic==='bridge/groups') {
             localStorage.setItem(topic, event.data);

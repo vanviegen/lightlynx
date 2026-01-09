@@ -112,9 +112,27 @@ header .icon.on {
   color: #0d8;
 }
 
-header .icon.off {
+header .off, .critical, header .critical {
   color: #f44;
+}
+
+.warning, header .warning {
+  color: #f4810e;
+}
+
+
+.spinning {
   animation: header-spin 2s linear infinite;
+}
+
+.pulse {
+  animation: pulse-opacity 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse-opacity {
+  0% { opacity: 1; }
+  50% { opacity: 0.3; }
+  100% { opacity: 1; }
 }
 
 @keyframes header-spin {
@@ -165,12 +183,6 @@ small.item {
   text-align: center;
 }
 
-.item.action {
-  line-height: 32px;
-  cursor: pointer;
-}
-
-
 .item>h2, .grid h2 {
   font-size: 120%;
   flex: 1 0 auto;
@@ -213,6 +225,11 @@ small.item {
  
 .link:active {
   background: repeating-linear-gradient(45deg, #ffb06000 0px, #ffb06000 4px, #ffb06060 5px, #ffb06060 9px);
+}
+
+.item.link > svg:last-child {
+  margin-left: auto;
+  width: 24px;
 }
 
 
@@ -519,6 +536,62 @@ input:focus {
   gap: 8px;
   justify-content: start;
   align-items: center;
+}
+
+.scene-presets {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+  gap: 8px;
+  margin: 8px;
+}
+
+.scene-preset {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 8px 4px;
+  margin: 0;
+  border: 0;
+  border-radius: 8px;
+  cursor: pointer;
+  min-height: 60px;
+}
+
+.scene-preset.custom {
+  grid-column: span 2;
+  background: #fff2;
+}
+
+.scene-preset.custom input {
+  width: 100%;
+  background: transparent;
+  color: white;
+  font-family: inherit;
+  outline: none;
+  padding: 0 8px;
+  box-sizing: border-box;
+  text-align: center;
+}
+
+.scene-preset:active {
+  transform: scale(0.95);
+}
+
+.scene-preset.selected {
+  background: #f4810e;
+  color: #000;
+}
+
+.scene-preset svg {
+  width: 28px;
+  height: 28px;
+}
+
+.scene-preset span {
+  font-size: 0.7em;
+  white-space: nowrap;
 }
 
 .scene-times input {

@@ -97,6 +97,9 @@ export interface ServerCredentials {
     lastConnected?: number;  // timestamp
 }
 
+// Connection state machine
+export type ConnectionState = 'idle' | 'connecting' | 'authenticating' | 'connected' | 'error';
+
 // Store interface for the global application state
 export interface Store {
     devices: Record<string, Device>; // IEEE address -> Device
@@ -104,8 +107,8 @@ export interface Store {
     permit_join: boolean;
     servers: ServerCredentials[];    // All saved servers
     activeServerIndex: number;       // Index of currently active server (-1 if none)
-    connected: boolean;              // Connection status
-    connectMode?: 'setup' | 'disabled';  // 'setup' = single attempt, 'disabled' = don't connect, undefined = normal with reconnects
+    connected: boolean;              // Connection status (legacy, derived from connectionState)
+    connectionState: ConnectionState; // Explicit connection state
     lastConnectError?: string;       // Last connection error message
     extensions: Extension[]; // Available Z2M extensions
     users: Record<string, User>;    // Users from lightlynx-api

@@ -114,7 +114,7 @@ function drawBulb(ieee: string): void {
 			const busy = proxy(false);
 			const group = api.store.groups[groupId];
 			if (group) {
-				$(`div.item.action#Remove from "${group.name}"`, {".busy": busy}, icons.remove, {click: async function() {
+				$(`div.item.link#Remove from "${group.name}"`, {".busy": busy}, icons.remove, {click: async function() {
 					busy.value = true;
 					try {
 						await api.send("bridge", "request", "group", "members", "remove", {group: group!.name, device: device!.name});
@@ -126,7 +126,7 @@ function drawBulb(ieee: string): void {
 		});
 
 		if (!removing.value) {
-			$('div.item.action#Delete', icons.eject, {click: async function() {
+			$('div.item.link#Delete', icons.eject, {click: async function() {
 				if (confirm(`Are you sure you want to detach '${device.name}' from zigbee2mqtt?`)) {
 					removing.value = true;
 					try {
@@ -137,7 +137,7 @@ function drawBulb(ieee: string): void {
 				}
 			}});
 		} else {
-			$('div.item.action#Force delete', icons.eject, {click: function() {
+			$('div.item.link#Force delete', icons.eject, {click: function() {
 				if (confirm(`Are you sure you want to FORCE detach '${device.name}' from zigbee2mqtt?`)) {
 					api.send("bridge", "request", "device", "remove", {id: ieee, force: true});
 				}
@@ -296,26 +296,45 @@ function drawDeviceItem(device: Device, ieee: string): void {
 	});
 }
 
+function drawManagementSection(): void {
+	$('h1#Management');
+	$('div.list', () => {
+		$(() => {
+			const active = api.store.permit_join;
+			$('div.item.link', {click: active ? disableJoin : permitJoin}, () => {
+				(active ? icons.stop : icons.create)();
+				$('h2#', active ? 'Stop searching' : 'Permit join');
+				if (active) $('p#Permitting devices to join...');
+			});
+		});
+
+		$('div.item.link', {click: createGroup}, () => {
+			icons.createGroup();
+			$('h2#Create group');
+		});
+	});
+}
+
+function drawBatteries(): void {
+	routeState.title = 'Batteries';
+	$('div.list', () => {
+		onEach(api.store.devices, (device, ieee) => {
+			if (device.lightCaps) return;
+			const b = device.meta?.battery;
+			$('div.item.link', {click: () => route.go(['bulb', ieee])}, () => {
+				$('h2#', device.name);
+				$('p font-weight:bold flex:0 #', b !== undefined ? `${Math.round(b)}%` : 'Unknown', b==undefined ? '' : b <= 5 ? '.critical' : b <= 15 ? '.warning' : '');
+			});
+		}, (device) => {
+			if (device.lightCaps) return;
+			return [(device.meta?.battery ?? 101), device.name]; 
+		});
+	});
+}
+
 function drawMain(): void {
 	routeState.title = '';
 	routeState.subTitle = '';
-	routeState.drawIcons = () => {
-		if (admin.value) {
-			icons.create('click=', permitJoin);
-			icons.createGroup('click=', createGroup);
-		}
-	};
-
-		
-	$(() => {
-		const emptyDevices = map(api.store.devices, (device) => (device.meta?.battery||99) < 10 ? device.name : undefined); 
-		$(() => {
-			if (isEmpty(emptyDevices)) return;
-			$('div.banner', () => {
-				$('p#Replace battery for ' + Object.values(emptyDevices).join(' & ') + '!');
-			});
-		});
-	});
 
 
 	$("div.grid", () => {
@@ -373,6 +392,7 @@ function drawMain(): void {
 
 	$(() => {
 		if (admin.value) {
+			drawManagementSection();
 			drawUsersSection();
 			drawExtensionsSection();
 		}
@@ -452,9 +472,9 @@ function drawConnectionPage(): void {
 	routeState.subTitle = 'Zigbee2MQTT';
 	
 	// Stop any reconnection attempts while on this page
-	api.store.connectMode = 'disabled';
+	api.disconnect();
 	
-	const activeServer = api.store.servers[api.store.activeServerIndex];
+	const activeServer = unproxy(api.store.servers)[api.store.activeServerIndex];
 	const formData = proxy({
 		hostname: activeServer?.hostname || '',
 		port: activeServer?.port || 443,
@@ -462,7 +482,6 @@ function drawConnectionPage(): void {
 		username: activeServer?.username || 'admin',
 		password: activeServer?.password || '',
 	});
-	const hasAttempted = proxy(false);
 
 	// Auto-switch port on HTTPS toggle if it's default
 	$(() => {
@@ -470,9 +489,9 @@ function drawConnectionPage(): void {
 		if (!formData.useHttps && formData.port === 443) formData.port = 8080;
 	});
 
-	// Watch for connection result and navigate on success
+	// Watch for connection success and navigate away
 	$(() => {
-		if (hasAttempted.value && api.store.connectMode === undefined) {
+		if (api.store.connectionState === 'connected') {
 			route.back('/');
 		}
 	});
@@ -490,11 +509,6 @@ function drawConnectionPage(): void {
 			lastConnected: Date.now()
 		};
 		
-		// Clear any previous error and set setup mode
-		delete api.store.lastConnectError;
-		api.store.connectMode = 'setup';
-		hasAttempted.value = true;
-		
 		const isUpdate = api.store.activeServerIndex >= 0;
 		if (isUpdate) {
 			// Update existing server credentials
@@ -504,6 +518,9 @@ function drawConnectionPage(): void {
 			api.store.servers.push(server);
 			api.store.activeServerIndex = api.store.servers.length - 1;
 		}
+		
+		// Connect with a clone of the credentials (non-reactive)
+		api.connect(clone(server));
 	}
 	
 	$('div.login-form', () => {
@@ -551,7 +568,7 @@ function drawConnectionPage(): void {
 					route.back('/');
 				});
 				$(() => {
-					const connecting = api.store.connectMode === 'setup';
+					const connecting = api.store.connectionState === 'connecting' || api.store.connectionState === 'authenticating';
 					$('button type=submit', {'.busy': connecting}, () => {
 						$(connecting ? '#Connecting...' : '#Connect');
 					});
@@ -599,10 +616,32 @@ $('div.root', () => {
 				}
 			});
 			$(() => {
-				if (api.store.activeServerIndex >= 0 && !api.store.connected) {
-					const spinning = api.store.connectMode !== 'disabled';
-					icons.reconnect('.off=', spinning, 'click=', () => route.go(['connect']));
+				if (api.store.activeServerIndex >= 0 && api.store.connectionState !== 'connected') {
+					const spinning = api.store.connectionState === 'connecting' || api.store.connectionState === 'authenticating';
+					icons.reconnect({'.spinning=': spinning}, '.off click=', () => route.go(['connect']));
 				}
+			});
+			$(() => {
+				if (api.store.permit_join) {
+					icons.create('.on.spinning click=', disableJoin);
+				}
+			});
+			$(() => {
+				if (api.store.activeServerIndex < 0) return;
+				let lowest = 100;
+				for (const device of Object.values(api.store.devices)) {
+					const b = device.meta?.battery;
+					if (b !== undefined && b < lowest) lowest = b;
+				}
+				if (lowest > 15) return;
+				const critical = lowest <= 5;
+				const icon = critical ? icons.batteryEmpty : icons.batteryLow;
+				icon({
+					'.critical': critical,
+					'.warning': !critical,
+					'.pulse': critical,
+					click: () => route.go(['batteries'])
+				});
 			});
 			$(() => {
 				if (api.store.activeServerIndex < 0) return;
@@ -619,8 +658,8 @@ $('div.root', () => {
 				admin.value = !admin.value;
 				menuOpen.value = false;
 			}, () => {
-				icons.admin('.on=', admin.value);
-				$(`# ${admin.value ? 'Leave' : 'Enter'} Admin Mode`);
+				icons.admin();
+				$(`# ${admin.value ? 'Leave' : 'Enter'} admin mode`);
 			});
 
 			if (admin.value) {
@@ -629,7 +668,7 @@ $('div.root', () => {
 					route.go(['dump']);
 				}, () => {
 					icons.bug();
-					$(`# State dump (debug)`);
+					$(`# Debug info`);
 				});
 			}
 
@@ -641,6 +680,8 @@ $('div.root', () => {
 				$('div.menu-item click=', () => {
 					api.store.activeServerIndex = index;
 					menuOpen.value = false;
+					// Connect to the new server with its credentials
+					api.connect(clone(unproxy(server)));
 					route.go(['/']);
 				}, () => {
 					icons.reconnect();
@@ -664,10 +705,16 @@ $('div.root', () => {
 			// Logout
 			$('div.menu-item.danger click=', () => {
 				if (confirm('Are you sure you want to log out and remove these credentials?')) {
+					api.disconnect();
 					const index = api.store.activeServerIndex;
 					api.store.servers.splice(index, 1);
 					api.store.activeServerIndex = api.store.servers.length - 1; // May be -1 if none left
 					menuOpen.value = false;
+					// If there's another server, connect to it
+					if (api.store.activeServerIndex >= 0) {
+						const newServer = api.store.servers[api.store.activeServerIndex];
+						if (newServer) api.connect(clone(unproxy(newServer)));
+					}
 					route.go(['/']);
 				}
 			}, () => {
@@ -675,15 +722,6 @@ $('div.root', () => {
 				$(`# Logout from server`);
 			});
 		});
-	});
-	
-	$(() => {
-		if (api.store.permit_join) {
-			$('div.banner', () => {
-				$('p#Permitting devices to join...');
-				icons.stop('click=', disableJoin);
-			});
-		}
 	});
 	
 	$('div.mainContainer', () => {
@@ -704,6 +742,8 @@ $('div.root', () => {
 				drawGroup(parseInt(p[1]));
 			} else if (p[0] === 'bulb' && p[1]) {
 				drawBulb(p[1]);
+			} else if (p[0] === 'batteries') {
+				drawBatteries();
 			} else if (p[0] === 'user' && p[1]) {
 				drawUserEditor();
 			} else if (p[0] === 'dump') {
@@ -853,24 +893,45 @@ export function drawSceneEditor(group: Group, groupId: number): void {
         };
     }));
     
-    $('h1#Settings');
+    $('h1#Scene name');
     
-    // Scene name
-    $('div.item', () => {
-        $('h2#Name');
-        $('input', {
-            type: 'text',
-            bind: ref(sceneState, 'shortName'),
-            placeholder: 'Scene name',
-        });
-    });
-	    
-    if (promptInstallExtension('automation', 'Triggering scenes from buttons and sensors')) {
-    
-		$('h1Triggers', () => {
-			icons.create('click=', () => sceneState.triggers.push({type: '1'}));
+    // Scene identity - combined preset and custom name
+    const scenePresets = Object.keys(icons.scenes).filter(name => 
+        !['dim', 'soft', 'orientation'].includes(name) // Filter out legacy aliases
+    );
+
+	$('div.scene-presets', () => {
+		// Permanent input field as first "button"
+		$('div.scene-preset.custom', () => {
+			$('input', {
+				type: 'text',
+				bind: ref(sceneState, 'shortName')
+			});
+			// $('span#Type here');
 		});
+
+		for (const presetName of scenePresets) {
+			const icon = icons.scenes[presetName]!;
+			const label = presetName.charAt(0).toUpperCase() + presetName.slice(1);
 			
+			$('div.scene-preset.item.link click=', () => {
+				sceneState.shortName = label;
+			}, () => {
+				$(() => {
+					$({'.selected': sceneState.shortName.toLowerCase() === presetName.toLowerCase()});
+				});
+				icon("color:inherit");
+				$('span#', label);
+			});
+		}
+	});
+
+	
+	const hasExtension = isExtensionInstalled('automation');
+	$('h1#Triggers', () => {
+		if (hasExtension) icons.create('click=', () => sceneState.triggers.push({type: '1'}));
+	});
+    if (hasExtension) {
 		onEach(sceneState.triggers, (trigger, triggerIndex) => {
 			$(() => {
 				// There must be a time range for time-based triggers
@@ -924,6 +985,8 @@ export function drawSceneEditor(group: Group, groupId: number): void {
 
 			})
 		});
+	} else {
+		promptInstallExtension('automation', 'Triggering scenes from buttons and sensors')
 	}
 
 
@@ -944,8 +1007,8 @@ export function drawSceneEditor(group: Group, groupId: number): void {
 		if (!confirm(`Are you sure you want to delete the '${scene.name}' scene for group '${group.name}'?`)) return;
 		api.send(group.name, "set", {scene_remove: scene.id});
 	}
-	$('div.item.action#Save current state', 'click=', save, icons.save);
-	$('div.item.action#Delete scene', 'click=', remove, icons.remove);
+	$('div.item.link#Save current state', 'click=', save, icons.save);
+	$('div.item.link#Delete scene', 'click=', remove, icons.remove);
 
     const newName = proxy('');
     lazySave(() => {
@@ -1113,7 +1176,7 @@ export function drawGroupConfigurationEditor(group: Group, groupId: number): voi
 	}
 
 	$('h1#Actions');
-	$('div.item.action#Delete group', 'click=', () => {
+	$('div.item.link#Delete group', 'click=', () => {
 		if (!confirm(`Are you sure you want to delete group '${group.name}'?`)) return;
 		api.send("bridge", "request", "group", "remove", {id: group.name});
 		route.back('/');
@@ -1327,7 +1390,7 @@ function drawUserEditor(): void {
 
 	$('h1#Actions');
 	const busy = proxy(false);
-	$('div.item.action#Save', {'.busy': busy}, icons.save, 'click=', async () => {
+	$('div.item.link#Save', {'.busy': busy}, icons.save, 'click=', async () => {
 		busy.value = true;
 		try {
 			const finalUsername = isNew ? newUsername.value : username;
@@ -1348,7 +1411,7 @@ function drawUserEditor(): void {
 	});
 
 	if (!isNew && !isAdminUser) {
-		$('div.item.action.danger#Delete user', icons.remove, {
+		$('div.item.link.danger#Delete user', icons.remove, {
 			click: async () => {
 				if (confirm(`Are you sure you want to delete user '${username}'?`)) {
 					await api.send("bridge", "request", "lightlynx", "users", "delete", {username});

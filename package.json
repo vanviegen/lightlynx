@@ -1,7 +1,7 @@
 {
   "name": "lightlynx",
   "version": "1.0.0",
-  "description": "",
+  "description": "Web app and extensions for Zigbee2MQTT to make it a polished integrated light automation solution.",
   "scripts": {
     "build": "vite build src/ --outDir ../public --emptyOutDir --assetsDir .",
     "build:debug": "vite build src/ --outDir ../public --emptyOutDir --assetsDir . --mode development --sourcemap --minify false",
@@ -14,7 +14,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "aberdeen": "^1.3.2",
+    "aberdeen": "^1.4.0",
     "ws": "^8.19.0"
   },
   "devDependencies": {
