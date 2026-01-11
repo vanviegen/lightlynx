@@ -110,6 +110,16 @@ Version checking via first-line comments (`// lightlynx-<name> v<version>`). Aut
 - Icons are SVG functions from `icons.ts`
 - Admin mode toggled via `?admin=y` query parameter or three-dot menu
 
+## Testing
+
+Integration tests use Playwright and a mock Zigbee2MQTT server (`src/mock-z2m.ts`).
+
+- `npm test`: Runs the suite. Playwright orchestrates temporary servers:
+  - **Vite Dev Server**: Port 5188
+  - **Mock Z2M**: Port 8088
+- The mock server loads real `lightlynx-api.js` and `lightlynx-automation.js` extensions in a sandboxed Node context to accurately simulate behavior.
+- Use `MOCK_Z2M_PORT=XXXX npm run mock-z2m` to start the mock server manually.
+
 ## Important Patterns
 
 ### Reactive Rendering

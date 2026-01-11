@@ -472,13 +472,16 @@ function drawConnectionPage(): void {
 	routeState.subTitle = 'Zigbee2MQTT';
 	
 	// Stop any reconnection attempts while on this page
-	api.disconnect();
+	// But only if we're not currently busy connecting
+	if (api.store.connectionState !== 'connecting' && api.store.connectionState !== 'authenticating' && api.store.connectionState !== 'connected') {
+		api.disconnect();
+	}
 	
-	const activeServer = unproxy(api.store.servers)[api.store.activeServerIndex];
+	const activeServer = peek(() => unproxy(api.store.servers)[api.store.activeServerIndex]);
 	const formData = proxy({
 		hostname: activeServer?.hostname || '',
-		port: activeServer?.port || 443,
-		useHttps: activeServer?.useHttps !== false,
+		port: activeServer?.port || 8080,
+		useHttps: activeServer?.useHttps === true,
 		username: activeServer?.username || 'admin',
 		password: activeServer?.password || '',
 	});

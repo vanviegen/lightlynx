@@ -2,14 +2,16 @@
   "name": "lightlynx",
   "version": "1.0.0",
   "description": "Web app and extensions for Zigbee2MQTT to make it a polished integrated light automation solution.",
+  "type": "module",
   "scripts": {
     "build": "vite build src/ --outDir ../public --emptyOutDir --assetsDir .",
     "build:debug": "vite build src/ --outDir ../public --emptyOutDir --assetsDir . --mode development --sourcemap --minify false",
     "watch": "npm run build -- --watch",
     "dev": "vite src/ --host",
-    "test": "echo \"Error: no test specified\" && exit 1",
     "purge-cache": "dotenv -- bash -c 'curl --request POST --url https://api.bunny.net/pullzone/$BUNNY_PZ_ID/purgeCache --header \"AccessKey: $BUNNY_ACCESS_KEY\" --header \"accept: application/json\" --header \"content-type: application/json\" --data \"{}\"'",
-    "deploy": "npm run build && dotenv -- bash -c 'rclone sync public/ :sftp,host=$DEPLOY_HOST,user=$DEPLOY_USER,pass=$DEPLOY_PASS_OBSCURED,key_use_agent=false:/ --progress --inplace --sftp-shell-type=none' && npm run purge-cache"
+    "deploy": "npm run build && dotenv -- bash -c 'rclone sync public/ :sftp,host=$DEPLOY_HOST,user=$DEPLOY_USER,pass=$DEPLOY_PASS_OBSCURED,key_use_agent=false:/ --progress --inplace --sftp-shell-type=none' && npm run purge-cache",
+    "test": "playwright test",
+    "mock-z2m": "node --experimental-strip-types src/mock-z2m.ts"
   },
   "author": "",
   "license": "ISC",
@@ -20,7 +22,11 @@
   "devDependencies": {
     "@parcel/packager-raw-url": "^2.13.3",
     "@parcel/transformer-webmanifest": "^2.13.3",
+    "@playwright/test": "^1.57.0",
+    "@types/node": "^25.0.3",
+    "@types/ws": "^8.18.1",
     "dotenv-cli": "^11.0.0",
+    "ts-node": "^10.9.2",
     "vite": "^6.0.7"
   }
 }
