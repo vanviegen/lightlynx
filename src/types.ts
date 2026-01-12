@@ -78,7 +78,7 @@ export interface User {
     allowedDevices: string[];
     allowedGroups: number[];
     allowRemote: boolean;
-    password?: string; // Only used for UI editing, not stored in state dump
+    secret?: string; // Only used for UI editing, not stored in state dump
 }
 
 // Extension interface
@@ -88,12 +88,11 @@ export interface Extension {
 }
 
 export interface ServerCredentials {
-    name: string;      // user-friendly name (hostname or user-provided)
-    hostname: string;
-    port: number;
-    useHttps: boolean;
+    name: string;      // user-friendly name (e.g. Instance ID or user-provided)
+    instanceId: string;
     username: string;
-    password: string;
+    secret: string;
+    useRemote: boolean;
     lastConnected?: number;  // timestamp
 }
 
@@ -112,6 +111,8 @@ export interface Store {
     lastConnectError?: string;       // Last connection error message
     extensions: Extension[]; // Available Z2M extensions
     users: Record<string, User>;    // Users from lightlynx-api
+    remoteAccessEnabled?: boolean;  // From lightlynx-api config
+    instanceId?: string;           // From lightlynx-api config
 }
 
 // Helper functions for color type checking

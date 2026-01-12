@@ -111,11 +111,12 @@ function setLocalStorage(key: string, value: any) {
 
 function getLocalStorage(key: string): any {
     const json = localStorage.getItem(key);
-    return json ? JSON.parse(json) : undefined;
+    return json ? json && JSON.parse(json) : undefined;
 }
 
 class Api {
     socket?: WebSocket;
+    private tryingSockets: WebSocket[] = [];
     requests: Map<string, PromiseCallbacks> = new Map();
     transactionNumber = 1;
     transactionRndPrefix: string;
@@ -225,7 +226,7 @@ class Api {
      * This is the only way to initiate a connection - no reactive triggers.
      */
     connect(server: ServerCredentials): void {
-        console.log("api/connect", server.hostname);
+        console.log("api/connect", server.instanceId);
         
         // Stop any existing connection
         this.disconnect();
@@ -236,37 +237,7 @@ class Api {
         this.store.connected = false;
         delete this.store.lastConnectError;
         
-        const protocol = server.useHttps ? 'wss' : 'ws';
-        const urlStr = `${protocol}://${server.hostname}:${server.port}/api`;
-        const url = new URL(urlStr);
-
-        // Protocol Switching: switch to HTTP if connecting to a non-secure Z2M server from HTTPS
-        if (window.location.protocol === 'https:' && !server.useHttps) {
-            console.log("Switching to HTTP to connect to non-secure Z2M server");
-            window.location.protocol = 'http:';
-            return;
-        }
-
-        if (server.username) url.searchParams.append("username", server.username);
-        if (server.password) {
-            if (server.username === 'admin') {
-                url.searchParams.append("token", server.password);
-            } else {
-                url.searchParams.append("password", server.password);
-            }
-        }
-        url.searchParams.append("lightlynx", "1");
-
-        try {
-            this.socket = new WebSocket(url.toString());
-            this.socket.addEventListener("message", this.onMessage);
-            this.socket.addEventListener("close", this.onClose);
-            this.socket.addEventListener("open", this.onOpen);
-            this.socket.addEventListener("error", this.onError);
-        } catch (error) {
-            this.store.connectionState = 'error';
-            this.store.lastConnectError = "Failed to connect: " + (error as Error).message;
-        }
+        this.connectInternal(server);
     }
     
     /**
@@ -282,6 +253,10 @@ class Api {
             this.socket.close();
             this.socket = undefined;
         }
+        for (const s of this.tryingSockets) {
+            s.close();
+        }
+        this.tryingSockets = [];
         
         this.store.connectionState = 'idle';
         this.store.connected = false;
@@ -369,34 +344,68 @@ class Api {
      * Internal connection method used for reconnection (doesn't reset state)
      */
     private connectInternal(server: ServerCredentials): void {
-        const protocol = server.useHttps ? 'wss' : 'ws';
-        const urlStr = `${protocol}://${server.hostname}:${server.port}/api`;
-        const url = new URL(urlStr);
+        for (const s of this.tryingSockets) {
+            s.close();
+        }
+        this.tryingSockets = [];
 
-        if (server.username) url.searchParams.append("username", server.username);
-        if (server.password) {
-            if (server.username === 'admin') {
-                url.searchParams.append("token", server.password);
-            } else {
-                url.searchParams.append("password", server.password);
+        const hostnames = [`local-${server.instanceId}.lightlynx.eu`];
+        if (server.useRemote) {
+            hostnames.push(`remote-${server.instanceId}.lightlynx.eu`);
+        }
+
+        const protocols = ["lightlynx"];
+        if (server.username && server.secret) {
+            protocols.push("Basic-" + btoa(`${server.username}:${server.secret}`));
+        }
+
+        for (const hostname of hostnames) {
+            try {
+                const url = new URL(`wss://${hostname}:43597/api`);
+                url.searchParams.append("lightlynx", "1");
+                if (server.username && server.secret) {
+                    url.searchParams.append("user", server.username);
+                    url.searchParams.append("secret", server.secret);
+                }
+
+                const socket = new WebSocket(url.toString(), protocols);
+                this.tryingSockets.push(socket);
+                socket.addEventListener("message", this.onMessage);
+                socket.addEventListener("close", this.onClose);
+                socket.addEventListener("open", this.onOpen);
+                socket.addEventListener("error", this.onError);
+            } catch (error) {
+                console.error(`Failed to initiate connection to ${hostname}:`, error);
             }
         }
-        url.searchParams.append("lightlynx", "1");
 
-        try {
-            this.socket = new WebSocket(url.toString());
-            this.socket.addEventListener("message", this.onMessage);
-            this.socket.addEventListener("close", this.onClose);
-            this.socket.addEventListener("open", this.onOpen);
-            this.socket.addEventListener("error", this.onError);
-        } catch (error) {
+        if (this.tryingSockets.length === 0 && !this.socket) {
             this.store.connectionState = 'error';
-            this.store.lastConnectError = "Failed to connect: " + (error as Error).message;
+            this.store.lastConnectError = "Failed to initiate any connection.";
         }
     }
     
-    private onOpen = (): void => {
-        console.log("api/onOpen - WebSocket opened, awaiting authentication");
+    private onOpen = (event: Event): void => {
+        const socket = event.target as WebSocket;
+        console.log("api/onOpen - WebSocket opened", socket.url);
+        
+        if (this.socket) {
+            // We already have a winner!
+            socket.close();
+            return;
+        }
+
+        // We have a winner
+        this.socket = socket;
+        
+        // Close all other "trying" sockets
+        for (const s of this.tryingSockets) {
+            if (s !== socket) {
+                s.close();
+            }
+        }
+        this.tryingSockets = [];
+
         // Don't mark as connected yet - wait for first message to confirm auth succeeded
         this.store.connectionState = 'authenticating';
         delete this.store.lastConnectError;
@@ -404,7 +413,7 @@ class Api {
     }
 
     private onError = (event: any): void => {
-        console.error("WebSocket error", event);
+        console.error("WebSocket error", (event.target as WebSocket)?.url);
         // Don't set error state here - wait for onClose which always follows onError
     }
     
@@ -421,21 +430,39 @@ class Api {
     }
 
     private onClose = (e: CloseEvent): void => {
-        console.log("api/onClose", e.code, e.reason);
-        this.store.connected = false;
-        this.socket = undefined;
-        
-        if (e.code === UNAUTHORIZED_ERROR_CODE) {
-            this.store.connectionState = 'error';
-            this.store.lastConnectError = "Unauthorized, please check your credentials.";
-            this.shouldReconnect = false;  // Don't retry bad credentials
-        } else if (this.shouldReconnect) {
-            // Connection dropped after successful connection - try to reconnect
-            this.scheduleReconnect();
+        const socket = e.target as WebSocket;
+        console.log("api/onClose", socket.url, e.code, e.reason);
+
+        if (this.socket && socket !== this.socket) {
+            // Not our active socket, or it was one of the losers we just closed
+            return;
+        }
+
+        if (this.socket === socket) {
+            // Our active socket closed
+            this.socket = undefined;
+            this.store.connected = false;
+            
+            if (e.code === UNAUTHORIZED_ERROR_CODE) {
+                this.store.connectionState = 'error';
+                this.store.lastConnectError = "Unauthorized, please check your credentials.";
+                this.shouldReconnect = false;  // Don't retry bad credentials
+            } else if (this.shouldReconnect) {
+                // Connection dropped after successful connection - try to reconnect
+                this.scheduleReconnect();
+            } else {
+                // Initial connection failed
+                this.store.connectionState = 'error';
+                this.store.lastConnectError = "Connection failed. Please check the server address.";
+            }
         } else {
-            // Initial connection failed
-            this.store.connectionState = 'error';
-            this.store.lastConnectError = "Connection failed. Please check the server address.";
+            // One of the "trying" sockets failed
+            this.tryingSockets = this.tryingSockets.filter(s => s !== socket);
+            if (this.tryingSockets.length === 0 && !this.socket) {
+                // All attempts failed
+                this.store.connectionState = 'error';
+                this.store.lastConnectError = "Connection failed. Please check the server address.";
+            }
         }
     }
 
@@ -564,7 +591,17 @@ class Api {
         }
     }
 
+    setRemoteAccess(enabled: boolean): Promise<void> {
+        return this.send('bridge/request/lightlynx/config/remote_access', { value: enabled });
+    }
+
     private onMessage = (event: MessageEvent): void => {
+        const socket = event.target as WebSocket;
+        if (socket && socket !== this.socket) {
+            // Shouldn't happen if we close others onOpen, but good to check
+            return;
+        }
+
         // First message confirms authentication succeeded
         if (this.store.connectionState === 'authenticating') {
             console.log("api/onMessage - Authentication confirmed");
@@ -604,6 +641,10 @@ class Api {
             }
             else if (topic === "lightlynx/users") {
                 copy(this.store.users, payload || {});
+            }
+            else if (topic === "lightlynx/config") {
+                this.store.remoteAccessEnabled = payload.remote_access;
+                this.store.instanceId = payload.instance_id;
             }
             else if (topic === "devices") {
                 let newDevs: Record<string, Device> = {};

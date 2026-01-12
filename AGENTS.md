@@ -44,11 +44,14 @@ Uses Aberdeen's `proxy()` for reactive state. The global store (`api.store`) con
 - `connected`: Boolean connection status
 - `extensions`: Z2M extensions list
 - `users`: User management data (admin only)
+- `remoteAccessEnabled`: Current remote access toggle state (admin only)
+- `instanceId`: The unique Z2M instance ID for connectivity
 
 ### Multi-Server Management
 - Credentials stored in localStorage (`lightlynx-servers`)
-- Support for multiple Z2M server connections
-- Protocol switching (HTTPS→HTTP) for non-secure servers
+- Support for multiple Z2M server connections using unique Instance IDs
+- Connectivity handled via `local-<id>.lightlynx.eu` (internal) and `remote-<id>.lightlynx.eu` (external)
+- Automated SSL certificate management (SAN certs) via `cert.lightlynx.eu` edge API
 
 ### Color Systems
 The app handles multiple color representations:
@@ -82,7 +85,8 @@ Requires `.env` file with BunnyCDN credentials (see `.env.example`):
 ## API Communication
 
 The app communicates with Zigbee2MQTT via WebSocket:
-- Connection URL built from `ServerCredentials` (hostname, port, useHttps)
+- Connection URL: `wss://<local|remote>-<instanceId>.lightlynx.eu:43597/api`
+- Authentication: `user` and `secret` (PBKDF2 hash) provided as URL search parameters
 - Adds `?lightlynx=1` parameter for optimized state from `lightlynx-api` extension
 - Messages follow Z2M's topic-based format: `api.send(topic, ...path, payload)`
 - Light state changes use optimistic updates with debouncing
@@ -90,10 +94,12 @@ The app communicates with Zigbee2MQTT via WebSocket:
 ## Z2M Extensions
 
 ### lightlynx-api
-- User authentication with password hashing (scrypt)
+- Configuration stored in `lightlynx.yaml` within Z2M data directory
+- User authentication with client-side PBKDF2 hashing (no raw passwords transmitted or stored)
+- Automated SSL/DNS management using SAN certificates for dual-domain access
 - Optimized state dump for Light Lynx clients
 - Permission checking (admin, allowedDevices, allowedGroups)
-- Remote access control via IP detection
+- Remote access control toggle via admin-only MQTT API
 - User management API
 
 ### lightlynx-automation

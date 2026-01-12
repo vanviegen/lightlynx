@@ -6,6 +6,7 @@ import * as icons from './icons';
 import * as colors from './colors';
 import { drawColorPicker, drawBulbCircle, getBulbRgb } from "./color-picker";
 import { Device, Group, ServerCredentials, User } from './types';
+import { hashSecret } from './hash';
 
 import logoUrl from './logo.webp';
 import swUrl from './sw.ts?worker&url';
@@ -427,43 +428,6 @@ function drawLandingPage(): void {
 				$('p#Works entirely on your local network. Your data stays your data.');
 			});
 		});
-
-		$('small.item', () => {
-			$('#For the best experience, your Zigbee2MQTT server API should be secured with HTTPS. ');
-			$('a href=# click=', (e: Event) => { e.preventDefault(); route.go(['ssl-setup']); }, '#Read setup guide.');
-		});
-	});
-}
-
-function drawSslGuide(): void {
-	routeState.title = 'SSL Setup';
-	routeState.subTitle = 'Guide';
-	
-	$('div.guide', () => {
-		$('h1#Secure your connection');
-		$('p#HTTPS is recommended for full PWA benefits (like offline functionality) and to keep your credentials secure.');
-
-		$('h2#Option 1: Webcentral (Recommended)');
-		$('p#If you don\'t have a reverse proxy yet, we recommend Webcentral. It\'s easy to set up and handles SSL automatically.');
-		
-		$('pre', () => {
-			$('code#curl -LsSf https://github.com/vanviegen/webcentral/releases/latest/download/webcentral-$(uname -m)-unknown-linux-musl.tar.xz | sudo tar xJf - -C /usr/local/bin --strip-components=1 \'*/webcentral\'\nsudo webcentral --email YOUR_EMAIL_ADDRESS --systemd');
-		});
-
-		$('p#You\'ll need a domain. If you don\'t have one, we suggest ', () => {
-			$('a href=https://freemyip.com/ target=_blank#freemyip.com');
-			$('span#.');
-		});
-
-		$('p#Create a project directory and add a webcentral.ini:');
-		$('pre', () => {
-			$('code#mkdir -p ~/webcentral-projects/YOURNAME.freemyip.com\ncat > ~/webcentral-projects/YOURNAME.freemyip.com/webcentral.ini <<EOF\nport = 8080  # Your Z2M frontend port\nEOF');
-		});
-
-		$('h2#Option 2: Other Reverse Proxies');
-		$('p#You can also use Nginx, Caddy, or Traefik. Just make sure to forward WebSocket connections correctly.');
-		
-		$('button.secondary#Back', {click: () => route.go(['/'])});
 	});
 }
 
@@ -479,17 +443,10 @@ function drawConnectionPage(): void {
 	
 	const activeServer = peek(() => unproxy(api.store.servers)[api.store.activeServerIndex]);
 	const formData = proxy({
-		hostname: activeServer?.hostname || '',
-		port: activeServer?.port || 8080,
-		useHttps: activeServer?.useHttps === true,
+		instanceId: activeServer?.instanceId || '',
 		username: activeServer?.username || 'admin',
-		password: activeServer?.password || '',
-	});
-
-	// Auto-switch port on HTTPS toggle if it's default
-	$(() => {
-		if (formData.useHttps && formData.port === 8080) formData.port = 443;
-		if (!formData.useHttps && formData.port === 443) formData.port = 8080;
+		password: '', // Don't pre-fill password in UI if it's stored as secret
+		useRemote: activeServer?.useRemote || false
 	});
 
 	// Watch for connection success and navigate away
@@ -499,16 +456,17 @@ function drawConnectionPage(): void {
 		}
 	});
 
-	function handleSubmit(e: Event): void {
+	async function handleSubmit(e: Event): Promise<void> {
 		e.preventDefault();
 		
+		const secret = await hashSecret(formData.username, formData.password);
+
 		const server: ServerCredentials = {
-			name: formData.hostname,
-			hostname: formData.hostname,
-			port: formData.port,
-			useHttps: formData.useHttps,
+			name: formData.instanceId,
+			instanceId: formData.instanceId,
 			username: formData.username,
-			password: formData.password,
+			secret,
+			useRemote: formData.useRemote,
 			lastConnected: Date.now()
 		};
 		
@@ -533,48 +491,43 @@ function drawConnectionPage(): void {
 					$('p#', api.store.lastConnectError);
 				});
 			} else {
-				$('div.empty#Please provide your Zigbee2MQTT frontend API server details.');
+				$('div.empty', () => {
+					$('p#Please provide your Zigbee2MQTT Instance ID.');
+					$('p#Make sure you have manually installed the Light Lynx API extension in Zigbee2MQTT first.');
+				});
 			}
 		});
 		
 		$('form submit=', handleSubmit, () => {
 			$('div.field', () => {
-				$('label#Hostname or IP');
-				$('input placeholder=your-server.com required=', true, 'bind=', ref(formData, 'hostname'));
-			});
-
-			$('div.field.checkbox-field', () => {
-				$('label', () => {
-					$('input type=checkbox bind=', ref(formData, 'useHttps'));
-					$('# Use HTTPS ');
-				});
-				$('a href=# click=', (e: Event) => { e.preventDefault(); route.go(['ssl-setup']); }, '#(read more)');
-			});
-
-			$('div.field', () => {
-				$('label#Port');
-				$('input type=number required=', true, 'bind=', ref(formData, 'port'));
+				$('label#Z2M Instance ID');
+				$('input placeholder=e.g. 550e8400-e29b... required=', true, 'bind=', ref(formData, 'instanceId'));
+				$('small#You can find this ID in the Light Lynx API extension configuration on your server.');
 			});
 			
 			$('div.field', () => {
 				$('label#Username');
-				$('input placeholder=admin bind=', ref(formData, 'username'));
+				$('input required=', true, 'bind=', ref(formData, 'username'));
 			});
-
+			
 			$('div.field', () => {
-				$('label#Password or token');
-				$('input type=password placeholder=Secret autocomplete=current-password bind=', ref(formData, 'password'));
+				$('label#Password');
+				$('input type=password required=', true, 'bind=', ref(formData, 'password'));
 			});
 
-			$('div.row', () => {
+			$('label.row align-items:center gap:0.5rem', () => {
+				$('input type=checkbox bind=', ref(formData, 'useRemote'));
+				$('span#Connect via Remote Access');
+			});
+			
+			const busy = api.store.connectionState === 'connecting' || api.store.connectionState === 'authenticating';
+			
+			$('div.row margin-top:1em', () => {
 				$('button.secondary#Cancel', 'click=', () => {
 					route.back('/');
 				});
-				$(() => {
-					const connecting = api.store.connectionState === 'connecting' || api.store.connectionState === 'authenticating';
-					$('button type=submit', {'.busy': connecting}, () => {
-						$(connecting ? '#Connecting...' : '#Connect');
-					});
+				$('button.primary type=submit', {'.busy': busy}, () => {
+					$(busy ? '#Connecting...' : '#Connect');
 				});
 			});
 		});
@@ -666,6 +619,25 @@ $('div.root', () => {
 			});
 
 			if (admin.value) {
+				const remoteBusy = proxy(false);
+				$('div.menu-item click=', async () => {
+					remoteBusy.value = true;
+					try {
+						await api.setRemoteAccess(!api.store.remoteAccessEnabled);
+						if (!api.store.remoteAccessEnabled) {
+							alert("Remote access enabled. Ensure your router supports UPnP or you have manually forwarded port 43597.");
+						}
+					} catch (e: any) {
+						alert("Failed to toggle remote access: " + e.message);
+					} finally {
+						remoteBusy.value = false;
+					}
+				}, () => {
+					$({'.busy': remoteBusy});
+					icons.cloud();
+					$(`# ${api.store.remoteAccessEnabled ? 'Disable' : 'Enable'} remote access`);
+				});
+
 				$('div.menu-item click=', () => {
 					menuOpen.value = false;
 					route.go(['dump']);
@@ -688,7 +660,7 @@ $('div.root', () => {
 					route.go(['/']);
 				}, () => {
 					icons.reconnect();
-					$(`# Switch to ${server.name || server.hostname}`);
+					$(`# Switch to ${server.name || server.instanceId}`);
 				});
 			});
 
@@ -737,8 +709,6 @@ $('div.root', () => {
 			// Show Landing page if no server active
 			if (p[0] === 'connect') {
 				drawConnectionPage();
-			} else if (p[0] === 'ssl-setup') {
-				drawSslGuide();
 			} else if (api.store.activeServerIndex < 0) {
 				drawLandingPage();
 			} else if (p[0]==='group' && p[1]) {
@@ -1237,23 +1207,13 @@ function drawExtensionsSection(): void {
 
 	const uninstall = async (name: string, busy: {value: boolean}) => {
 		let warning = `Are you sure you want to uninstall '${name}'?`;
-		if (name === 'lightlynx-api.js') {
-			warning += "\n\nWARNING: Non-admin users will no longer be able to log in!";
-		} else if (name === 'lightlynx-automation.js') {
+		if (name === 'lightlynx-automation.js') {
 			warning += "\n\nWARNING: Buttons and sensors will no longer trigger actions!";
 		}
 
 		if (confirm(warning)) {
 			busy.value = true;
 			try {
-				if (name === 'lightlynx-api.js') {
-					if (confirm("Would you like to re-enable the native Zigbee2MQTT frontend and restart?")) {
-						api.send("bridge", "request", "options", {options: {frontend: {enabled: true}}});
-						api.send("bridge", "request", "extension", "remove", {name});
-						await api.send("bridge", "request", "restart", "");
-						return;
-					}
-				}
 				await api.send("bridge", "request", "extension", "remove", {name});
 			} finally {
 				busy.value = false;
@@ -1275,9 +1235,11 @@ function drawExtensionsSection(): void {
 						if (version) $('p#v' + version);
 						
 						const busy = proxy(false);
-						icons.remove('.link', {'.busy': busy, click: () => {
-							uninstall(fullName, busy);
-						}});
+						if (name !== 'api') {
+							icons.remove('.link', {'.busy': busy, click: () => {
+								uninstall(fullName, busy);
+							}});
+						}
 					} else {
 						$('p#N/A');
 						const busy = proxy(false);
@@ -1399,7 +1361,11 @@ function drawUserEditor(): void {
 			const finalUsername = isNew ? newUsername.value : username;
 			if (!finalUsername) throw new Error("Username required");
 			const payload: any = unproxy(user);
-			if (!user.password) delete payload.password;
+			
+			if (user.password) {
+				payload.secret = await hashSecret(finalUsername, user.password);
+			}
+			delete payload.password;
 			
 			await api.send("bridge", "request", "lightlynx", "users", isNew ? "add" : "update", {
 				username: finalUsername,

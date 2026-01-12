@@ -4,9 +4,12 @@ const fs = require('fs');
 const path = require('path');
 const http = require('http');
 const https = require('https');
+const os = require('os');
+const yaml = require('js-yaml');
 const WebSocket = require('ws');
 
-const USERS_FILE = 'lightlynx-users.json';
+const CONFIG_FILE = 'lightlynx.yaml';
+const PORT = 43597;
 
 class LightLynxAPI {
     constructor(zigbee, mqtt, state, publishEntityState, eventBus, enableDisableExtension, restartCallback, addExtension, settings, logger) {
@@ -22,65 +25,50 @@ class LightLynxAPI {
         this.logger = logger;
         this.mqttBaseTopic = settings.get().mqtt.base_topic;
         this.clients = new Map(); // ws -> {username, isAdmin, allowedDevices, allowedGroups, isLightLynx, allowRemote}
-        this.externalIP = null;
+        this.config = this.loadConfig();
     }
 
     async start() {
-        const frontendSettings = this.settings.get().frontend || {};
+        this.logger.info('LightLynx API starting...');
         
-        // If native frontend is enabled, disable it and restart Z2M.
-        // We do this because we cannot bind to the same port until it's released.
-        if (frontendSettings.enabled !== false) {
-            this.logger.info('LightLynx API: Disabling native frontend and requesting restart...');
-            this.mqtt.onMessage(`${this.mqttBaseTopic}/bridge/request/options`, JSON.stringify({
-                options: { frontend: { enabled: false } }
-            }));
-            this.mqtt.onMessage(`${this.mqttBaseTopic}/bridge/request/restart`, '');
+        // Seed admin user if it doesn't exist
+        this.seedAdminUser();
+
+        // Setup SSL certificate
+        await this.setupSSL();
+
+        if (!this.config.ssl?.certificate) {
+            this.logger.error('LightLynx API: Failed to setup SSL. Cannot start server.');
             return;
         }
 
-        this.logger.info('LightLynx API starting...');
-        
-        // Fetch external IP for local IP detection
-        this.fetchExternalIP();
-        
-        const port = frontendSettings.port || 8080;
-        const host = frontendSettings.host;
-        const sslKey = frontendSettings.ssl_key;
-        const sslCert = frontendSettings.ssl_cert;
-
-        // Create HTTP(S) server
-        if (sslKey && sslCert && fs.existsSync(sslKey) && fs.existsSync(sslCert)) {
-            this.server = https.createServer({
-                key: fs.readFileSync(sslKey),
-                cert: fs.readFileSync(sslCert)
-            });
-        } else {
-            this.server = http.createServer();
-        }
+        // Create HTTPS server
+        this.server = https.createServer({
+            cert: this.config.ssl.certificate,
+            key: this.config.ssl.private_key
+        });
 
         this.server.on('upgrade', (req, socket, head) => this.onUpgrade(req, socket, head));
 
-        this.wss = new WebSocket.Server({ noServer: true, path: '/api' });
+        this.wss = new WebSocket.Server({ 
+            noServer: true, 
+            path: '/api'
+        });
         this.wss.on('connection', (ws, req) => this.onConnection(ws, req));
 
-        if (!host) {
-            this.server.listen(port);
-            this.logger.info(`LightLynx API listening on port ${port}`);
-        } else if (host.startsWith('/')) {
-            this.server.listen(host);
-            this.logger.info(`LightLynx API listening on socket ${host}`);
-        } else {
-            this.server.listen(port, host);
-            this.logger.info(`LightLynx API listening on ${host}:${port}`);
-        }
+        this.server.listen(PORT);
+        this.logger.info(`LightLynx API listening on HTTPS port ${PORT}`);
 
         this.eventBus.onMQTTMessagePublished(this, (data) => this.onMQTTPublish(data));
         this.eventBus.onPublishEntityState(this, (data) => this.onEntityState(data));
         this.eventBus.onMQTTMessage(this, (data) => this.onMQTTRequest(data));
+
+        // Daily refresh
+        this.refreshTimer = setInterval(() => this.setupSSL(), 24 * 60 * 60 * 1000);
     }
 
     async stop() {
+        if (this.refreshTimer) clearInterval(this.refreshTimer);
         this.eventBus.removeListeners(this);
         if (this.wss) {
             for (const client of this.wss.clients) {
@@ -92,45 +80,141 @@ class LightLynxAPI {
         if (this.server) await new Promise(r => this.server.close(r));
     }
 
-    // === User Management ===
+    // === Config Management ===
 
-    getUsersPath() {
-        const dataPath = process.env.ZIGBEE2MQTT_DATA || path.join(__dirname, '..', '..', 'data');
-        return path.join(dataPath, USERS_FILE);
+    getDataPath() {
+        return process.env.ZIGBEE2MQTT_DATA || path.join(__dirname, '..', '..', 'data');
     }
 
-    loadUsers() {
+    loadConfig() {
+        const configPath = path.join(this.getDataPath(), CONFIG_FILE);
+        let config = { users: {}, ssl: {}, remote_access: false };
         try {
-            return JSON.parse(fs.readFileSync(this.getUsersPath(), 'utf8'));
-        } catch {
-            return {};
+            if (fs.existsSync(configPath)) {
+                config = yaml.load(fs.readFileSync(configPath, 'utf8')) || config;
+            }
+        } catch (e) {
+            this.logger.error('LightLynx API: Error loading config: ' + e.message);
+        }
+        return config;
+    }
+
+    saveConfig(config) {
+        if (config) this.config = config;
+        const configPath = path.join(this.getDataPath(), CONFIG_FILE);
+        fs.writeFileSync(configPath, yaml.dump(this.config));
+    }
+
+    // === SSL Management ===
+
+    getLocalIP() {
+        const interfaces = os.networkInterfaces();
+        for (const name of Object.keys(interfaces)) {
+            for (const iface of interfaces[name]) {
+                if (iface.family === 'IPv4' && !iface.internal) {
+                    const parts = iface.address.split('.');
+                    if (parts.length === 4) {
+                        const a = Number(parts[0]), b = Number(parts[1]);
+                        // Private IP ranges
+                        if (a === 10 || (a === 192 && b === 168) || (a === 172 && b >= 16 && b <= 31)) {
+                            return iface.address;
+                        }
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    async setupSSL(force = false) {
+        const lastRemoteAccess = this.config.last_remote_access_state;
+        const remoteAccessChanged = lastRemoteAccess !== undefined && lastRemoteAccess !== this.config.remote_access;
+        
+        const localIP = this.getLocalIP();
+        
+        try {
+            if (!this.config.ssl?.client_id) {
+                this.logger.info('LightLynx API: Requesting new SSL certificate...');
+                const response = await this.postJSON('https://cert.lightlynx.eu/create', { 
+                    local_ip: localIP,
+                    remote_access: this.config.remote_access
+                });
+                if (response.success) {
+                    this.config.ssl = response;
+                    this.config.last_remote_access_state = this.config.remote_access;
+                    this.saveConfig();
+                    this.logger.info(`LightLynx API: Certificate created for instance ID ${response.client_id}`);
+                }
+            } else {
+                this.logger.info('LightLynx API: Refreshing SSL certificate/DNS...');
+                const response = await this.postJSON('https://cert.lightlynx.eu/refresh', {
+                    client_id: this.config.ssl.client_id,
+                    secret_token: this.config.ssl.secret_token,
+                    local_ip: localIP,
+                    remote_access: this.config.remote_access,
+                    force_refresh: force || remoteAccessChanged
+                });
+                if (response.success) {
+                    const updatedSsl = { ...this.config.ssl, ...response };
+                    if (response.certificate) {
+                        updatedSsl.certificate = response.certificate;
+                        updatedSsl.private_key = response.private_key;
+                    }
+                    this.config.ssl = updatedSsl;
+                    this.config.last_remote_access_state = this.config.remote_access;
+                    this.saveConfig();
+                    this.logger.info(`LightLynx API: SSL check completed for instance ID ${this.config.ssl.client_id}`);
+                }
+            }
+        } catch (err) {
+            this.logger.error(`LightLynx API: SSL setup failed: ${err.message}`);
         }
     }
 
-    saveUsers(users) {
-        fs.writeFileSync(this.getUsersPath(), JSON.stringify(users, null, 2));
+    async postJSON(url, body) {
+        return new Promise((resolve, reject) => {
+            const data = JSON.stringify(body);
+            const req = https.request(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Content-Length': data.length
+                }
+            }, (res) => {
+                let bytes = '';
+                res.on('data', chunk => bytes += chunk);
+                res.on('end', () => {
+                    try { resolve(JSON.parse(bytes)); }
+                    catch (e) { reject(e); }
+                });
+            });
+            req.on('error', reject);
+            req.write(data);
+            req.end();
+        });
     }
 
-    hashPassword(password, salt) {
-        return crypto.scryptSync(password, salt, 64).toString('hex');
+    seedAdminUser() {
+        if (!this.config.users.admin || !this.config.users.admin.secret) {
+            const password = crypto.randomBytes(16).toString('hex');
+            const saltString = "LightLynx-Salt-v1-" + "admin";
+            const secret = crypto.pbkdf2Sync(password, saltString, 100000, 32, 'sha256').toString('hex');
+            
+            this.config.users.admin = {
+                secret,
+                isAdmin: true,
+                allowRemote: true
+            };
+            this.saveConfig();
+            this.logger.info(`LightLynx API: Created default 'admin' user with password: ${password}`);
+        }
     }
 
     validateUser(username, password) {
-        // Admin user uses frontend.auth_token
-        if (username === 'admin') {
-            const authToken = this.settings.get().frontend?.auth_token;
-            if (!authToken || authToken === password) {
-                return { username: 'admin', isAdmin: true, allowedDevices: null, allowedGroups: null, allowRemote: false };
-            }
-            return null;
-        }
-
-        const users = this.loadUsers();
-        const user = users[username];
+        const user = this.config.users[username];
         if (!user) return null;
 
-        const hash = this.hashPassword(password, user.salt);
-        if (hash !== user.passwordHash) return null;
+        if (password !== user.secret) return null;
 
         return {
             username,
@@ -139,19 +223,6 @@ class LightLynxAPI {
             allowedGroups: user.allowedGroups || [],
             allowRemote: user.allowRemote || false
         };
-    }
-
-    fetchExternalIP() {
-        https.get('https://api.ipify.org', (res) => {
-            let data = '';
-            res.on('data', chunk => data += chunk);
-            res.on('end', () => {
-                this.externalIP = data.trim();
-                this.logger.info(`LightLynx detected external IP: ${this.externalIP}`);
-            });
-        }).on('error', (err) => {
-            this.logger.warning(`Failed to fetch external IP: ${err.message}`);
-        });
     }
 
     getClientIP(req) {
@@ -164,7 +235,7 @@ class LightLynxAPI {
     isLocalIP(ip) {
         if (!ip) return false;
         if (ip.startsWith('::ffff:')) ip = ip.slice(7);
-        if (ip === '::1' || ip === 'localhost' || ip === this.externalIP) return true;
+        if (ip === '::1' || ip === 'localhost') return true;
         const parts = ip.split('.');
         if (parts.length !== 4) return ip.toLowerCase().startsWith('fc') || ip.toLowerCase().startsWith('fd');
         const a = Number(parts[0]), b = Number(parts[1]);
@@ -172,7 +243,7 @@ class LightLynxAPI {
     }
 
     getUsersForBroadcast() {
-        const users = this.loadUsers();
+        const users = this.config.users;
         const result = {};
         for (const [name, user] of Object.entries(users)) {
             result[name] = {
@@ -194,12 +265,13 @@ class LightLynxAPI {
             return;
         }
 
-        const username = url.searchParams.get('username') || 'admin';
-        const password = url.searchParams.get('password') || url.searchParams.get('token') || '';
+        const username = url.searchParams.get('user');
+        const password = url.searchParams.get('secret');
+        
         const isLightLynx = url.searchParams.get('lightlynx') === '1';
         const clientIP = this.getClientIP(req);
 
-        const user = this.validateUser(username, password);
+        const user = username ? this.validateUser(username, password) : null;
         if (!user) {
             socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
             socket.destroy();
@@ -257,6 +329,7 @@ class LightLynxAPI {
         // Send users data for LightLynx clients
         if (clientInfo.isLightLynx && clientInfo.isAdmin) {
             ws.send(JSON.stringify({ topic: 'bridge/lightlynx/users', payload: this.getUsersForBroadcast() }));
+            ws.send(JSON.stringify({ topic: 'bridge/lightlynx/config', payload: { remote_access: this.config.remote_access, instance_id: this.config.ssl?.client_id } }));
         }
     }
 
@@ -392,101 +465,112 @@ class LightLynxAPI {
     // === User Management API ===
 
     async onMQTTRequest(data) {
-        const prefix = `${this.mqttBaseTopic}/bridge/request/lightlynx/users/`;
+        const prefix = `${this.mqttBaseTopic}/bridge/request/lightlynx/`;
         if (!data.topic.startsWith(prefix)) return;
 
-        const action = data.topic.slice(prefix.length);
+        const path = data.topic.slice(prefix.length);
+        const parts = path.split('/');
+        const category = parts[0];
+        const action = parts[1];
+        
         let message;
         try { message = JSON.parse(data.message); } catch { message = {}; }
-
-        // Find requesting client (must be admin)
-        let isAdmin = false;
-        for (const clientInfo of this.clients.values()) {
-            if (clientInfo.isAdmin) { isAdmin = true; break; }
-        }
         
-        // For now, allow any request (will be validated by caller context in real scenarios)
-        // In production, this should validate the request source
-
         let response;
         try {
-            switch (action) {
-                case 'list':
-                    response = { data: this.getUsersForBroadcast(), status: 'ok' };
-                    break;
-                case 'add':
-                    response = this.addUser(message);
-                    break;
-                case 'update':
-                    response = this.updateUser(message);
-                    break;
-                case 'delete':
-                    response = this.deleteUser(message);
-                    break;
-                default:
-                    response = { status: 'error', error: 'Unknown action' };
+            if (category === 'users') {
+                switch (action) {
+                    case 'list':
+                        response = { data: this.getUsersForBroadcast(), status: 'ok' };
+                        break;
+                    case 'add':
+                        response = this.addUser(message);
+                        this.broadcastUsers();
+                        break;
+                    case 'update':
+                        response = this.updateUser(message);
+                        this.broadcastUsers();
+                        break;
+                    case 'delete':
+                        response = this.deleteUser(message);
+                        this.broadcastUsers();
+                        break;
+                    default:
+                        response = { status: 'error', error: 'Unknown action' };
+                }
+            } else if (category === 'config') {
+                switch (action) {
+                    case 'get':
+                        response = { data: { remote_access: this.config.remote_access, instance_id: this.config.ssl?.client_id }, status: 'ok' };
+                        break;
+                    case 'set_remote_access':
+                        this.config.remote_access = !!message.enabled;
+                        this.saveConfig();
+                        await this.setupSSL(true);
+                        response = { data: { remote_access: this.config.remote_access }, status: 'ok' };
+                        // Broadcast update to all admin clients
+                        this.broadcastConfig();
+                        break;
+                    default:
+                        response = { status: 'error', error: 'Unknown action' };
+                }
+            } else {
+                response = { status: 'error', error: 'Unknown category' };
             }
         } catch (err) {
             response = { status: 'error', error: err.message };
         }
 
-        await this.mqtt.publish(`bridge/response/lightlynx/users/${action}`, JSON.stringify(response));
+        await this.mqtt.publish(`bridge/response/lightlynx/${path}`, JSON.stringify(response));
 
         // Broadcast updated users if change was successful
-        if (response.status === 'ok' && action !== 'list') {
-            this.broadcastUsers();
+
+    }
+
+    broadcastConfig() {
+        const payload = { remote_access: this.config.remote_access, instance_id: this.config.ssl?.client_id };
+        for (const [ws, clientInfo] of this.clients) {
+            if (ws.readyState === WebSocket.OPEN && clientInfo.isAdmin) {
+                ws.send(JSON.stringify({ topic: 'bridge/lightlynx/config', payload }));
+            }
         }
     }
 
     addUser(message) {
-        const { username, password, isAdmin, allowedDevices, allowedGroups, allowRemote } = message;
-        if (!username || !password) throw new Error('Username and password required');
+        const { username, secret, isAdmin, allowedDevices, allowedGroups, allowRemote } = message;
+        if (!username || !secret) throw new Error('Username and secret required');
         if (username === 'admin') throw new Error('Cannot add admin user');
 
-        const users = this.loadUsers();
+        const users = this.config.users;
         if (users[username]) throw new Error('User already exists');
 
-        const salt = crypto.randomBytes(16).toString('hex');
         users[username] = {
-            passwordHash: this.hashPassword(password, salt),
-            salt,
+            secret,
             isAdmin: isAdmin || false,
             allowedDevices: allowedDevices || [],
             allowedGroups: allowedGroups || [],
             allowRemote: allowRemote || false
         };
-        this.saveUsers(users);
+        this.saveConfig();
         return { status: 'ok' };
     }
 
     updateUser(message) {
-        const { username, password, isAdmin, allowedDevices, allowedGroups, allowRemote } = message;
+        const { username, secret, isAdmin, allowedDevices, allowedGroups, allowRemote } = message;
         if (!username) throw new Error('Username required');
 
-        // Special case: updating admin updates frontend.auth_token
-        if (username === 'admin') {
-            if (password) {
-                this.mqtt.onMessage(`${this.mqttBaseTopic}/bridge/request/options`, Buffer.from(JSON.stringify({
-                    options: { frontend: { auth_token: password } }
-                })));
-            }
-            return { status: 'ok' };
-        }
-
-        const users = this.loadUsers();
+        const users = this.config.users;
         if (!users[username]) throw new Error('User not found');
 
-        if (password) {
-            const salt = crypto.randomBytes(16).toString('hex');
-            users[username].passwordHash = this.hashPassword(password, salt);
-            users[username].salt = salt;
+        if (secret) {
+            users[username].secret = secret;
         }
         if (isAdmin !== undefined) users[username].isAdmin = isAdmin;
         if (allowedDevices !== undefined) users[username].allowedDevices = allowedDevices;
         if (allowedGroups !== undefined) users[username].allowedGroups = allowedGroups;
         if (allowRemote !== undefined) users[username].allowRemote = allowRemote;
 
-        this.saveUsers(users);
+        this.saveConfig();
         return { status: 'ok' };
     }
 
@@ -495,11 +579,11 @@ class LightLynxAPI {
         if (!username) throw new Error('Username required');
         if (username === 'admin') throw new Error('Cannot delete admin user');
 
-        const users = this.loadUsers();
+        const users = this.config.users;
         if (!users[username]) throw new Error('User not found');
 
         delete users[username];
-        this.saveUsers(users);
+        this.saveConfig();
         return { status: 'ok' };
     }
 
