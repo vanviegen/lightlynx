@@ -1,4 +1,5 @@
-import {$, proxy, ref, onEach, isEmpty, map, copy, dump, unproxy, peek, partition, clone} from 'aberdeen';
+/// <reference types="vite/client" />
+import {$, proxy, ref, onEach, isEmpty, copy, dump, unproxy, peek, partition, clone} from 'aberdeen';
 import * as route from 'aberdeen/route';
 import { grow } from 'aberdeen/transitions';
 import api from './api';
@@ -14,7 +15,7 @@ import swUrl from './sw.ts?worker&url';
 route.setLog(true);
 
 if ('serviceWorker' in navigator) {
-	navigator.serviceWorker.register(swUrl);
+	navigator.serviceWorker.register(swUrl, { type: import.meta.env.DEV ? 'module' : 'classic' });
 	
 	// Listen for reload messages from the service worker
 	navigator.serviceWorker.addEventListener('message', (event) => {
@@ -33,6 +34,49 @@ const routeState = proxy({
 
 const admin = proxy(!!route.current.search.admin);
 const menuOpen = proxy(false);
+
+interface Toast {
+	id: number;
+	message: string;
+}
+const toasts = proxy([] as Toast[]);
+export function notify(message: string) {
+	const id = Math.random();
+	toasts.push({ id, message });
+	setTimeout(() => {
+		const index = toasts.findIndex(t => t.id === id);
+		if (index !== -1) toasts.splice(index, 1);
+	}, 3000);
+}
+
+const confirmState = proxy({
+	message: '',
+	resolve: null as ((v: boolean) => void) | null
+});
+
+async function askConfirm(message: string): Promise<boolean> {
+	return new Promise(resolve => {
+		confirmState.message = message;
+		confirmState.resolve = resolve;
+		route.go(['confirm']);
+	});
+}
+
+const promptState = proxy({
+	message: '',
+	value: '',
+	resolve: null as ((v: string | null) => void) | null
+});
+
+async function askPrompt(message: string, defaultValue = ''): Promise<string | null> {
+	return new Promise(resolve => {
+		promptState.message = message;
+		promptState.value = defaultValue;
+		promptState.resolve = resolve;
+		route.go(['prompt']);
+	});
+}
+
 $(() => {
 	route.current.search.admin; // subscribe to this, so we'll force-update it when it changes
 	if (admin.value) route.current.search.admin = 'y';
@@ -128,7 +172,7 @@ function drawBulb(ieee: string): void {
 
 		if (!removing.value) {
 			$('div.item.link#Delete', icons.eject, {click: async function() {
-				if (confirm(`Are you sure you want to detach '${device.name}' from zigbee2mqtt?`)) {
+				if (await askConfirm(`Are you sure you want to detach '${device.name}' from zigbee2mqtt?`)) {
 					removing.value = true;
 					try {
 						await api.send("bridge", "request", "device", "remove", {id: ieee});
@@ -138,8 +182,8 @@ function drawBulb(ieee: string): void {
 				}
 			}});
 		} else {
-			$('div.item.link#Force delete', icons.eject, {click: function() {
-				if (confirm(`Are you sure you want to FORCE detach '${device.name}' from zigbee2mqtt?`)) {
+			$('div.item.link#Force delete', icons.eject, {click: async function() {
+				if (await askConfirm(`Are you sure you want to FORCE detach '${device.name}' from zigbee2mqtt?`)) {
 					api.send("bridge", "request", "device", "remove", {id: ieee, force: true});
 				}
 			}});
@@ -150,6 +194,106 @@ function drawBulb(ieee: string): void {
 function drawDump(): void {
 	routeState.title = 'State dump';
 	dump(api.store);
+}
+
+function drawConfirmPage(): void {
+	routeState.title = 'Confirmation';
+	if (!confirmState.resolve) {
+		route.back('/');
+		return;
+	}
+
+	$('div.padding:2em display:flex flex-direction:column gap:2em', () => {
+		$('p font-size:1.2em text-align:center #', confirmState.message);
+		
+		$('div.row gap:1em', () => {
+			$('button.secondary flex:1 #No', 'click=', () => {
+				const resolve = confirmState.resolve;
+				confirmState.resolve = null;
+				if (resolve) resolve(false);
+				route.back();
+			});
+			$('button.primary flex:1 #Yes', 'click=', () => {
+				const resolve = confirmState.resolve;
+				confirmState.resolve = null;
+				if (resolve) resolve(true);
+				route.back();
+			});
+		});
+	});
+}
+
+function drawPromptPage(): void {
+	routeState.title = 'Input';
+	if (!promptState.resolve) {
+		route.back('/');
+		return;
+	}
+
+	$('div.padding:2em display:flex flex-direction:column gap:2em', () => {
+		$('p font-size:1.2em text-align:center #', promptState.message);
+		
+		$('input type=text width:100%', {
+			value: promptState.value,
+			input: (e: any) => promptState.value = e.target.value,
+			keydown: (e: KeyboardEvent) => {
+				if (e.key === 'Enter') {
+					const resolve = promptState.resolve;
+					promptState.resolve = null;
+					if (resolve) resolve(promptState.value);
+					route.back();
+				}
+			}
+		});
+
+		$('div.row gap:1em', () => {
+			$('button.secondary flex:1 #Cancel', 'click=', () => {
+				const resolve = promptState.resolve;
+				promptState.resolve = null;
+				if (resolve) resolve(null);
+				route.back();
+			});
+			$('button.primary flex:1 #OK', 'click=', () => {
+				const resolve = promptState.resolve;
+				promptState.resolve = null;
+				if (resolve) resolve(promptState.value);
+				route.back();
+			});
+		});
+	});
+}
+
+function drawRemoteInfoPage(): void {
+	routeState.title = 'Remote Access';
+	routeState.subTitle = 'Information';
+
+	$('div.padding:1em line-height:1.6em', () => {
+		$('h1 margin-top:0 #How it works');
+		$('p#', 'Remote access allows you to control your lights from anywhere in the world. When enabled, your server becomes accessible via a secure, encrypted connection.');
+		
+		$('h1#Simplified Networking');
+		$('p#', 'We use two technologies to make this "zero-config":');
+		$('ul', () => {
+			$('li#', () => {
+				$('strong#UPnP: ');
+				$('#The server automatically asks your router to open a port (43597) so it can be reached from the internet.');
+			});
+			$('li#', () => {
+				$('strong#Race-to-connect: ');
+				$('#The app is smart. It tries to connect to your server locally and remotely at the same time, and picks whichever responds first. This makes the transition between home Wi-Fi and mobile data instant and seamless.');
+			});
+		});
+
+		$('h1#Security');
+		$('p#', 'Your security is our priority:');
+		$('ul', () => {
+			$('li#', 'All communication is encrypted using SSL (HTTPS/WSS).');
+			$('li#', 'Authentication is handled via PBKDF2 hashing. Your password is never sent or stored in plain text.');
+			$('li#', 'You can restrict remote access on a per-user basis in the user management settings.');
+		});
+
+		$('button.primary margin-top:2em width:100% #Got it', 'click=', () => route.up());
+	});
 }
 
 const deviceGroups: Record<string, number[]> = {};
@@ -172,8 +316,8 @@ function drawGroup(groupId: number): void {
 	if (route.current.p[2] === 'addInput') return drawGroupAddInput(group, groupId);
 	if (route.current.p[2] === 'scene') return drawSceneEditor(group, groupId);
 	
-	function createScene(): void {
-		let name = prompt("What should the new scene be called?")
+	async function createScene(): Promise<void> {
+		const name = await askPrompt("What should the new scene be called?")
 		if (!name) return
 		
 		let freeId = 0;
@@ -301,7 +445,7 @@ function drawManagementSection(): void {
 	$('h1#Management');
 	$('div.list', () => {
 		$(() => {
-			const active = api.store.permit_join;
+			const active = api.store.permitJoin;
 			$('div.item.link', {click: active ? disableJoin : permitJoin}, () => {
 				(active ? icons.stop : icons.create)();
 				$('h2#', active ? 'Stop searching' : 'Permit join');
@@ -443,10 +587,9 @@ function drawConnectionPage(): void {
 	
 	const activeServer = peek(() => unproxy(api.store.servers)[api.store.activeServerIndex]);
 	const formData = proxy({
-		instanceId: activeServer?.instanceId || '',
+		serverIp: activeServer?.serverIp || '',
 		username: activeServer?.username || 'admin',
 		password: '', // Don't pre-fill password in UI if it's stored as secret
-		useRemote: activeServer?.useRemote || false
 	});
 
 	// Watch for connection success and navigate away
@@ -456,17 +599,24 @@ function drawConnectionPage(): void {
 		}
 	});
 
+	// Watch for connection error and show toast
+	$(() => {
+		if (api.store.lastConnectError) {
+			notify(api.store.lastConnectError);
+			api.store.lastConnectError = '';
+		}
+	});
+
 	async function handleSubmit(e: Event): Promise<void> {
 		e.preventDefault();
 		
 		const secret = await hashSecret(formData.username, formData.password);
 
 		const server: ServerCredentials = {
-			name: formData.instanceId,
-			instanceId: formData.instanceId,
+			name: formData.serverIp,
+			serverIp: formData.serverIp,
 			username: formData.username,
 			secret,
-			useRemote: formData.useRemote,
 			lastConnected: Date.now()
 		};
 		
@@ -480,29 +630,14 @@ function drawConnectionPage(): void {
 			api.store.activeServerIndex = api.store.servers.length - 1;
 		}
 		
-		// Connect with a clone of the credentials (non-reactive)
-		api.connect(clone(server));
+		api.connect(server);
 	}
 	
 	$('div.login-form', () => {
-		$(() => {
-			if (api.store.lastConnectError) {
-				$('div.banner.error margin-bottom:1em ', () => {
-					$('p#', api.store.lastConnectError);
-				});
-			} else {
-				$('div.empty', () => {
-					$('p#Please provide your Zigbee2MQTT Instance ID.');
-					$('p#Make sure you have manually installed the Light Lynx API extension in Zigbee2MQTT first.');
-				});
-			}
-		});
-		
 		$('form submit=', handleSubmit, () => {
 			$('div.field', () => {
-				$('label#Z2M Instance ID');
-				$('input placeholder=e.g. 550e8400-e29b... required=', true, 'bind=', ref(formData, 'instanceId'));
-				$('small#You can find this ID in the Light Lynx API extension configuration on your server.');
+				$('label#Server IP');
+				$('input placeholder=', 'e.g. 192.168.1.5', 'required=', true, 'bind=', ref(formData, 'serverIp'));
 			});
 			
 			$('div.field', () => {
@@ -513,11 +648,6 @@ function drawConnectionPage(): void {
 			$('div.field', () => {
 				$('label#Password');
 				$('input type=password required=', true, 'bind=', ref(formData, 'password'));
-			});
-
-			$('label.row align-items:center gap:0.5rem', () => {
-				$('input type=checkbox bind=', ref(formData, 'useRemote'));
-				$('span#Connect via Remote Access');
 			});
 			
 			const busy = api.store.connectionState === 'connecting' || api.store.connectionState === 'authenticating';
@@ -534,8 +664,8 @@ function drawConnectionPage(): void {
 	});
 }
 
-function createGroup(): void {
-	let name = prompt("What should the group be called?");
+async function createGroup(): Promise<void> {
+	const name = await askPrompt("What should the group be called?");
 	if (!name) return;
 	api.send("bridge", "request", "group", "add", {friendly_name: name});
 }
@@ -578,7 +708,7 @@ $('div.root', () => {
 				}
 			});
 			$(() => {
-				if (api.store.permit_join) {
+				if (api.store.permitJoin) {
 					icons.create('.on.spinning click=', disableJoin);
 				}
 			});
@@ -620,22 +750,34 @@ $('div.root', () => {
 
 			if (admin.value) {
 				const remoteBusy = proxy(false);
-				$('div.menu-item click=', async () => {
-					remoteBusy.value = true;
-					try {
-						await api.setRemoteAccess(!api.store.remoteAccessEnabled);
-						if (!api.store.remoteAccessEnabled) {
-							alert("Remote access enabled. Ensure your router supports UPnP or you have manually forwarded port 43597.");
+				$('label.menu-item pointer-events:auto', () => {
+					$({'.busy': remoteBusy.value});
+					$('input type=checkbox', {
+						checked: api.store.remoteAccessEnabled,
+						disabled: remoteBusy.value,
+						change: async (e: Event) => {
+							const checked = (e.target as HTMLInputElement).checked;
+							remoteBusy.value = true;
+							try {
+								await api.setRemoteAccess(checked);
+								if (checked) {
+									notify("Remote access enabled. Ensure your router supports UPnP or you have manually forwarded port 43597.");
+								}
+							} catch (e: any) {
+								notify("Failed to toggle remote access: " + e.message);
+							} finally {
+								remoteBusy.value = false;
+							}
 						}
-					} catch (e: any) {
-						alert("Failed to toggle remote access: " + e.message);
-					} finally {
-						remoteBusy.value = false;
-					}
-				}, () => {
-					$({'.busy': remoteBusy});
+					});
 					icons.cloud();
-					$(`# ${api.store.remoteAccessEnabled ? 'Disable' : 'Enable'} remote access`);
+					$(`# Remote access`);
+					icons.info('margin-left:auto click=', (e: Event) => {
+						e.stopPropagation();
+						e.preventDefault();
+						menuOpen.value = false;
+						route.go(['remote-info']);
+					});
 				});
 
 				$('div.menu-item click=', () => {
@@ -660,7 +802,7 @@ $('div.root', () => {
 					route.go(['/']);
 				}, () => {
 					icons.reconnect();
-					$(`# Switch to ${server.name || server.instanceId}`);
+					$(`# Switch to ${server.name || server.serverIp}`);
 				});
 			});
 
@@ -678,8 +820,8 @@ $('div.root', () => {
 			});
 
 			// Logout
-			$('div.menu-item.danger click=', () => {
-				if (confirm('Are you sure you want to log out and remove these credentials?')) {
+			$('div.menu-item.danger click=', async () => {
+				if (await askConfirm('Are you sure you want to log out and remove these credentials?')) {
 					api.disconnect();
 					const index = api.store.activeServerIndex;
 					api.store.servers.splice(index, 1);
@@ -721,11 +863,24 @@ $('div.root', () => {
 				drawUserEditor();
 			} else if (p[0] === 'dump') {
 				drawDump();
+			} else if (p[0] === 'confirm') {
+				drawConfirmPage();
+			} else if (p[0] === 'prompt') {
+				drawPromptPage();
+			} else if (p[0] === 'remote-info') {
+				drawRemoteInfoPage();
 			} else {
 				drawMain();
 			}
 			route.persistScroll();
 		}, {destroy: 'fadeOut', create: route.current.nav});
+	});
+
+	// Toast container
+	$('div.toasts', () => {
+		onEach(toasts, (toast: Toast) => {
+			$('div.toast#', toast.message);
+		});
 	});
 });
 
@@ -832,7 +987,7 @@ export function buildGroupTimeoutSuffix(timeout: GroupTimeout | null): string {
 }
 
 function lazySave(getState: () => void | (() => void), delay: number = 1000): void {
-    let timeoutId: number | undefined;
+    let timeoutId: any;
     let firstRun = true;
     $(() => {
         clearTimeout(timeoutId);
@@ -964,9 +1119,9 @@ export function drawSceneEditor(group: Group, groupId: number): void {
 
 
 	$('h1#Actions');
-	function save(e: Event): void {
+	async function save(e: Event): Promise<void> {
 		e.stopPropagation();
-		if (!confirm(`Are you sure you want to overwrite the '${scene.name}' scene for group '${group.name}' with the current light state?`)) return;
+		if (!await askConfirm(`Are you sure you want to overwrite the '${scene.name}' scene for group '${group.name}' with the current light state?`)) return;
 		api.send(group.name, "set", {scene_store: {ID: scene.id, name: scene.name}});
 
 		for(let ieee of group.members) {
@@ -975,9 +1130,9 @@ export function drawSceneEditor(group: Group, groupId: number): void {
 			}
 		}
 	}
-	function remove(e: Event): void {
+	async function remove(e: Event): Promise<void> {
 		e.stopPropagation();
-		if (!confirm(`Are you sure you want to delete the '${scene.name}' scene for group '${group.name}'?`)) return;
+		if (!await askConfirm(`Are you sure you want to delete the '${scene.name}' scene for group '${group.name}'?`)) return;
 		api.send(group.name, "set", {scene_remove: scene.id});
 	}
 	$('div.item.link#Save current state', 'click=', save, icons.save);
@@ -1149,8 +1304,8 @@ export function drawGroupConfigurationEditor(group: Group, groupId: number): voi
 	}
 
 	$('h1#Actions');
-	$('div.item.link#Delete group', 'click=', () => {
-		if (!confirm(`Are you sure you want to delete group '${group.name}'?`)) return;
+	$('div.item.link#Delete group', 'click=', async () => {
+		if (!await askConfirm(`Are you sure you want to delete group '${group.name}'?`)) return;
 		api.send("bridge", "request", "group", "remove", {id: group.name});
 		route.back('/');
 	}, icons.remove);
@@ -1207,11 +1362,14 @@ function drawExtensionsSection(): void {
 
 	const uninstall = async (name: string, busy: {value: boolean}) => {
 		let warning = `Are you sure you want to uninstall '${name}'?`;
+		if (name === 'lightlynx-api.js') {
+			warning += "\n\nWARNING: User management and optimized state will be disabled!";
+		}
 		if (name === 'lightlynx-automation.js') {
 			warning += "\n\nWARNING: Buttons and sensors will no longer trigger actions!";
 		}
 
-		if (confirm(warning)) {
+		if (await askConfirm(warning)) {
 			busy.value = true;
 			try {
 				await api.send("bridge", "request", "extension", "remove", {name});
@@ -1235,11 +1393,9 @@ function drawExtensionsSection(): void {
 						if (version) $('p#v' + version);
 						
 						const busy = proxy(false);
-						if (name !== 'api') {
-							icons.remove('.link', {'.busy': busy, click: () => {
-								uninstall(fullName, busy);
-							}});
-						}
+						icons.remove('.link', {'.busy': busy, click: () => {
+							uninstall(fullName, busy);
+						}});
 					} else {
 						$('p#N/A');
 						const busy = proxy(false);
@@ -1367,13 +1523,18 @@ function drawUserEditor(): void {
 			}
 			delete payload.password;
 			
-			await api.send("bridge", "request", "lightlynx", "users", isNew ? "add" : "update", {
+			const userPayload = {
 				username: finalUsername,
 				...payload
-			});
+			};
+			if (isNew) {
+				await api.addUser(userPayload);
+			} else {
+				await api.updateUser(userPayload);
+			}
 			route.up();
 		} catch (e: any) {
-			alert(e.message || "Failed to save user");
+			notify(e.message || "Failed to save user");
 		} finally {
 			busy.value = false;
 		}
@@ -1382,8 +1543,8 @@ function drawUserEditor(): void {
 	if (!isNew && !isAdminUser) {
 		$('div.item.link.danger#Delete user', icons.remove, {
 			click: async () => {
-				if (confirm(`Are you sure you want to delete user '${username}'?`)) {
-					await api.send("bridge", "request", "lightlynx", "users", "delete", {username});
+				if (await askConfirm(`Are you sure you want to delete user '${username}'?`)) {
+					await api.deleteUser(username);
 					route.up();
 				}
 			}

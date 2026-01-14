@@ -1,14 +1,16 @@
 const fs = require('fs');
 
-const code = fs.readFileSync('src/backend/create-ssl-domain.ts', 'utf8');
-const scriptId = process.env.BUNNY_SSL_SCRIPT_ID;
-const accessKey = process.env.BUNNY_ACCESS_KEY;
+const scriptId = process.argv[2] || process.env.BUNNY_SSL_SCRIPT_ID;
+const accessKey = process.argv[3] || process.env.BUNNY_ACCESS_KEY;
+const filename = process.argv[4] || 'src/backend/cert.ts';
 
 if (!scriptId || !accessKey) {
-    console.error('Error: BUNNY_SSL_SCRIPT_ID or BUNNY_ACCESS_KEY not set.');
+    console.error('Usage: node deploy-bunny-script.cjs <script_id> <access_key> [filename]');
+    console.error('Or set BUNNY_SSL_SCRIPT_ID and BUNNY_ACCESS_KEY environment variables.');
     process.exit(1);
 }
 
+const code = fs.readFileSync(filename, 'utf8');
 const data = JSON.stringify({ Code: code });
 
 (async () => {

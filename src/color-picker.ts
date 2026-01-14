@@ -209,14 +209,14 @@ export function drawColorPicker(target: Device | Group, targetId: string | numbe
         }
     });
 
-    if (capabilities.color_temp || capabilities.color_xy || capabilities.color_hs) {
-        let temps: [number, number] = capabilities.color_temp ? 
-            [capabilities.color_temp.value_min, capabilities.color_temp.value_max] : 
+    if (capabilities.colorTemp || capabilities.colorXy || capabilities.colorHs) {
+        let temps: [number, number] = capabilities.colorTemp ? 
+            [capabilities.colorTemp.valueMin, capabilities.colorTemp.valueMax] : 
             [CT_MIN, CT_MAX];
         drawScale(target, targetId, temps);
     }
         
-    if (capabilities.color_xy || capabilities.color_hs) {
+    if (capabilities.colorXy || capabilities.colorHs) {
         drawColorWheel(target, targetId);
     }
 }

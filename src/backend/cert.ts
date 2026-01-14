@@ -1,3 +1,4 @@
+// @ts-ignore
 import * as BunnySDK from "https://esm.sh/@bunny.net/edgescript-sdk@0.11.2";
 
 // ============================================================================
@@ -9,116 +10,27 @@ const BUNNY_DNS_API_BASE = "https://api.bunny.net";
 const ACME_DIRECTORY_URL = "https://acme-v02.api.letsencrypt.org/directory";
 // For testing, use: "https://acme-staging-v02.api.letsencrypt.org/directory"
 
-const CLIENT_ID_LENGTH = 12;
 const CERT_VALIDITY_DAYS = 90;
-const CERT_RENEWAL_THRESHOLD_DAYS = 30;
 
 // Hard-coded secrets
 const BUNNY_DNS_ZONE_ID = "684184";
-const SIGNING_SECRET = "rEB%YfS_GcwqaGxs&dDcF";
 const BUNNY_DNS_API_KEY = "fb28817b-30ad-4820-ba78-e5d8279be8a7a93097b3-a224-4241-96d3-382b00b336e2";
 
 // ============================================================================
-// IP VALIDATION
+// IP CONVERSION
 // ============================================================================
 
-function isPrivateIPv4(ip: string): boolean {
+function ipToHex(ip: string): string | null {
   const parts = ip.split('.').map(Number);
   if (parts.length !== 4 || parts.some(p => isNaN(p) || p < 0 || p > 255)) {
-    return false;
+    return null;
   }
-
-  const [a, b, c, d] = parts;
-
-  // 10.0.0.0/8
-  if (a === 10) return true;
-
-  // 172.16.0.0/12
-  if (a === 172 && b >= 16 && b <= 31) return true;
-
-  // 192.168.0.0/16
-  if (a === 192 && b === 168) return true;
-
-  // 127.0.0.0/8 (loopback)
-  if (a === 127) return true;
-
-  // 169.254.0.0/16 (link-local)
-  if (a === 169 && b === 254) return true;
-
-  return false;
-}
-
-function isPrivateIPv6(ip: string): boolean {
-  const lower = ip.toLowerCase();
-
-  // ::1 (loopback)
-  if (lower === '::1') return true;
-
-  // fc00::/7 (unique local addresses)
-  if (lower.startsWith('fc') || lower.startsWith('fd')) return true;
-
-  // fe80::/10 (link-local)
-  if (lower.startsWith('fe8') || lower.startsWith('fe9') || 
-      lower.startsWith('fea') || lower.startsWith('feb')) return true;
-
-  return false;
-}
-
-function isPrivateIP(ip: string): boolean {
-  if (ip.includes(':')) {
-    return isPrivateIPv6(ip);
-  } else {
-    return isPrivateIPv4(ip);
-  }
-}
-
-function normalizeIP(ip: string): string {
-  // Remove IPv6 wrapper if present (e.g., ::ffff:192.168.1.1 -> 192.168.1.1)
-  const ipv4Match = ip.match(/::ffff:(\d+\.\d+\.\d+\.\d+)/i);
-  if (ipv4Match) {
-    return ipv4Match[1];
-  }
-  return ip;
-}
-
-interface IPValidationResult {
-  valid: boolean;
-  error?: string;
-  targetIP: string;
-}
-
-function validateTargetIP(targetIP: string, originIP: string): IPValidationResult {
-  // Normalize both IPs
-  const normalizedTarget = normalizeIP(targetIP);
-  const normalizedOrigin = normalizeIP(originIP);
-
-  // Check if target IP equals origin IP
-  if (normalizedTarget === normalizedOrigin) {
-    return { valid: true, targetIP: normalizedTarget };
-  }
-
-  // Check if target IP is in private range
-  if (isPrivateIP(normalizedTarget)) {
-    return { valid: true, targetIP: normalizedTarget };
-  }
-
-  return {
-    valid: false,
-    error: `Target IP ${normalizedTarget} must either match your origin IP (${normalizedOrigin}) or be in a private IP range (10.x.x.x, 172.16-31.x.x, 192.168.x.x, fc00::/7, fe80::/10)`,
-    targetIP: normalizedTarget,
-  };
+  return parts.map(p => p.toString(16).padStart(2, '0')).join('');
 }
 
 // ============================================================================
 // UTILITY FUNCTIONS
 // ============================================================================
-
-function generateClientId(): string {
-  const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
-  const array = new Uint8Array(CLIENT_ID_LENGTH);
-  crypto.getRandomValues(array);
-  return Array.from(array, (byte) => chars[byte % chars.length]).join("");
-}
 
 async function generateKeyPair(): Promise<CryptoKeyPair> {
   return await crypto.subtle.generateKey(
@@ -164,13 +76,6 @@ function base64UrlEncode(data: ArrayBuffer | Uint8Array | string): string {
   return base64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
-function base64UrlDecode(str: string): Uint8Array {
-  const base64 = str.replace(/-/g, "+").replace(/_/g, "/");
-  const padded = base64 + "=".repeat((4 - (base64.length % 4)) % 4);
-  const binary = atob(padded);
-  return new Uint8Array([...binary].map((c) => c.charCodeAt(0)));
-}
-
 // ============================================================================
 // ASN.1 DER ENCODING UTILITIES
 // ============================================================================
@@ -186,7 +91,7 @@ class DERBuilder {
         const hexPadded = hex.length % 2 ? '0' + hex : hex;
         bytes = new Uint8Array(hexPadded.match(/.{2}/g)!.map(b => parseInt(b, 16)));
         // Add leading zero if high bit is set (to indicate positive number)
-        if (bytes[0] & 0x80) {
+        if (bytes.length > 0 && bytes[0]! & 0x80) {
           const padded = new Uint8Array(bytes.length + 1);
           padded[0] = 0;
           padded.set(bytes, 1);
@@ -196,7 +101,7 @@ class DERBuilder {
     } else {
       bytes = value;
       // Add leading zero if high bit is set
-      if (bytes[0] & 0x80) {
+      if (bytes.length > 0 && bytes[0]! & 0x80) {
         const padded = new Uint8Array(bytes.length + 1);
         padded[0] = 0;
         padded.set(bytes, 1);
@@ -226,11 +131,11 @@ class DERBuilder {
     const bytes: number[] = [];
     
     // First two components are encoded as 40*first + second
-    bytes.push(40 * parts[0] + parts[1]);
+    bytes.push(40 * (parts[0] || 0) + (parts[1] || 0));
     
     // Remaining components
     for (let i = 2; i < parts.length; i++) {
-      let value = parts[i];
+      let value = parts[i]!;
       if (value < 128) {
         bytes.push(value);
       } else {
@@ -293,59 +198,6 @@ class DERBuilder {
     }
     return result;
   }
-}
-
-// ============================================================================
-// SIGNING & TOKEN FUNCTIONS
-// ============================================================================
-
-interface ClientToken {
-  client_id: string;
-  created_at: number;
-  cert_issued_at: number;
-}
-
-async function createSignedToken(data: ClientToken): Promise<string> {
-  const payload = JSON.stringify(data);
-  const encoder = new TextEncoder();
-
-  const key = await crypto.subtle.importKey(
-    "raw",
-    encoder.encode(SIGNING_SECRET),
-    { name: "HMAC", hash: "SHA-256" },
-    false,
-    ["sign"]
-  );
-
-  const signature = await crypto.subtle.sign("HMAC", key, encoder.encode(payload));
-  const signatureBase64 = base64UrlEncode(signature);
-
-  return `${base64UrlEncode(payload)}.${signatureBase64}`;
-}
-
-async function verifyAndDecodeToken(token: string): Promise<ClientToken | null> {
-  const parts = token.split(".");
-  if (parts.length !== 2) return null;
-
-  const [payloadB64, signatureB64] = parts;
-  const encoder = new TextEncoder();
-
-  const key = await crypto.subtle.importKey(
-    "raw",
-    encoder.encode(SIGNING_SECRET),
-    { name: "HMAC", hash: "SHA-256" },
-    false,
-    ["verify"]
-  );
-
-  const payloadBytes = base64UrlDecode(payloadB64);
-  const signatureBytes = base64UrlDecode(signatureB64);
-
-  const valid = await crypto.subtle.verify("HMAC", key, signatureBytes, payloadBytes);
-  if (!valid) return null;
-
-  const payload = new TextDecoder().decode(payloadBytes);
-  return JSON.parse(payload) as ClientToken;
 }
 
 // ============================================================================
@@ -423,26 +275,6 @@ async function deleteDNSRecord(zoneId: string, recordId: number): Promise<void> 
   }
 }
 
-async function updateOrCreateARecord(
-  zoneId: string,
-  subdomain: string,
-  ipAddress: string
-): Promise<void> {
-  if (!ipAddress) return;
-  const records = await getDNSRecords(zoneId);
-  const existingA = records.find(
-    (r) => r.Type === 0 && r.Name === subdomain
-  );
-
-  if (existingA) {
-    if (existingA.Value === ipAddress) {
-      return;
-    }
-    await deleteDNSRecord(zoneId, existingA.Id);
-  }
-
-  await createDNSRecord(zoneId, 0, subdomain, ipAddress, 300);
-}
 
 async function setTXTRecords(
   zoneId: string,
@@ -459,7 +291,7 @@ async function setTXTRecords(
     for (const record of existingTXT) {
       await deleteDNSRecord(zoneId, record.Id);
     }
-    const newRecord = await createDNSRecord(zoneId, 3, names[i], values[i], 60);
+    const newRecord = await createDNSRecord(zoneId, 3, names[i]!, values[i]!, 60);
     recordIds.push(newRecord.Id);
   }
   return recordIds;
@@ -731,7 +563,7 @@ class ACMEClient {
     const signature = await crypto.subtle.sign(
       { name: "RSASSA-PKCS1-v1_5" },
       keyPair.privateKey,
-      certRequestInfo
+      certRequestInfo as any
     );
 
     // Signature algorithm: sha256WithRSAEncryption
@@ -837,7 +669,7 @@ async function issueCertificate(
 // REQUEST HANDLERS
 // ============================================================================
 
-function getClientIP(request: Request): string {
+function getClientIP(request: Request): string | undefined {
   const headers = [
     "cf-connecting-ip",
     "x-real-ip",
@@ -848,50 +680,10 @@ function getClientIP(request: Request): string {
   for (const header of headers) {
     const value = request.headers.get(header);
     if (value) {
-      return value.split(",")[0].trim();
+      return value.split(",")[0]!.trim();
     }
   }
-
-  return "0.0.0.0";
-}
-
-interface CreateResponse {
-  success: boolean;
-  client_id: string;
-  domain: string;
-  target_ip: string;
-  secret_token: string;
-  certificate: string;
-  private_key: string;
-  issued_at: number;
-  expires_at: number;
-  node_https_options: {
-    cert: string;
-    key: string;
-  };
-}
-
-interface RefreshResponse {
-  success: boolean;
-  client_id: string;
-  domain: string;
-  target_ip: string;
-  secret_token: string;
-  certificate: string;
-  private_key: string;
-  issued_at: number;
-  expires_at: number;
-  renewed: boolean;
-  dns_updated: boolean;
-  node_https_options: {
-    cert: string;
-    key: string;
-  };
-}
-
-interface ErrorResponse {
-  success: false;
-  error: string;
+  return undefined;
 }
 
 async function handleCreate(request: Request): Promise<Response> {
@@ -899,195 +691,52 @@ async function handleCreate(request: Request): Promise<Response> {
     const zoneId = BUNNY_DNS_ZONE_ID;
     const originIP = getClientIP(request);
 
-    if (originIP === "0.0.0.0") {
-      return jsonResponse<ErrorResponse>(
+    if (!originIP) {
+      return jsonResponse(
         { success: false, error: "Could not determine client IP address" },
         400
       );
     }
 
-    const body = await request.json();
-    const { local_ip, remote_access } = body;
+    const { internalIp, useExternalIp } = await request.json();
 
-    const clientId = generateClientId();
     const domains: string[] = [];
 
-    if (local_ip) {
-        const ipValidation = validateTargetIP(local_ip, originIP);
-        if (ipValidation.valid) {
-            await updateOrCreateARecord(zoneId, `local-${clientId}`, ipValidation.targetIP);
-            domains.push(`local-${clientId}.${DOMAIN}`);
-        }
+    if (internalIp) {
+      const hex = ipToHex(internalIp);
+      if (hex) {
+        domains.push(`x${hex}.${DOMAIN}`);
+      }
     }
 
-    if (remote_access) {
-        await updateOrCreateARecord(zoneId, `remote-${clientId}`, originIP);
-        domains.push(`remote-${clientId}.${DOMAIN}`);
+    if (useExternalIp) {
+      const hex = ipToHex(originIP);
+      if (hex) {
+        domains.push(`x${hex}.${DOMAIN}`);
+      }
     }
 
     if (domains.length === 0) {
-        return jsonResponse<ErrorResponse>(
-            { success: false, error: "At least one access method (local_ip or remote_access) must be valid" },
-            400
-        );
+      return jsonResponse(
+        { success: false, error: "At least one valid IP (internalIp or useExternalIp) must be provided" },
+        400
+      );
     }
 
     const certResult = await issueCertificate(domains, zoneId);
-
-    const tokenData: ClientToken = {
-      client_id: clientId,
-      created_at: Date.now(),
-      cert_issued_at: certResult.issuedAt,
-    };
-    const secretToken = await createSignedToken(tokenData);
-
     const expiresAt = certResult.issuedAt + CERT_VALIDITY_DAYS * 24 * 60 * 60 * 1000;
 
-    const response: CreateResponse = {
-      success: true,
-      client_id: clientId,
-      domain: domains[0],
-      domains: domains,
-      target_ip: local_ip || originIP,
-      secret_token: secretToken,
-      certificate: certResult.certificate,
-      private_key: certResult.privateKey,
-      issued_at: certResult.issuedAt,
-      expires_at: expiresAt,
-      node_https_options: {
+    return jsonResponse({
+      expiresAt,
+      nodeHttpsOptions: {
         cert: certResult.certificate,
         key: certResult.privateKey,
       },
-    };
-
-    return jsonResponse(response, 201);
+    }, 201);
   } catch (error) {
     console.error("Create error:", error);
-    return jsonResponse<ErrorResponse>(
-      { success: false, error: `Failed to create: ${(error as Error).message}` },
-      500
-    );
-  }
-}
-
-async function handleRefresh(request: Request): Promise<Response> {
-  try {
-    const zoneId = BUNNY_DNS_ZONE_ID;
-    const originIP = getClientIP(request);
-
-    if (originIP === "0.0.0.0") {
-      return jsonResponse<ErrorResponse>(
-        { success: false, error: "Could not determine client IP address" },
-        400
-      );
-    }
-
-    const body = await request.json();
-    const { client_id, secret_token, local_ip, remote_access } = body;
-
-    if (!client_id || !secret_token) {
-      return jsonResponse<ErrorResponse>(
-        { success: false, error: "Missing required parameters: client_id or secret_token" },
-        400
-      );
-    }
-
-    const tokenData = await verifyAndDecodeToken(secret_token);
-    if (!tokenData) {
-      return jsonResponse<ErrorResponse>(
-        { success: false, error: "Invalid secret_token" },
-        401
-      );
-    }
-
-    if (tokenData.client_id !== client_id) {
-      return jsonResponse<ErrorResponse>(
-        { success: false, error: "Token does not match client_id" },
-        401
-      );
-    }
-
-    const domains: string[] = [];
-    if (local_ip) {
-        const ipValidation = validateTargetIP(local_ip, originIP);
-        if (ipValidation.valid) {
-            await updateOrCreateARecord(zoneId, `local-${client_id}`, ipValidation.targetIP);
-            domains.push(`local-${client_id}.${DOMAIN}`);
-        }
-    }
-
-    if (remote_access) {
-        await updateOrCreateARecord(zoneId, `remote-${client_id}`, originIP);
-        domains.push(`remote-${client_id}.${DOMAIN}`);
-    }
-
-    if (domains.length === 0) {
-        return jsonResponse<ErrorResponse>(
-            { success: false, error: "At least one access method must be valid" },
-            400
-        );
-    }
-
-    // Check if we need renewal based on age OR change in domains (simplified: just age for now, but 
-    // real change in domains should also trigger it. Let's add that check.)
-    
-    // For now, let's just trigger refresh if domains changed.
-    // Actually, getting a new cert for domain change is mandatory.
-    
-    // We don't easily know old domains. Let's assume if remote_access state changed we need a new cert.
-    // The client should signal this? Or we just compare with expiration.
-
-    const certAge = Date.now() - tokenData.cert_issued_at;
-    const certAgeInDays = certAge / (24 * 60 * 60 * 1000);
-    const needsRenewal = certAgeInDays > (CERT_VALIDITY_DAYS - CERT_RENEWAL_THRESHOLD_DAYS);
-
-    let certResult: CertificateResult | null = null;
-    let renewed = false;
-
-    // TODO: Detect if domains list changed to force renewal.
-    // For simplicity, let's assume if it's not a domain change, we check age.
-    // In refresh call, client should say if it wants a force refresh.
-    const force = body.force_refresh === true;
-
-    if (needsRenewal || force) {
-      certResult = await issueCertificate(domains, zoneId);
-      renewed = true;
-    }
-
-    const issuedAt = certResult ? certResult.issuedAt : tokenData.cert_issued_at;
-    const expiresAt = issuedAt + CERT_VALIDITY_DAYS * 24 * 60 * 60 * 1000;
-
-    const newTokenData: ClientToken = {
-      client_id,
-      created_at: tokenData.created_at,
-      cert_issued_at: issuedAt,
-    };
-    const newSecretToken = await createSignedToken(newTokenData);
-
-    const response: RefreshResponse = {
-      success: true,
-      client_id,
-      domain: domains[0],
-      domains: domains,
-      target_ip: local_ip || originIP,
-      secret_token: newSecretToken,
-      certificate: certResult ? certResult.certificate : "",
-      private_key: certResult ? certResult.privateKey : "",
-      issued_at: issuedAt,
-      expires_at: expiresAt,
-      renewed,
-      dns_updated: true,
-      node_https_options: {
-        cert: certResult ? certResult.certificate : "",
-        key: certResult ? certResult.privateKey : "",
-      },
-    };
-
-    return jsonResponse(response);
-  } catch (error) {
-    console.error("Refresh error:", error);
-    return jsonResponse<ErrorResponse>(
-      { success: false, error: `Failed to refresh: ${(error as Error).message}` },
+    return jsonResponse(
+      { error: `Failed to create: ${(error as Error).message}` },
       500
     );
   }
@@ -1099,7 +748,7 @@ function jsonResponse<T>(data: T, status: number = 200): Response {
     headers: {
       "Content-Type": "application/json",
       "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Methods": "POST, OPTIONS",
+      "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
       "Access-Control-Allow-Headers": "Content-Type",
     },
   });
@@ -1118,33 +767,40 @@ BunnySDK.net.http.serve(async (request: Request): Promise<Response> => {
         status: 204,
         headers: {
           "Access-Control-Allow-Origin": "*",
-          "Access-Control-Allow-Methods": "POST, OPTIONS",
+          "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
           "Access-Control-Allow-Headers": "Content-Type",
         },
       });
     }
 
+    if (url.pathname === "/ip") {
+      const ip = getClientIP(request);
+      return new Response(ip, {
+        headers: {
+          "Content-Type": "text/plain",
+          "Access-Control-Allow-Origin": "*",
+        },
+      });
+    }
+
     if (request.method !== "POST") {
-      return jsonResponse<ErrorResponse>(
-        { success: false, error: "Method not allowed" },
+      return jsonResponse(
+        { error: "Method not allowed" },
         405
       );
     }
 
-    switch (url.pathname) {
-      case "/create":
-        return await handleCreate(request);
-      case "/refresh":
-        return await handleRefresh(request);
-      default:
-        return jsonResponse<ErrorResponse>(
-          { success: false, error: "Not found" },
-          404
-        );
+    if (url.pathname === "/create") {
+      return await handleCreate(request);
     }
+    
+    return jsonResponse(
+      { error: "Not found" },
+      404
+    );
   } catch (error) {
     console.error("Unhandled error:", error);
-    return jsonResponse<ErrorResponse>(
+    return jsonResponse(
       { success: false, error: "Internal server error" },
       500
     );

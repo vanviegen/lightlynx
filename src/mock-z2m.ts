@@ -4,16 +4,59 @@ import * as path from 'path';
 import { fileURLToPath } from 'url';
 import { createRequire } from 'module';
 import { EventEmitter } from 'events';
+import api from './api';
 
 const require = createRequire(import.meta.url);
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+(globalThis as any).MOCK_Z2M = {
+    certFile: path.join(__dirname, 'mock-certs.json')
+};
+
+// --- Environment Setup ---
+const dataPath = path.join(__dirname, '..', 'tmp', 'z2m-data');
+if (!fs.existsSync(dataPath)) fs.mkdirSync(dataPath, { recursive: true });
+process.env.ZIGBEE2MQTT_DATA = dataPath;
+
+// Pre-seed lightlynx.json with known admin secret ('admin') and mock SSL info
+const configPath = path.join(dataPath, 'lightlynx.json');
+
+let config: any = {
+    users: {
+        admin: {
+            secret: 'd06c9a42fd009db016217823db9f64b62309bf89f27261921e78ddc8cd7eb2fc', // 'admin'
+            isAdmin: true,
+            allowRemote: true
+        }
+    },
+    ssl: {},
+    remoteAccess: false
+};
+
+if (fs.existsSync(configPath)) {
+    try {
+        const existing = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+        // Persist SSL config if it exists
+        if (existing.ssl) {
+            config.ssl = existing.ssl;
+        }
+        // Migration logic for mock data
+        if (existing.remote_access !== undefined && existing.remoteAccess === undefined) {
+          config.remoteAccess = existing.remote_access;
+        }
+    } catch (err) {
+        console.error('Error reading existing lightlynx.json in mock:', err);
+    }
+}
+
+fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
+
 // --- Types ---
 
 interface MockDevice {
     ieeeAddr: string;
-    friendly_name: string;
+    friendlyName: string;
     model: string;
     description: string;
     vendor: string;
@@ -23,7 +66,7 @@ interface MockDevice {
 
 interface MockGroup {
     id: number;
-    friendly_name: string;
+    friendlyName: string;
     description: string;
     members: string[]; // ieee addresses
     scenes: { id: number; name: string }[];
@@ -122,7 +165,7 @@ class MockEntity {
     }
     get ieeeAddr() { return this.zh.ieeeAddr; }
     get ID() { return this.id; }
-    get name(): string { return this.options.friendly_name; }
+    get name(): string { return this.options.friendlyName; }
     isDevice(): this is MockEntity & { id: string } { return typeof this.id === 'string'; }
     isGroup(): this is MockEntity & { id: number } { return typeof this.id === 'number'; }
 }
@@ -165,7 +208,7 @@ class MockZigbee {
 class MockSettings {
     data = {
         mqtt: { base_topic: 'zigbee2mqtt' },
-        frontend: { port: parseInt(process.env.MOCK_Z2M_PORT || '8080'), host: '0.0.0.0', enabled: true },
+        frontend: { port: 8080, host: '0.0.0.0', enabled: true },
         advanced: {
             cache_state_persistent: false,
             timestamp_format: 'YYYY-MM-DD HH:mm:ss'
@@ -213,66 +256,7 @@ const state = new MockState(eventBus);
 
 // --- Global Main Server ---
 
-const http = require('http');
 const WebSocket = require('ws');
-
-let mainServer: any = null;
-let mainWss: any = null;
-
-async function startBaseServer() {
-    const frontend = settings.get().frontend;
-    if (!frontend.enabled) {
-        console.log('Base server disabled in settings.');
-        return;
-    }
-
-    mainServer = http.createServer((req: any, res: any) => {
-        res.writeHead(200);
-        res.end('Mock Z2M Server (Base)');
-    });
-
-    mainWss = new WebSocket.Server({ noServer: true });
-    mainWss.on('connection', (ws: any, request: any) => {
-        setupWebSocketClient(ws);
-    });
-
-    mainServer.on('upgrade', (request: any, socket: any, head: any) => {
-        const pathname = new URL(request.url, `http://${request.headers.host}`).pathname;
-        if (pathname === '/api') {
-            mainWss.handleUpgrade(request, socket, head, (ws: any) => {
-                mainWss.emit('connection', ws, request);
-            });
-        } else {
-            socket.destroy();
-        }
-    });
-
-    const port = frontend.port;
-    await new Promise<void>(resolve => {
-        mainServer.listen(port, '0.0.0.0', () => {
-            console.log(`Mock Z2M Base Server running on port ${port}`);
-            resolve();
-        });
-    });
-}
-
-function stopBaseServer() {
-    return new Promise<void>(resolve => {
-        if (mainWss) {
-            for (const client of mainWss.clients) client.terminate();
-            mainWss.close();
-        }
-        if (mainServer) {
-            mainServer.close(() => {
-                mainServer = null;
-                mainWss = null;
-                resolve();
-            });
-        } else {
-            resolve();
-        }
-    });
-}
 
 let restartInProgress = false;
 let restartPending = false;
@@ -286,13 +270,11 @@ async function restart() {
         do {
             restartPending = false;
             process.stderr.write('--- RESTARTING MOCK Z2M ---\n');
-            await stopBaseServer();
             // In real Z2M, extensions are NOT necessarily stopped manually if they don't have a stop() or if the process exits,
             // but here we want to keep the process alive, so we must stop them.
             for (const name of Array.from(extensionManager.getRunningNames())) {
                 await extensionManager.stop(name);
             }
-            await startBaseServer();
             await extensionManager.startAll();
         } while (restartPending);
     } finally {
@@ -327,6 +309,15 @@ class ExtensionManager {
         await restart();
     }
 
+    addSilently(name: string, code: string) {
+        const existing = this.extensionsList.find(e => e.name === name);
+        if (existing) {
+            existing.code = code;
+        } else {
+            this.extensionsList.push({ name, code });
+        }
+    }
+
     async stop(name: string) {
         const ext = this.runningExtensions.get(name);
         if (ext) {
@@ -352,7 +343,10 @@ class ExtensionManager {
     async start(name: string, code: string) {
         console.log(`ExtensionManager: Starting ${name}`);
         const module: any = { exports: {} };
-        const req = (modName: string) => require(modName);
+        const req = (modName: string) => {
+            if (modName === 'ws') return WebSocket;
+            return require(modName);
+        };
 
         try {
             const wrapper = new Function('module', 'require', '__dirname', code);
@@ -380,6 +374,7 @@ class ExtensionManager {
             console.log(`ExtensionManager: Started ${name}`);
         } catch (err: any) {
             console.error(`ExtensionManager: Failed to start ${name}:`, err);
+            throw err;
         }
     }
 }
@@ -387,14 +382,14 @@ class ExtensionManager {
 const extensionManager = new ExtensionManager();
 
 const devicesData: Record<string, MockDevice> = {
-    '0x001': { ieeeAddr: '0x001', friendly_name: 'Color Light', model: 'MOCK_COLOR', description: 'Color light bulb', vendor: 'Mock', type: 'Router', exposes: [
+    '0x001': { ieeeAddr: '0x001', friendlyName: 'Color Light', model: 'MOCK_COLOR', description: 'Color light bulb', vendor: 'Mock', type: 'Router', exposes: [
         { type: 'light', features: [
             { name: 'state', property: 'state', type: 'binary', value_on: 'ON', value_off: 'OFF' },
             { name: 'brightness', property: 'brightness', type: 'numeric', value_min: 0, value_max: 255 },
             { name: 'color_hs', type: 'composite', features: [{name:'hue', property:'hue'}, {name:'saturation', property:'saturation'}] }
         ]}
     ]},
-    '0x002': { ieeeAddr: '0x002', friendly_name: 'White Light', model: 'MOCK_WHITE', description: 'White light bulb', vendor: 'Mock', type: 'Router', exposes: [
+    '0x002': { ieeeAddr: '0x002', friendlyName: 'White Light', model: 'MOCK_WHITE', description: 'White light bulb', vendor: 'Mock', type: 'Router', exposes: [
         { type: 'light', features: [
             { name: 'state', property: 'state', type: 'binary', value_on: 'ON', value_off: 'OFF' },
             { name: 'brightness', property: 'brightness', type: 'numeric', value_min: 0, value_max: 255 }
@@ -403,20 +398,20 @@ const devicesData: Record<string, MockDevice> = {
 };
 
 const groupsData: Record<number, MockGroup> = {
-    1: { id: 1, friendly_name: 'Living Room', description: 'Main group', members: ['0x001', '0x002'], scenes: [{id:1, name:'Bright'}, {id:2, name:'Dim'}] },
-    2: { id: 2, friendly_name: 'Kitchen', description: 'Secondary group', members: ['0x002'], scenes: [{id:3, name:'Cooking'}, {id:4, name:'Night'}] }
+    1: { id: 1, friendlyName: 'Living Room', description: 'Main group', members: ['0x001', '0x002'], scenes: [{id:1, name:'Bright'}, {id:2, name:'Dim'}] },
+    2: { id: 2, friendlyName: 'Kitchen', description: 'Secondary group', members: ['0x002'], scenes: [{id:3, name:'Cooking'}, {id:4, name:'Night'}] }
 };
 
 // Initialize
-function init() {
+async function init() {
     for (const [ieee, d] of Object.entries(devicesData)) {
-        const entity = new MockEntity(ieee, { friendly_name: d.friendly_name }, d);
+        const entity = new MockEntity(ieee, { friendlyName: d.friendlyName }, d);
         zigbee.devices.set(ieee, entity);
         state.set(entity, { state: 'OFF', brightness: 255 });
     }
     for (const [id, g] of Object.entries(groupsData)) {
         const idNum = Number(id);
-        const entity = new MockEntity(idNum, { friendly_name: g.friendly_name }, g);
+        const entity = new MockEntity(idNum, { friendlyName: g.friendlyName }, g);
         zigbee.groups.set(idNum, entity);
         state.set(entity, { state: 'OFF' });
     }
@@ -425,6 +420,13 @@ function init() {
     mqtt.retainedMessages[`${base}/bridge/devices`] = { payload: JSON.stringify([...zigbee.devicesIterator()].map(d => d.toJSON())) } as any;
     mqtt.retainedMessages[`${base}/bridge/groups`] = { payload: JSON.stringify([...zigbee.groupsIterator()].map(g => g.toJSON())) } as any;
     mqtt.retainedMessages[`${base}/bridge/extensions`] = { payload: JSON.stringify([]) } as any;
+
+    // Load our API extension by default
+    const extensionPath = path.join(__dirname, '..', 'build.frontend', 'extensions', 'lightlynx-api.js');
+    let code = fs.readFileSync(extensionPath, 'utf8');
+    // Prepend version comment to match what api.ts expects
+    extensionManager.addSilently(`lightlynx-api.js`, `// lightlynx-api v1\n${code}`);
+    await extensionManager.startAll();
 }
 
 // --- MQTT Mock ---
@@ -439,7 +441,7 @@ class MockMQTT {
 
     onMessage(topic: string, message: any) {
         const messageStr = message.toString();
-        process.stderr.write(`MockZ2M: MQTT IN: ${topic} -> ${messageStr}\n`);
+        process.stderr.write(`MockZ2M: MQTT IN: ${topic} -> ${messageStr.substr(0,100)}\n`);
         eventBus.emitMQTTMessage(topic, messageStr);
         
         // Internal handling
@@ -499,23 +501,30 @@ function handleBridgeRequest(cmd: string, payload: any) {
     } else if (cmd === 'request/device/rename') {
         const device = typeof payload.from === 'string' ? zigbee.deviceByFriendlyName(payload.from) : undefined;
         if (device) {
-            device.options.friendly_name = payload.to;
+            device.options.friendlyName = payload.to;
             eventBus.emitMQTTMessagePublished(`${base}/bridge/devices`, JSON.stringify([...zigbee.devicesIterator()].map(d => d.toJSON())));
         }
     } else if (cmd === 'request/group/add') {
         const id = Math.max(0, ...zigbee.groups.keys()) + 1;
-        const entity = new MockEntity(id, { friendly_name: payload.friendly_name }, { description: '' });
+        const entity = new MockEntity(id, { friendlyName: payload.friendly_name }, { description: '' });
         zigbee.groups.set(id, entity);
         state.set(entity, { state: 'OFF' });
         eventBus.emitMQTTMessagePublished(`${base}/bridge/groups`, JSON.stringify([...zigbee.groupsIterator()].map(g => g.toJSON())));
         responseData = { id, friendly_name: payload.friendly_name };
     } else if (cmd === 'request/group/members/add') {
-        const group = typeof payload.group === 'number' ? zigbee.groupByID(payload.group) : undefined;
+        const group = typeof payload.group === 'number' ? zigbee.groupByID(payload.group) : zigbee.groupByName(payload.group);
         if (group && typeof payload.device === 'string') {
-            group.zh.members = group.zh.members || [];
-            if (!group.zh.members.includes(payload.device)) {
-                group.zh.members.push(payload.device);
+            const device = zigbee.deviceByFriendlyName(payload.device) || zigbee.deviceByIeeeAddr(payload.device);
+            const ieee = device ? device.ieeeAddr : payload.device;
+            if (!group.zh.members) group.zh.members = [];
+            if (!group.zh.members.includes(ieee)) {
+                group.zh.members.push(ieee);
+                 // Actual MockEntity storage
+                if (!(group as any)._members) (group as any)._members = [];
+                (group as any)._members.push(ieee);
+                
                 eventBus.emitMQTTMessagePublished(`${base}/bridge/groups`, JSON.stringify([...zigbee.groupsIterator()].map(g => g.toJSON())));
+                eventBus.emit('groupMembersChanged', { group, device: { ieeeAddr: ieee }, action: 'add' });
             }
         }
     } else if (cmd === 'request/group/remove') {
@@ -550,16 +559,16 @@ function handleBridgeRequest(cmd: string, payload: any) {
 
 function startPairingProcedure() {
     const newDevices = [
-        { ieeeAddr: '0x101', friendly_name: 'New Color Bulb', model: 'MOCK_COLOR' },
-        { ieeeAddr: '0x102', friendly_name: 'New White Bulb', model: 'MOCK_WHITE' },
-        { ieeeAddr: '0x103', friendly_name: 'New Button', model: 'MOCK_BUTTON' },
-        { ieeeAddr: '0x104', friendly_name: 'New Sensor', model: 'MOCK_SENSOR' },
+        { ieeeAddr: '0x101', friendlyName: 'New Color Bulb', model: 'MOCK_COLOR' },
+        { ieeeAddr: '0x102', friendlyName: 'New White Bulb', model: 'MOCK_WHITE' },
+        { ieeeAddr: '0x103', friendlyName: 'New Button', model: 'MOCK_BUTTON' },
+        { ieeeAddr: '0x104', friendlyName: 'New Sensor', model: 'MOCK_SENSOR' },
     ];
 
     newDevices.forEach((d, i) => {
         setTimeout(() => {
-            console.log(`Device joining: ${d.friendly_name}`);
-            const entity = new MockEntity(d.ieeeAddr, { friendly_name: d.friendly_name });
+            console.log(`Device joining: ${d.friendlyName}`);
+            const entity = new MockEntity(d.ieeeAddr, { friendlyName: d.friendlyName });
             zigbee.devices.set(d.ieeeAddr, entity);
             state.set(entity, { linkquality: 100 });
             // In real Z2M, devices list is published
@@ -569,43 +578,12 @@ function startPairingProcedure() {
     });
 }
 
-// --- WebSocket Handling ---
-
-function setupWebSocketClient(ws: any) {
-    console.log('MockZ2M: WebSocket client connected');
-    ws.on('message', (data: any) => {
-        try {
-            const { topic, payload } = JSON.parse(data.toString());
-            mqtt.onMessage(`zigbee2mqtt/${topic}`, JSON.stringify(payload));
-        } catch (e) {
-            console.error('MockZ2M: Failed to parse WS message', e);
-        }
-    });
-
-    // Provide a way for the mock to send messages back to the client
-    const onMQTTPublish = (data: any) => {
-        const base = settings.get().mqtt.base_topic;
-        if (data.topic.startsWith(`${base}/`)) {
-            const topic = data.topic.slice(base.length + 1);
-            let payload;
-            try { payload = JSON.parse(data.payload); } catch { payload = data.payload; }
-            ws.send(JSON.stringify({ topic, payload }));
-        }
-    };
-    eventBus.on('mqttMessagePublished', onMQTTPublish);
-    ws.on('close', () => eventBus.off('mqttMessagePublished', onMQTTPublish));
-    
-    // Initial state (minimal)
-    ws.send(JSON.stringify({ topic: 'bridge/devices', payload: [...zigbee.devicesIterator()].map(d => d.toJSON()) }));
-    ws.send(JSON.stringify({ topic: 'bridge/groups', payload: [...zigbee.groupsIterator()].map(g => g.toJSON()) }));
-    ws.send(JSON.stringify({ topic: 'bridge/extensions', payload: extensionManager.list() }));
-    ws.send(JSON.stringify({ topic: 'bridge/lightlynx/users', payload: {} })); // Mock empty users
-}
-
 // --- Start ---
 
-init();
-startBaseServer();
+init().catch(err => {
+    console.error('Failed to initialize Mock Z2M:', err);
+    process.exit(1);
+});
 
 // Keep process alive
 setInterval(() => {}, 1000);

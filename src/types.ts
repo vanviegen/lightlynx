@@ -21,20 +21,20 @@ export interface LightState {
 
 // Light capabilities interface
 export interface LightCaps {
-    color_modes?: string[];
-    supports_color?: boolean;
-    supports_brightness?: boolean;
-    supports_color_temp?: boolean;
+    colorModes?: string[];
+    supportsColor?: boolean;
+    supportsBrightness?: boolean;
+    supportsColorTemp?: boolean;
     brightness?: {
-        value_min: number;
-        value_max: number;
+        valueMin: number;
+        valueMax: number;
     };
-    color_temp?: {
-        value_min: number;
-        value_max: number;
+    colorTemp?: {
+        valueMin: number;
+        valueMax: number;
     };
-    color_hs?: boolean;
-    color_xy?: boolean;
+    colorHs?: boolean;
+    colorXy?: boolean;
 }
 
 // Device interface
@@ -79,6 +79,7 @@ export interface User {
     allowedGroups: number[];
     allowRemote: boolean;
     secret?: string; // Only used for UI editing, not stored in state dump
+    password?: string;
 }
 
 // Extension interface
@@ -88,11 +89,12 @@ export interface Extension {
 }
 
 export interface ServerCredentials {
-    name: string;      // user-friendly name (e.g. Instance ID or user-provided)
-    instanceId: string;
+    name: string;      // user-friendly name
+    serverIp: string;  // Internal IP address
+    externalIp?: string; // External IP (communicated by server)
+    externalPort?: number; // External port (communicated by server)
     username: string;
     secret: string;
-    useRemote: boolean;
     lastConnected?: number;  // timestamp
 }
 
@@ -103,7 +105,7 @@ export type ConnectionState = 'idle' | 'connecting' | 'authenticating' | 'connec
 export interface Store {
     devices: Record<string, Device>; // IEEE address -> Device
     groups: Record<number, Group>;   // Group ID -> Group
-    permit_join: boolean;
+    permitJoin: boolean;
     servers: ServerCredentials[];    // All saved servers
     activeServerIndex: number;       // Index of currently active server (-1 if none)
     connected: boolean;              // Connection status (legacy, derived from connectionState)
@@ -112,7 +114,9 @@ export interface Store {
     extensions: Extension[]; // Available Z2M extensions
     users: Record<string, User>;    // Users from lightlynx-api
     remoteAccessEnabled?: boolean;  // From lightlynx-api config
-    instanceId?: string;           // From lightlynx-api config
+    serverIp?: string;             // From lightlynx-api config
+    externalIp?: string;           // From lightlynx-api config
+    externalPort?: number;         // From lightlynx-api config
 }
 
 // Helper functions for color type checking

@@ -8,10 +8,12 @@ export default defineConfig({
   retries: process.env.CI ? 2 : 0,
   workers: 1,
   reporter: 'list',
+  timeout: 60000,
   use: {
     baseURL: 'http://localhost:25833',
     trace: 'on-first-retry',
     screenshot: 'on',
+    ignoreHTTPSErrors: true,
   },
   projects: [
     {
@@ -21,8 +23,8 @@ export default defineConfig({
   ],
   webServer: [
     {
-      command: 'MOCK_Z2M_PORT=25834 npm run mock-z2m',
-      port: 25834,
+      command: 'npm run mock-z2m',
+      port: 43597,
       reuseExistingServer: false,
     },
     {

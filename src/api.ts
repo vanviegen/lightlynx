@@ -40,6 +40,13 @@ function colorsEqual(a?: ColorValue, b?: ColorValue): boolean {
     return false;
 }
 
+function ipToHexDomain(ip: string): string {
+    const parts = ip.split('.');
+    if (parts.length !== 4) return ip;
+    const hex = parts.map(p => parseInt(p).toString(16).padStart(2, '0')).join('');
+    return `x${hex}.lightlynx.eu`;
+}
+
 function createLightStateDelta(o: LightState, n: LightState): LightStateDelta {
     let delta: LightStateDelta = {};
     if (n.on != null && o.on !== n.on) {
@@ -68,22 +75,22 @@ function tailorLightState(from: LightState, cap: any): LightState {
     }
 
     if (isHS(from.color)) {
-        if (cap.color_hs) {
+        if (cap.colorHs) {
             to.color = from.color;
         }
-        else if (cap.color_xy) {
+        else if (cap.colorXy) {
             to.color = colors.hsToXy(from.color as HSColor);
         }
     }
     else if (typeof from.color === 'number') {
-        if (cap.color_temp) {
+        if (cap.colorTemp) {
             to.color = from.color;
         }
-        else if (cap.color_hs) {
+        else if (cap.colorHs) {
             const hsColor = colors.miredsToHs(from.color);
             to.color = hsColor;
         }
-        else if (cap.color_xy) {
+        else if (cap.colorXy) {
             const hsColor = colors.miredsToHs(from.color);
             to.color = colors.hsToXy(hsColor);
         }
@@ -92,12 +99,12 @@ function tailorLightState(from: LightState, cap: any): LightState {
         to.color = from.color;
     }
     if (typeof to.color === 'number') {
-        to.color = Math.min(cap.color_temp.value_max, Math.max(cap.color_temp.value_min, to.color));
+        to.color = Math.min(cap.colorTemp.valueMax, Math.max(cap.colorTemp.valueMin, to.color));
     }
 
     if (from.brightness != null) {
         if (cap.brightness) {
-            to.brightness = Math.min(cap.brightness.value_max, Math.max(cap.brightness.value_min, 1, from.brightness));
+            to.brightness = Math.min(cap.brightness.valueMax, Math.max(cap.brightness.valueMin, 1, from.brightness));
         }
     }
     console.log('api/tailorLightState', 'from', from, 'to', to, 'cap', cap)
@@ -123,7 +130,7 @@ class Api {
     store: Store = proxy({
         devices: {},
         groups: {},
-        permit_join: false,
+        permitJoin: false,
         servers: getLocalStorage(CREDENTIALS_LOCAL_STORAGE_ITEM_NAME) || [],
         activeServerIndex: -1,
         connected: false,
@@ -226,7 +233,7 @@ class Api {
      * This is the only way to initiate a connection - no reactive triggers.
      */
     connect(server: ServerCredentials): void {
-        console.log("api/connect", server.instanceId);
+        console.log("api/connect", server.serverIp);
         
         // Stop any existing connection
         this.disconnect();
@@ -265,7 +272,7 @@ class Api {
     send = (...topicAndPayload: any[]): Promise<void> => {
         let payload: any = topicAndPayload.pop()
         let topic = topicAndPayload.join("/")
-        console.log("api/send", topic, payload);
+        console.log("api/send", topic, JSON.stringify(payload).substr(0,100));
 
         let promise: Promise<void>;
         if (topic.startsWith('bridge/request/')) {
@@ -349,19 +356,19 @@ class Api {
         }
         this.tryingSockets = [];
 
-        const hostnames = [`local-${server.instanceId}.lightlynx.eu`];
-        if (server.useRemote) {
-            hostnames.push(`remote-${server.instanceId}.lightlynx.eu`);
+        const connections: { hostname: string, port: number }[] = [];
+        connections.push({ hostname: ipToHexDomain(server.serverIp), port: 43597 });
+        
+        if (server.externalIp) {
+            connections.push({ hostname: ipToHexDomain(server.externalIp), port: server.externalPort || 43597 });
         }
 
         const protocols = ["lightlynx"];
-        if (server.username && server.secret) {
-            protocols.push("Basic-" + btoa(`${server.username}:${server.secret}`));
-        }
 
-        for (const hostname of hostnames) {
+        for (const { hostname, port } of connections) {
             try {
-                const url = new URL(`wss://${hostname}:43597/api`);
+                const protocol = "wss";
+                const url = new URL(`${protocol}://${hostname}:${port}/api`);
                 url.searchParams.append("lightlynx", "1");
                 if (server.username && server.secret) {
                     url.searchParams.append("user", server.username);
@@ -417,7 +424,8 @@ class Api {
         // Don't set error state here - wait for onClose which always follows onError
     }
     
-    private resolvePromises({transaction, status}: any): void {
+    private resolvePromises(payload: any): void {
+        const {transaction, status} = payload || {};
         if (transaction !== undefined && this.requests.has(transaction)) {
             const { resolve, reject } = this.requests.get(transaction)!;
             if (status === "ok" || status === undefined) {
@@ -526,10 +534,16 @@ class Api {
                 let ieee = members[memberIndex]!;
 
                 for(const [name,obj] of Object.entries(this.store.devices[ieee]?.lightCaps||{}) as [keyof LightCaps, any][]) {
-                    const cap = (groupCaps[name] ||= clone(obj));
-                    if (obj.value_min != null) {
-                        cap.value_min = Math.min(cap.value_min, obj.value_min);
-                        cap.value_max = Math.max(cap.value_max, obj.value_max);
+                    if (obj && typeof obj === 'object') {
+                        const cap = (groupCaps[name] ||= clone(obj));
+                        if (obj.valueMin != null && cap.valueMin != null) {
+                            cap.valueMin = Math.min(cap.valueMin, obj.valueMin);
+                            cap.valueMax = Math.max(cap.valueMax, obj.valueMax);
+                        }
+                    } else {
+                        // For booleans (supportsBrightness, etc), use OR (any member supports it)
+                        if (groupCaps[name] === undefined) groupCaps[name] = obj;
+                        else if (typeof obj === 'boolean') groupCaps[name] = groupCaps[name] || obj;
                     }
                 }
                 
@@ -558,7 +572,9 @@ class Api {
             }
             // console.log('api/streamGroupState update', groupId, groupState);
             if (groupState && group) {
+                group.lightState ||= {};
                 copy(group.lightState, groupState);
+                group.lightCaps ||= {};
                 copy(group.lightCaps, groupCaps);
             }
         });
@@ -592,7 +608,19 @@ class Api {
     }
 
     setRemoteAccess(enabled: boolean): Promise<void> {
-        return this.send('bridge/request/lightlynx/config/remote_access', { value: enabled });
+        return this.send('bridge/request/lightlynx/config/setRemoteAccess', { enabled });
+    }
+
+    addUser(payload: any): Promise<void> {
+        return this.send('bridge/request/lightlynx/config/addUser', payload);
+    }
+
+    updateUser(payload: any): Promise<void> {
+        return this.send('bridge/request/lightlynx/config/updateUser', payload);
+    }
+
+    deleteUser(username: string): Promise<void> {
+        return this.send('bridge/request/lightlynx/config/deleteUser', { username });
     }
 
     private onMessage = (event: MessageEvent): void => {
@@ -611,7 +639,18 @@ class Api {
             this.shouldReconnect = true;  // Enable auto-reconnect after successful connection
         }
         
-        let {topic, payload} = JSON.parse(event.data);
+        const message = JSON.parse(event.data);
+        let topic = message.topic;
+        let payload = message.payload;
+
+        if (!topic && message.transaction) {
+            // Raw Z2M response over WebSocket
+            this.resolvePromises(message);
+            return;
+        }
+
+        if (!topic) return;
+
         if (topic==='bridge/devices' || topic==='bridge/groups') {
             localStorage.setItem(topic, event.data);
         }
@@ -628,7 +667,7 @@ class Api {
                 this.resolvePromises(payload);
             }
             else if (topic === "info") {
-                this.store.permit_join = payload.permit_join;
+                this.store.permitJoin = payload.permit_join;
             }  
             else if (topic === "extensions") {
                 this.store.extensions = payload || [];
@@ -643,14 +682,29 @@ class Api {
                 copy(this.store.users, payload || {});
             }
             else if (topic === "lightlynx/config") {
-                this.store.remoteAccessEnabled = payload.remote_access;
-                this.store.instanceId = payload.instance_id;
+                this.store.remoteAccessEnabled = payload.remoteAccess;
+                this.store.serverIp = payload.serverIp;
+                this.store.externalIp = payload.externalIp;
+                this.store.externalPort = payload.externalPort;
+                // Update current server credentials with external IP/port if we're connected
+                if (this.currentServer) {
+                    this.currentServer.externalIp = payload.externalIp;
+                    this.currentServer.externalPort = payload.externalPort;
+                    
+                    // Also update it in the stored servers list to ensure it's persisted for next session
+                    for (const s of this.store.servers) {
+                        if (s.serverIp === this.currentServer.serverIp && s.username === this.currentServer.username) {
+                            s.externalIp = payload.externalIp;
+                            s.externalPort = payload.externalPort;
+                        }
+                    }
+                }
             }
             else if (topic === "devices") {
                 let newDevs: Record<string, Device> = {};
                 for (let z2mDev of payload) {
                     if (!z2mDev.definition) continue;
-                    const model = (z2mDev.definition.description || z2mDev.model_id) + " (" + (z2mDev.definition.vender || z2mDev.manufacturer) + ")";
+                    const model = (z2mDev.definition.description || z2mDev.model_id) + " (" + (z2mDev.definition.vendor || z2mDev.manufacturer) + ")";
                     let newDev : Device = {
                         name: z2mDev.friendly_name,
                         description: z2mDev.description,
@@ -662,11 +716,19 @@ class Api {
                             for (let feature of (expose.features || [])) {
                                 features[feature.name] = {};
                                 if (feature.value_max !== undefined) {
-                                    features[feature.name].value_min = feature.value_min;
-                                    features[feature.name].value_max = feature.value_max;
+                                    features[feature.name].valueMin = feature.value_min;
+                                    features[feature.name].valueMax = feature.value_max;
                                 }
                             }
-                            newDev.lightCaps = features;
+                            newDev.lightCaps = {
+                                supportsBrightness: !!features.brightness,
+                                supportsColor: !!(features.color_hs || features.color_xy),
+                                supportsColorTemp: !!features.color_temp,
+                                brightness: features.brightness,
+                                colorTemp: features.color_temp,
+                                colorHs: !!features.color_hs,
+                                colorXy: !!features.color_xy
+                            };
                         }
                         else if (expose.name === "action") {
                             newDev.actions = expose.values;

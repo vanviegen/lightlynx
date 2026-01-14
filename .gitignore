@@ -1,6 +1,5 @@
 node_modules
-/public
-.parcel_cache
+build.*
 _webcentral_data
 tmp
 .env
