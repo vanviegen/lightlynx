@@ -7,7 +7,7 @@
 ## Tech Stack
 
 - **Language**: TypeScript
-- **UI Framework**: [Aberdeen](https://github.com/vanviegen/aberdeen) - a reactive UI library with proxy-based state management
+- **UI Framework**: [Aberdeen](https://github.com/vanviegen/aberdeen) - a reactive UI library with proxy-based state management (use the provided Skill to learn how to use it)
 - **Build Tool**: Vite 6.x
 - **Backend**: Connects to Zigbee2MQTT via WebSocket
 - **PWA**: Service Worker for offline caching and stale-while-revalidate strategy
@@ -75,7 +75,7 @@ Groups can contain lights and have associated scenes. Non-light devices can be l
 
 ```bash
 npm run dev   # Start Vite dev server with hot reload
-npm run build   # Production build to public/
+npm run build   # Production build to build.frontend/
 npm run watch   # Build in watch mode
 npm run deploy   # Build and deploy to BunnyCDN via SFTP
 npm run purge-cache   # Purge BunnyCDN cache
@@ -115,48 +115,16 @@ Version checking via first-line comments (`// lightlynx-<name> v<version>`). Aut
 
 ## Code Conventions
 
-- Use Aberdeen's `$()` function for reactive DOM rendering
-- Components are functions that call `$()` to render DOM elements
 - Routing via `aberdeen/route` with path-based navigation
 - Icons are SVG functions from `icons.ts`
-- Admin mode toggled via `?admin=y` query parameter or three-dot menu
+- Admin mode toggled via `?admin=y` query parameter or three-dot menu, stored in `admin.value` observable
 
 ## Testing
 
-Integration tests use Playwright and a mock Zigbee2MQTT server (`src/mock-z2m.ts`).
+Integration tests use Playwright and a mock Zigbee2MQTT server (`src/mock-z2m.ts`). The latter doesn't do any Zigbee nor MQTT nor web API, but runs our lightlynx-api extension (exposing a WebSocket API on port 43597) by default, and is capable of runnings lightlynx-automation as well.
 
-- `npm test`: Runs the suite. Playwright orchestrates temporary servers:
-  - **Vite Dev Server**: Port 5188
-  - **Mock Z2M**: Port 8088
-- The mock server loads real `lightlynx-api.js` and `lightlynx-automation.js` extensions in a sandboxed Node context to accurately simulate behavior.
-- Use `npm run mock-z2m` to start the mock server manually.
-
-## Important Patterns
-
-### Reactive Rendering
-```typescript
-$(() => {
-    // This block re-runs when any accessed proxy values change
-    $('div.item#', device.name);
-});
-```
-
-### Event Handling
-```typescript
-$('div.button click=', () => {
-    // Click handler
-});
-```
-
-### Conditional Admin Features
-Many features check `admin.value` to show/hide configuration options.
-
-### Extension Installation Prompts
-```typescript
-if (promptInstallExtension('automation', 'Reason message')) {
-    // Extension is installed, show feature
-}
-```
+- `npm test`: Runs the suite. Playwright orchestrates running mock-z2m.
+- `npm run mock-z2m`: Start mock-z2m manually.
 
 ## Service Worker
 

@@ -4,10 +4,10 @@
   "description": "Web app and extensions for Zigbee2MQTT to make it a polished integrated light automation solution.",
   "type": "module",
   "scripts": {
-    "build:app": "vite build src/ --outDir ../build.frontend --emptyOutDir --assetsDir .",
+    "build:app": "vite build --config vite.config.ts src/ --outDir ../build.frontend --emptyOutDir --assetsDir .",
     "build:extensions": "vite build --config vite.extensions.config.ts",
     "build:cert": "vite build --config vite.backend.config.ts",
-    "build": "npm run build:extensions && npm run build:app && npm run build:cert",
+    "build": "npm run build:app && npm run build:extensions && npm run build:cert",
     "build:debug": "vite build src/ --outDir ../build.frontend --emptyOutDir --assetsDir . --mode development --sourcemap --minify false",
     "watch": "npm run build:extensions -- --watch & npm run build:app -- --watch",
     "dev": "vite src/ --host",
@@ -15,12 +15,12 @@
     "deploy-cert": "dotenv -- bash -c 'node scripts/deploy-bunny-script.cjs $BUNNY_SSL_SCRIPT_ID $BUNNY_ACCESS_KEY build.backend/cert.js'",
     "deploy": "npm run build && dotenv -- bash -c 'rclone sync build.frontend/ :sftp,host=$DEPLOY_HOST,user=$DEPLOY_USER,pass=$DEPLOY_PASS_OBSCURED,key_use_agent=false:/ --progress --inplace --sftp-shell-type=none' && npm run deploy-cert && npm run purge-cache",
     "test": "playwright test",
-    "mock-z2m": "node --experimental-strip-types src/mock-z2m.ts"
+    "mock-z2m": "npm run build:extensions && node --experimental-strip-types src/mock-z2m.ts"
   },
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "aberdeen": "^1.4.0",
+    "aberdeen": "^1.4.1",
     "ws": "^8.19.0"
   },
   "devDependencies": {

@@ -8,43 +8,49 @@ let currentTakeScreenshot: ((name: string) => Promise<void>) | null = null;
 let currentPage: Page | null = null;
 
 export const expect = ((actual: any, ...args: any[]) => {
-  const isLocator = actual && typeof actual === 'object' && actual.__isProxy && (actual.__target as any)?.constructor?.name?.includes('Locator');
+  const isLocator = actual && typeof actual === 'object' && actual.__isProxy;
   const target = isLocator ? actual.__target : actual;
   const matchers = originalExpect(target, ...args);
 
   if (isLocator && currentPage && currentTakeScreenshot) {
     const page = currentPage;
     const takeScreenshot = currentTakeScreenshot;
+    const locator = actual as Locator;
     return new Proxy(matchers, {
       get(targetMatchers, prop: string) {
         const origMatcher = (targetMatchers as any)[prop];
         if (typeof origMatcher === 'function') {
           return async (...matcherArgs: any[]) => {
-            // Show check overlay
-            try {
-              const box = await (actual as Locator).boundingBox();
-              if (box) {
-                await page.evaluate(({ x, y, w, h, label }) => {
-                  (window as any).__playwrightShowCheck?.(x, y, w, h, label);
-                }, { x: box.x, y: box.y, w: box.width, h: box.height, label: prop });
-                await page.waitForTimeout(100);
-                await takeScreenshot(`check_${prop}`);
-              }
-            } catch {
-              // Ignore overlay errors (e.g. element hidden)
-            }
+            // Hide previous overlays first
+            await page.evaluate(() => (window as any).__playwrightHide?.());
 
             try {
+              // Run the matcher first - this waits for the element if needed (e.g., toBeVisible)
               const result = await origMatcher.apply(targetMatchers, matcherArgs);
+              
+              // Matcher passed - now show success overlay
+              try {
+                const box = await locator.boundingBox();
+                if (box) {
+                  await page.evaluate(({ x, y, w, h, label }) => {
+                    (window as any).__playwrightShowCheck?.(x, y, w, h, label);
+                  }, { x: box.x, y: box.y, w: box.width, h: box.height, label: prop });
+                  await page.evaluate(() => (window as any).__playwrightWaitForRepaint?.());
+                  await takeScreenshot(`check_${prop}`);
+                }
+              } catch {
+                // Ignore overlay errors
+              }
+              
               await page.evaluate(() => (window as any).__playwrightHide?.());
               return result;
             } catch (err) {
-              // Failed assertion
+              // Failed assertion - show error overlay
               await page.evaluate(({ msg, loc }) => {
                 (window as any).__playwrightShowBanner?.(`${msg}\n${loc}`, 'error');
               }, { 
                 msg: String(err).split('\n')[0],
-                loc: String(actual)
+                loc: String(locator)
               });
               await takeScreenshot(`fail_${prop}`);
               throw err;
@@ -106,15 +112,12 @@ function wrapLocator(locator: Locator, page: Page, takeScreenshot: (name: string
                 const centerX = box.x + box.width / 2;
                 const centerY = box.y + box.height / 2;
                 const label = (prop === 'fill' || prop === 'type' || prop === 'press') ? JSON.stringify(args[0]) : prop;
-                await page.evaluate(({ x, y, label, val, action }) => {
+                await page.evaluate(({ x, y, label }) => {
                   (window as any).__playwrightShowClick?.(x, y, label);
-                  if (action === 'fill' || action === 'type' || action === 'press') {
-                    (window as any).__playwrightShowKeys?.(val);
-                  }
-                }, { x: centerX, y: centerY, label, val: args[0], action: prop });
+                }, { x: centerX, y: centerY, label });
                 
-                // Take screenshot BEFORE the action to show the overlay on the target
-                await page.waitForTimeout(100);
+                // Wait for browser to repaint, then take screenshot
+                await page.evaluate(() => (window as any).__playwrightWaitForRepaint?.());
                 await takeScreenshot(`before_${prop}`);
               }
             } catch (e) {
@@ -122,7 +125,6 @@ function wrapLocator(locator: Locator, page: Page, takeScreenshot: (name: string
             }
 
             const result = await orig.apply(target, args);
-            await page.waitForTimeout(200);
             return result;
           };
         }
@@ -145,19 +147,12 @@ function wrapLocator(locator: Locator, page: Page, takeScreenshot: (name: string
 export const test = base.extend({
   page: async ({ page }, use, testInfo) => {
     let stepCount = 0;
-    const testName = testInfo.title.replace(/[^a-z0-9]/gi, '_');
-    const screenshotDir = path.join(testInfo.outputDir, 'steps');
-    
-    if (!fs.existsSync(screenshotDir)) {
-      fs.mkdirSync(screenshotDir, { recursive: true });
-    }
 
     const takeScreenshot = async (actionName: string) => {
       stepCount++;
       const fileName = `${stepCount.toString().padStart(3, '0')}-${actionName}.png`;
-      const filePath = path.join(screenshotDir, fileName);
-      await page.screenshot({ path: filePath });
-      // Attach to the report for easy viewing
+      const filePath = path.join(testInfo.outputDir, fileName);
+      await page.screenshot({ path: filePath, fullPage: false });
       await testInfo.attach(`Step ${stepCount}: ${actionName}`, { path: filePath, contentType: 'image/png' });
     };
 
@@ -166,6 +161,58 @@ export const test = base.extend({
 
     // Inject overlay scripts into the browser
     await page.addInitScript(() => {
+      // Wait for browser to actually repaint
+      (window as any).__playwrightWaitForRepaint = () => {
+        return new Promise<void>(resolve => {
+          requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+        });
+      };
+
+      // Function to inject styles (may need to wait for document.head)
+      const injectStyles = () => {
+        if (document.getElementById('playwright-overlay-styles')) return;
+        const style = document.createElement('style');
+        style.id = 'playwright-overlay-styles';
+        style.textContent = `
+          *, *::before, *::after { transition: none !important; animation: none !important; }
+          #playwright-overlay-cursor {
+            position: fixed; width: 30px; height: 30px;
+            background: rgba(255, 0, 0, 0.4); border: 2px solid red;
+            border-radius: 50%; pointer-events: none; z-index: 1000000;
+            display: none; transform: translate(-50%, -50%);
+            box-shadow: 0 0 10px rgba(255,0,0,0.5);
+          }
+          #playwright-overlay-check {
+            position: fixed; border: 3px solid #28a745; border-radius: 8px;
+            background: rgba(40, 167, 69, 0.2); pointer-events: none;
+            z-index: 1000000; display: none;
+          }
+          #playwright-overlay-banner {
+            position: fixed; bottom: 0; left: 0; right: 0;
+            background: rgba(0, 0, 0, 0.85); color: white; padding: 10px 20px;
+            font-family: sans-serif; font-size: 14px; z-index: 1000002;
+            display: none; border-top: 2px solid #333;
+            white-space: pre-wrap;
+          }
+          .playwright-banner-error { border-top-color: red !important; background: rgba(80, 0, 0, 0.9) !important; }
+          .playwright-banner-info { border-top-color: #007acc !important; }
+          .playwright-banner-success { border-top-color: #28a745 !important; }
+          #playwright-overlay-action {
+            position: absolute; top: 100%; left: 50%; transform: translateX(-50%);
+            background: red; color: white; padding: 2px 6px; border-radius: 4px;
+            font-size: 12px; white-space: nowrap; font-family: sans-serif;
+          }
+        `;
+        (document.head || document.documentElement).appendChild(style);
+      };
+      
+      // Try to inject immediately, or wait for DOM
+      if (document.head || document.documentElement) {
+        injectStyles();
+      } else {
+        document.addEventListener('DOMContentLoaded', injectStyles);
+      }
+
       (window as any).__playwrightHide = () => {
         ['playwright-overlay-cursor', 'playwright-overlay-check', 'playwright-overlay-banner'].forEach(id => {
           const el = document.getElementById(id);
@@ -176,46 +223,6 @@ export const test = base.extend({
       (window as any).__playwrightShowClick = (x: number, y: number, actionName: string) => {
         let cursor = document.getElementById('playwright-overlay-cursor');
         if (!cursor) {
-          const style = document.createElement('style');
-          style.textContent = `
-            #playwright-overlay-cursor {
-              position: fixed; width: 30px; height: 30px;
-              background: rgba(255, 0, 0, 0.4); border: 2px solid red;
-              border-radius: 50%; pointer-events: none; z-index: 1000000;
-              display: none; transform: translate(-50%, -50%);
-              transition: all 0.2s ease-out; box-shadow: 0 0 10px rgba(255,0,0,0.5);
-            }
-            #playwright-overlay-check {
-              position: fixed; border: 3px solid #28a745; border-radius: 8px;
-              background: rgba(40, 167, 69, 0.2); pointer-events: none;
-              z-index: 1000000; display: none;
-              transition: all 0.2s ease;
-            }
-            #playwright-overlay-keys {
-              position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%);
-              background: rgba(0, 0, 0, 0.8); color: white; padding: 12px 24px;
-              border-radius: 12px; font-family: sans-serif; font-weight: bold; font-size: 24px;
-              z-index: 1000001; display: none; pointer-events: none;
-              box-shadow: 0 4px 15px rgba(0,0,0,0.5);
-            }
-            #playwright-overlay-banner {
-              position: fixed; bottom: 0; left: 0; right: 0;
-              background: rgba(0, 0, 0, 0.85); color: white; padding: 10px 20px;
-              font-family: sans-serif; font-size: 14px; z-index: 1000002;
-              display: none; border-top: 2px solid #333;
-              white-space: pre-wrap;
-            }
-            .playwright-banner-error { border-top-color: red !important; background: rgba(80, 0, 0, 0.9) !important; }
-            .playwright-banner-info { border-top-color: #007acc !important; }
-            .playwright-banner-success { border-top-color: #28a745 !important; }
-            #playwright-overlay-action {
-              position: absolute; top: 100%; left: 50%; transform: translateX(-50%);
-              background: red; color: white; padding: 2px 6px; border-radius: 4px;
-              font-size: 12px; white-space: nowrap; font-family: sans-serif;
-            }
-          `;
-          document.head.appendChild(style);
-
           cursor = document.createElement('div');
           cursor.id = 'playwright-overlay-cursor';
           const label = document.createElement('div');
@@ -229,10 +236,6 @@ export const test = base.extend({
         cursor.style.top = y + 'px';
         cursor.style.display = 'block';
         if (actionLabel) actionLabel.textContent = actionName;
-        cursor.style.transform = 'translate(-50%, -50%) scale(2)';
-        setTimeout(() => {
-          cursor!.style.transform = 'translate(-50%, -50%) scale(1)';
-        }, 100);
         // Hide after 1 second
         if ((window as any).__cursorTimeout) clearTimeout((window as any).__cursorTimeout);
         (window as any).__cursorTimeout = setTimeout(() => { cursor!.style.display = 'none'; }, 1000);
@@ -267,21 +270,6 @@ export const test = base.extend({
           (window as any).__bannerTimeout = setTimeout(() => { banner!.style.display = 'none'; }, 3000);
         }
       };
-
-      (window as any).__playwrightShowKeys = (text: string) => {
-        let keys = document.getElementById('playwright-overlay-keys');
-        if (!keys) {
-          keys = document.createElement('div');
-          keys.id = 'playwright-overlay-keys';
-          document.body.appendChild(keys);
-        }
-        keys.textContent = `⌨️ ${text}`;
-        keys.style.display = 'block';
-        if ((window as any).__keysTimeout) clearTimeout((window as any).__keysTimeout);
-        (window as any).__keysTimeout = setTimeout(() => {
-          keys!.style.display = 'none';
-        }, 1500);
-      };
     });
 
     // Proxy the Page object
@@ -314,15 +302,10 @@ export const test = base.extend({
                   // Element might not be available yet or selector isn't a simple selector
                 }
               }
-
-              // Text overlay for typing
-              if (prop === 'fill' || prop === 'type' || prop === 'press') {
-                await page.evaluate((text) => (window as any).__playwrightShowKeys?.(text), args[1] || args[0]);
-              }
               
               if (prop !== 'goto') {
-                  // For actions other than goto, we can show overlay before
-                  await page.waitForTimeout(100);
+                  // Wait for browser to repaint, then take screenshot
+                  await page.evaluate(() => (window as any).__playwrightWaitForRepaint?.());
                   await takeScreenshot(`before_${prop}`);
               }
 
@@ -351,8 +334,6 @@ export const test = base.extend({
                 }, url);
                 await page.waitForTimeout(200);
                 await takeScreenshot('after_goto');
-              } else {
-                await page.waitForTimeout(200);
               }
               
               return result;

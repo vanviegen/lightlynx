@@ -1,5 +1,5 @@
 
-import { test, expect, Page, connectToMockServer } from './base-test';
+import { test, expect, connectToMockServer } from './base-test';
 
 test.describe('Extension Lifecycle', () => {
   test.beforeEach(async ({ page }) => {
@@ -24,35 +24,39 @@ test.describe('Extension Lifecycle', () => {
     
     // --- TEST AUTOMATION EXTENSION ---
 
-    // 2. Go to a group page and verify Automation is present
+    // 2. Go to a group page and verify Automation is NOT present (shows prompt)
     const groupName = 'Living Room'; // From mock-z2m.ts
-    await page.locator('h2', { hasText: groupName }).click();
+    await page.locator('.grid h2.link', { hasText: groupName }).first().click();
     await expect(page.locator('span.subTitle', { hasText: 'group' })).toBeVisible();
-    await expect(page.locator('h1', { hasText: 'Buttons and sensors' })).toBeVisible();
-
-    // 3. Uninstall Automation
-    // Automatically accept all dialogs
-    page.on('dialog', dialog => dialog.accept());
-    
-    await page.goto('/?admin=y');
-    
-    // Find the automation item and its remove button
-    const automationItem = page.locator('div.item', { has: page.locator('h2', { hasText: 'automation' }) });
-    const removeAutomationBtn = automationItem.locator('svg.icon').last();
-    await removeAutomationBtn.click();
-
-    // 4. Verify Automation is gone (go to group page)
-    await page.locator('h2', { hasText: groupName }).click();
     await expect(page.locator('text=Connecting buttons and sensors to a group requires our automation Z2M extension.')).toBeVisible();
 
-    // 5. Re-install Automation
+    // 3. Install Automation extension
     await page.goto('/?admin=y');
-    const automationItemAgain = page.locator('div.item', { has: page.locator('h2', { hasText: 'automation' }) });
-    const installAutomationBtn = automationItemAgain.locator('svg.icon').last();
+    const automationItem = page.locator('div.item', { has: page.locator('h2', { hasText: 'automation' }) });
+    const installAutomationBtn = automationItem.locator('svg.icon').last();
     await installAutomationBtn.click();
 
-    // 6. Verify Automation is back
-    await page.locator('h2', { hasText: groupName }).click();
-    await expect(page.locator('h1', { hasText: 'Buttons and sensors' })).toBeVisible({ timeout: 10000 });
+    // Wait for restart and reconnection (Mock Z2M restarts on extension save)
+    await expect(page.locator('h2', { hasText: 'admin' })).toBeVisible({ timeout: 20000 });
+
+    // 4. Verify Automation is now present
+    await page.locator('.grid h2.link', { hasText: groupName }).first().click();
+    await expect(page.locator('h1', { hasText: 'Buttons and sensors' })).toBeVisible();
+    // In admin mode with extension, it should show "None yet" if no inputs linked
+    await expect(page.locator('text=None yet')).toBeVisible();
+
+    // 5. Uninstall Automation
+    await page.goto('/?admin=y');
+    const automationItemAgain = page.locator('div.item', { has: page.locator('h2', { hasText: 'automation' }) });
+    const removeAutomationBtn = automationItemAgain.locator('svg.icon').last();
+    await removeAutomationBtn.click();
+
+    // Handle custom confirmation dialog
+    await page.waitForSelector('button.primary:has-text("Yes")');
+    await page.click('button.primary:has-text("Yes")');
+
+    // 6. Verify Automation is gone
+    await page.locator('.grid h2.link', { hasText: groupName }).first().click();
+    await expect(page.locator('text=Connecting buttons and sensors to a group requires our automation Z2M extension.')).toBeVisible();
   });
 });

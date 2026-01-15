@@ -37,15 +37,15 @@ test.describe('Light Lynx Integration', () => {
     // After adding, it should go back to group page
     await expect(page.locator('span.subTitle', { hasText: 'add light' })).not.toBeVisible();
     await expect(page.locator('span.subTitle', { hasText: 'group' })).toBeVisible();
-    // Use filter to Ensure we pick the visible one on the new page
-    await expect(page.locator('h2', { hasText: 'Color Light' }).filter({ visible: true })).toBeVisible();
+    // Use first() to pick the first matching visible one
+    await expect(page.locator('h2', { hasText: 'Color Light' }).first()).toBeVisible();
 
     // Add another "White Light"
     await page.locator('h1', { hasText: 'Bulbs' }).locator('svg.icon').first().click();
     await page.click('h2:has-text("White Light")');
     await expect(page.locator('span.subTitle', { hasText: 'add light' })).not.toBeVisible();
     await expect(page.locator('span.subTitle', { hasText: 'group' })).toBeVisible();
-    await expect(page.locator('h2', { hasText: 'White Light' }).filter({ visible: true })).toBeVisible();
+    await expect(page.locator('h2', { hasText: 'White Light' }).first()).toBeVisible();
 
     // 8. Create a scene
     const sceneName = 'Test Scene';

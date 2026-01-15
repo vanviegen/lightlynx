@@ -27,7 +27,6 @@ interface SslConfig {
     };
     internalIp?: string;
     externalIp?: string;
-    externalPort?: number;
 }
 
 interface LightLynxConfig {
@@ -66,10 +65,8 @@ class LightLynxAPI {
 
         const mock = (globalThis as any).MOCK_Z2M;
 
-        if (!mock) {
-            await this.setupSSL();
-        } else if (mock.certFile) {
-            // Use mock SSL certificate
+        if (mock && mock.certFile) {
+            // Fallback for mock environment
             this.logger.info('LightLynx API: Using mock SSL certificate');
             const { cert, key } = JSON.parse(fs.readFileSync(mock.certFile, 'utf8'));
             
@@ -77,6 +74,8 @@ class LightLynxAPI {
                 expiresAt: Date.now() + 1000000000,
                 nodeHttpsOptions: { cert, key }
             };
+        } else {
+            await this.setupSSL();
         }
 
         if (!this.config.ssl?.nodeHttpsOptions?.cert) {
@@ -105,8 +104,8 @@ class LightLynxAPI {
         this.eventBus.onPublishEntityState(this, (data: any) => this.onEntityState(data));
         this.eventBus.onMQTTMessage(this, (data: any) => this.onMQTTRequest(data));
 
-        // Refresh check every 59 minutes
-        this.refreshTimer = setInterval(() => this.setupSSL(), 59 * 60 * 1000);
+        // Daily refresh check
+        this.refreshTimer = setInterval(() => this.setupSSL(), 24 * 60 * 60 * 1000);
     }
 
     async stop() {
@@ -179,10 +178,6 @@ class LightLynxAPI {
     }
 
     private async setupSSL() {
-        if (this.config.remoteAccess) {
-            await this.setupUPnP();
-        }
-
         const internalIp = this.getLocalIP() || undefined;
         const externalIp = this.config.remoteAccess ? await this.getExternalIp() : undefined;
 
@@ -190,7 +185,6 @@ class LightLynxAPI {
         const tenDaysMs = 10 * 24 * 60 * 60 * 1000;
         
         const cert = this.config.ssl;
-
         const needsNewCert = !cert || 
             cert.internalIp !== internalIp || 
             (this.config.remoteAccess && cert.externalIp !== externalIp) ||
@@ -209,8 +203,7 @@ class LightLynxAPI {
                         expiresAt: response.expiresAt,
                         nodeHttpsOptions: response.nodeHttpsOptions,
                         internalIp,
-                        externalIp: this.config.remoteAccess ? (externalIp ?? undefined) : undefined,
-                        externalPort: this.config.ssl?.externalPort
+                        externalIp: this.config.remoteAccess ? (externalIp ?? undefined) : undefined
                     };
                     this.saveConfig();
                     this.logger.info('LightLynx API: Certificate updated successfully');
@@ -228,6 +221,10 @@ class LightLynxAPI {
                 this.logger.error(`LightLynx API: SSL setup failed: ${err.message}`);
             }
         }
+
+        if (this.config.remoteAccess) {
+            await this.setupUPnP();
+        }
     }
 
     private async setupUPnP() {
@@ -237,45 +234,8 @@ class LightLynxAPI {
             if (!localIP) throw new Error('Could not determine local IP');
             const gatewayUrl = await this.discoverGateway();
             if (!gatewayUrl) throw new Error('Could not find UPnP gateway');
-
-            let externalPort: number | undefined;
-            let success = false;
-
-            for (let i = 0; i < 4; i++) {
-                if (i) {
-                    await new Promise(r => setTimeout(r, 1000));
-                }
-
-                // Try stored port for first 2 attempts, then switch to random
-                const currentPort = (i < 2 && this.config.ssl?.externalPort) 
-                    ? this.config.ssl.externalPort 
-                    : Math.floor(Math.random() * (65535 - 10000) + 10000);
-
-                try {
-                    await this.addPortMapping(gatewayUrl, localIP, PORT, currentPort, 'TCP', 'Light Lynx');
-                    externalPort = currentPort;
-                    success = true;
-                    break;
-                } catch (err: any) {
-                    this.logger.warning(`LightLynx API: UPnP mapping attempt ${i + 1} failed on ${currentPort}: ${err.message}`);
-                }
-            }
-
-            if (success && externalPort) {
-                if (!this.config.ssl) {
-                    this.config.ssl = { 
-                        expiresAt: 0, 
-                        nodeHttpsOptions: { cert: '', key: '' }
-                    };
-                }
-                if (this.config.ssl.externalPort !== externalPort) {
-                    this.config.ssl.externalPort = externalPort;
-                    this.saveConfig();
-                }
-                this.logger.info(`LightLynx API: UPnP port mapping successful: ${localIP}:${PORT} -> ${externalPort}`);
-            } else {
-                throw new Error('Could not establish UPnP port mapping after 4 attempts');
-            }
+            await this.addPortMapping(gatewayUrl, localIP, PORT, PORT, 'TCP', 'Light Lynx');
+            this.logger.info(`LightLynx API: UPnP port mapping successful: ${localIP}:${PORT} -> ${PORT}`);
         } catch (err: any) {
             this.logger.warning(`LightLynx API: UPnP setup failed: ${err.message}`);
         }
@@ -695,8 +655,7 @@ class LightLynxAPI {
         return { 
             remoteAccess: this.config.remoteAccess,
             serverIp: this.getLocalIP(),
-            externalIp: this.config.ssl?.externalIp,
-            externalPort: this.config.ssl?.externalPort
+            externalIp: this.config.ssl?.externalIp
         };
     }
 
