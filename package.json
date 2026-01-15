@@ -17,10 +17,10 @@
     "test": "playwright test",
     "mock-z2m": "npm run build:extensions && node --experimental-strip-types src/mock-z2m.ts"
   },
-  "author": "",
-  "license": "ISC",
+  "author": "Frank van Viegen",
+  "license": "All rights reserved",
   "dependencies": {
-    "aberdeen": "^1.4.1",
+    "aberdeen": "^1.4.3",
     "ws": "^8.19.0"
   },
   "devDependencies": {

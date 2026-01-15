@@ -144,6 +144,7 @@ class Api {
     // Reconnection state
     private reconnectAttempts = 0;
     private reconnectTimeout?: ReturnType<typeof setTimeout>;
+    private initialConnectTimeout?: ReturnType<typeof setTimeout>;
     private currentServer?: ServerCredentials;  // The server we're connected/connecting to
     private shouldReconnect = false;  // Only reconnect after a successful connection drops
 
@@ -233,7 +234,7 @@ class Api {
      * This is the only way to initiate a connection - no reactive triggers.
      */
     connect(server: ServerCredentials): void {
-        console.log("api/connect", server.serverIp);
+        console.log("api/connect", server.serverAddress);
         
         // Stop any existing connection
         this.disconnect();
@@ -255,6 +256,7 @@ class Api {
         this.shouldReconnect = false;
         this.reconnectAttempts = 0;
         clearTimeout(this.reconnectTimeout);
+        this.clearInitialConnectTimeout();
         
         if (this.socket) {
             this.socket.close();
@@ -267,6 +269,13 @@ class Api {
         
         this.store.connectionState = 'idle';
         this.store.connected = false;
+    }
+
+    private clearInitialConnectTimeout(): void {
+        if (this.initialConnectTimeout) {
+            clearTimeout(this.initialConnectTimeout);
+            this.initialConnectTimeout = undefined;
+        }
     }
     
     send = (...topicAndPayload: any[]): Promise<void> => {
@@ -351,16 +360,29 @@ class Api {
      * Internal connection method used for reconnection (doesn't reset state)
      */
     private connectInternal(server: ServerCredentials): void {
+        this.clearInitialConnectTimeout();
+        this.initialConnectTimeout = setTimeout(() => {
+            if (this.store.connectionState === 'connecting' || this.store.connectionState === 'authenticating') {
+                console.error("api/connectInternal - Connection timed out");
+                this.disconnect();
+                this.store.connectionState = 'error';
+                this.store.lastConnectError = "Connection timed out. Please check the server address and port.";
+            }
+        }, 4000); // 4 seconds timeout
+
         for (const s of this.tryingSockets) {
             s.close();
         }
         this.tryingSockets = [];
 
         const connections: { hostname: string, port: number }[] = [];
-        connections.push({ hostname: ipToHexDomain(server.serverIp), port: 43597 });
         
-        if (server.externalIp) {
-            connections.push({ hostname: ipToHexDomain(server.externalIp), port: server.externalPort || 43597 });
+        const [serverIp, serverPort] = server.serverAddress.split(':');
+        connections.push({ hostname: ipToHexDomain(serverIp!), port: parseInt(serverPort || '43597') });
+        
+        if (server.externalAddress) {
+            const [externalIp, externalPort] = server.externalAddress.split(':');
+            connections.push({ hostname: ipToHexDomain(externalIp!), port: parseInt(externalPort || '43597') });
         }
 
         const protocols = ["lightlynx"];
@@ -446,10 +468,16 @@ class Api {
             return;
         }
 
+        if (this.store.connectionState === 'idle') {
+            // We've already explicitly disconnected
+            return;
+        }
+
         if (this.socket === socket) {
             // Our active socket closed
             this.socket = undefined;
             this.store.connected = false;
+            this.clearInitialConnectTimeout();
             
             if (e.code === UNAUTHORIZED_ERROR_CODE) {
                 this.store.connectionState = 'error';
@@ -468,6 +496,7 @@ class Api {
             this.tryingSockets = this.tryingSockets.filter(s => s !== socket);
             if (this.tryingSockets.length === 0 && !this.socket) {
                 // All attempts failed
+                this.clearInitialConnectTimeout();
                 this.store.connectionState = 'error';
                 this.store.lastConnectError = "Connection failed. Please check the server address.";
             }
@@ -635,6 +664,7 @@ class Api {
             console.log("api/onMessage - Authentication confirmed");
             this.store.connected = true;
             this.store.connectionState = 'connected';
+            this.clearInitialConnectTimeout();
             this.reconnectAttempts = 0;
             this.shouldReconnect = true;  // Enable auto-reconnect after successful connection
         }
@@ -683,19 +713,16 @@ class Api {
             }
             else if (topic === "lightlynx/config") {
                 this.store.remoteAccessEnabled = payload.remoteAccess;
-                this.store.serverIp = payload.serverIp;
-                this.store.externalIp = payload.externalIp;
-                this.store.externalPort = payload.externalPort;
-                // Update current server credentials with external IP/port if we're connected
+                this.store.externalAddress = payload.externalAddress;
+                
+                // Update current server credentials with external address if we're connected
                 if (this.currentServer) {
-                    this.currentServer.externalIp = payload.externalIp;
-                    this.currentServer.externalPort = payload.externalPort;
+                    this.currentServer.externalAddress = this.store.externalAddress;
                     
                     // Also update it in the stored servers list to ensure it's persisted for next session
                     for (const s of this.store.servers) {
-                        if (s.serverIp === this.currentServer.serverIp && s.username === this.currentServer.username) {
-                            s.externalIp = payload.externalIp;
-                            s.externalPort = payload.externalPort;
+                        if (s.serverAddress === this.currentServer.serverAddress && s.username === this.currentServer.username) {
+                            s.externalAddress = this.store.externalAddress;
                         }
                     }
                 }

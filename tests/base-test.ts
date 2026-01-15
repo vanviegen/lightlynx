@@ -79,7 +79,7 @@ export async function connectToMockServer(page: Page) {
     
     // 3. Fill connection details
     // Using localhost which connects to our mock lightlynx-api extension on port 43597
-    await page.fill('input[placeholder="e.g. 192.168.1.5"]', 'localhost');
+    await page.fill('input[placeholder="e.g. 192.168.1.5[:port]"]', 'localhost');
     
     // Fill credentials (known from mock-z2m setup)
     await page.fill('label:has-text("Username") + input', 'admin');

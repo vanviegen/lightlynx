@@ -585,9 +585,9 @@ function drawConnectionPage(): void {
 		api.disconnect();
 	}
 	
-	const activeServer = peek(() => unproxy(api.store.servers)[api.store.activeServerIndex]);
+	const activeServer = unproxy(api.store.servers)[peek(api.store, 'activeServerIndex')];
 	const formData = proxy({
-		serverIp: activeServer?.serverIp || '',
+		serverAddress: activeServer?.serverAddress || '',
 		username: activeServer?.username || 'admin',
 		password: '', // Don't pre-fill password in UI if it's stored as secret
 	});
@@ -613,8 +613,8 @@ function drawConnectionPage(): void {
 		const secret = await hashSecret(formData.username, formData.password);
 
 		const server: ServerCredentials = {
-			name: formData.serverIp,
-			serverIp: formData.serverIp,
+			name: formData.serverAddress,
+			serverAddress: formData.serverAddress,
 			username: formData.username,
 			secret,
 			lastConnected: Date.now()
@@ -636,8 +636,8 @@ function drawConnectionPage(): void {
 	$('div.login-form', () => {
 		$('form submit=', handleSubmit, () => {
 			$('div.field', () => {
-				$('label#Server IP');
-				$('input placeholder=', 'e.g. 192.168.1.5', 'required=', true, 'bind=', ref(formData, 'serverIp'));
+				$('label#Server Address');
+				$('input placeholder=', 'e.g. 192.168.1.5[:port]', 'required=', true, 'bind=', ref(formData, 'serverAddress'));
 			});
 			
 			$('div.field', () => {
@@ -802,7 +802,7 @@ $('div.root', () => {
 					route.go(['/']);
 				}, () => {
 					icons.reconnect();
-					$(`# Switch to ${server.name || server.serverIp}`);
+					$(`# Switch to ${server.name || server.serverAddress}`);
 				});
 			});
 

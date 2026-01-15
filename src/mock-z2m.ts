@@ -9,7 +9,10 @@ const require = createRequire(import.meta.url);
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-(globalThis as any).MOCK_Z2M = {
+const httpPortArgIndex = process.argv.indexOf('--http-port');
+const httpPortArg = httpPortArgIndex !== -1 ? parseInt(process.argv[httpPortArgIndex + 1] || '43596') : undefined;
+
+(globalThis as any).MOCK_Z2M = (httpPortArg && !isNaN(httpPortArg)) ? { httpPort: httpPortArg } : {
     certFile: path.join(__dirname, 'mock-certs.json')
 };
 

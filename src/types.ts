@@ -90,9 +90,8 @@ export interface Extension {
 
 export interface ServerCredentials {
     name: string;      // user-friendly name
-    serverIp: string;  // Internal IP address
-    externalIp?: string; // External IP (communicated by server)
-    externalPort?: number; // External port (communicated by server)
+    serverAddress: string;  // Server address (ip[:port])
+    externalAddress?: string; // External address (ip:port)
     username: string;
     secret: string;
     lastConnected?: number;  // timestamp
@@ -114,9 +113,8 @@ export interface Store {
     extensions: Extension[]; // Available Z2M extensions
     users: Record<string, User>;    // Users from lightlynx-api
     remoteAccessEnabled?: boolean;  // From lightlynx-api config
-    serverIp?: string;             // From lightlynx-api config
-    externalIp?: string;           // From lightlynx-api config
-    externalPort?: number;         // From lightlynx-api config
+    serverAddress?: string;        // From lightlynx-api config
+    externalAddress?: string;      // From lightlynx-api config
 }
 
 // Helper functions for color type checking

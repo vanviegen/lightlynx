@@ -31,7 +31,7 @@ Once started, the extension will listen on HTTPS port 43597 and automatically pr
 - `npm run dev`: Start development server on port 5173.
 - `npm run build`: Production build to `build.frontend/`.
 - `npm test`: Run Playwright integration tests with a mock Zigbee2MQTT backend.
-- `npm run mock-z2m`: Start the mock Zigbee2MQTT server independently.
+- `npm run mock-z2m`: Start the mock Zigbee2MQTT server independently. Use `-- --http-port PORT` to start with HTTP on the given PORT instead of the HTTPS on port 43597.
 - `npm run deploy`: Deploy to `build.frontend/` folder to Bunny.net CDN. You'll need `.env` set up.
 
 ### Testing
