@@ -698,18 +698,18 @@ async function handleCreate(request: Request): Promise<Response> {
       );
     }
 
-    const { internalIp, useExternalIp } = await request.json();
+    const { localIp, useExternalHost } = await request.json();
 
     const domains: string[] = [];
 
-    if (internalIp) {
-      const hex = ipToHex(internalIp);
+    if (localIp) {
+      const hex = ipToHex(localIp);
       if (hex) {
         domains.push(`x${hex}.${DOMAIN}`);
       }
     }
 
-    if (useExternalIp) {
+    if (useExternalHost) {
       const hex = ipToHex(originIP);
       if (hex) {
         domains.push(`x${hex}.${DOMAIN}`);
@@ -718,7 +718,7 @@ async function handleCreate(request: Request): Promise<Response> {
 
     if (domains.length === 0) {
       return jsonResponse(
-        { success: false, error: "At least one valid IP (internalIp or useExternalIp) must be provided" },
+        { success: false, error: "At least one valid IP (localIp or useExternalHost) must be provided" },
         400
       );
     }
@@ -732,6 +732,8 @@ async function handleCreate(request: Request): Promise<Response> {
         cert: certResult.certificate,
         key: certResult.privateKey,
       },
+      localIp,
+      externalIp: useExternalHost ? originIP : undefined,
     }, 201);
   } catch (error) {
     console.error("Create error:", error);

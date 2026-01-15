@@ -48,7 +48,7 @@ Uses Aberdeen's `proxy()` for reactive state. The global store (`api.store`) con
 - `extensions`: Z2M extensions list
 - `users`: User management data (admin only)
 - `remoteAccessEnabled`: Current remote access toggle state (admin only)
-- `serverIp`: The local server IP address used for connectivity
+- `localIp`: The local server IP address used for connectivity
 - `externalIp`: The external server IP address (if remote access enabled)
 
 ### Multi-Server Management

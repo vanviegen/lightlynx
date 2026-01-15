@@ -234,7 +234,7 @@ class Api {
      * This is the only way to initiate a connection - no reactive triggers.
      */
     connect(server: ServerCredentials): void {
-        console.log("api/connect", server.serverAddress);
+        console.log("api/connect", server.localAddress);
         
         // Stop any existing connection
         this.disconnect();
@@ -377,12 +377,12 @@ class Api {
 
         const connections: { hostname: string, port: number }[] = [];
         
-        const [serverIp, serverPort] = server.serverAddress.split(':');
-        connections.push({ hostname: ipToHexDomain(serverIp!), port: parseInt(serverPort || '43597') });
+        const [localHost, serverPort] = server.localAddress.split(':');
+        connections.push({ hostname: ipToHexDomain(localHost!), port: parseInt(serverPort || '43597') });
         
         if (server.externalAddress) {
-            const [externalIp, externalPort] = server.externalAddress.split(':');
-            connections.push({ hostname: ipToHexDomain(externalIp!), port: parseInt(externalPort || '43597') });
+            const [externalHost, externalPort] = server.externalAddress.split(':');
+            connections.push({ hostname: ipToHexDomain(externalHost!), port: parseInt(externalPort || '43597') });
         }
 
         const protocols = ["lightlynx"];
@@ -721,7 +721,7 @@ class Api {
                     
                     // Also update it in the stored servers list to ensure it's persisted for next session
                     for (const s of this.store.servers) {
-                        if (s.serverAddress === this.currentServer.serverAddress && s.username === this.currentServer.username) {
+                        if (s.localAddress === this.currentServer.localAddress && s.username === this.currentServer.username) {
                             s.externalAddress = this.store.externalAddress;
                         }
                     }

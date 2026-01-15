@@ -90,7 +90,7 @@ export interface Extension {
 
 export interface ServerCredentials {
     name: string;      // user-friendly name
-    serverAddress: string;  // Server address (ip[:port])
+    localAddress: string;  // Server address (ip[:port])
     externalAddress?: string; // External address (ip:port)
     username: string;
     secret: string;
@@ -113,7 +113,7 @@ export interface Store {
     extensions: Extension[]; // Available Z2M extensions
     users: Record<string, User>;    // Users from lightlynx-api
     remoteAccessEnabled?: boolean;  // From lightlynx-api config
-    serverAddress?: string;        // From lightlynx-api config
+    localAddress?: string;        // From lightlynx-api config
     externalAddress?: string;      // From lightlynx-api config
 }
 
