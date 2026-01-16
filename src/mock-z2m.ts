@@ -404,6 +404,28 @@ const groupsData: Record<number, MockGroup> = {
     2: { id: 2, friendlyName: 'Kitchen', description: 'Secondary group', members: ['0x002'], scenes: [{id:3, name:'Cooking'}, {id:4, name:'Night'}] }
 };
 
+// Scene state storage: sceneStates[groupId][sceneId][deviceIeee] = { state, brightness, ... }
+const sceneStates: Record<number, Record<number, Record<string, any>>> = {
+    1: {
+        1: { // Bright scene
+            '0x001': { state: 'ON', brightness: 255, color: { hue: 30, saturation: 80 } },
+            '0x002': { state: 'ON', brightness: 255 }
+        },
+        2: { // Dim scene
+            '0x001': { state: 'ON', brightness: 50, color: { hue: 30, saturation: 50 } },
+            '0x002': { state: 'ON', brightness: 50 }
+        }
+    },
+    2: {
+        3: { // Cooking scene
+            '0x002': { state: 'ON', brightness: 255 }
+        },
+        4: { // Night scene
+            '0x002': { state: 'ON', brightness: 30 }
+        }
+    }
+};
+
 // Initialize
 async function init() {
     for (const [ieee, d] of Object.entries(devicesData)) {
@@ -453,9 +475,13 @@ class MockMQTT {
             const entityName = parts[1];
             if (entityName && parts[2] === 'set') {
                 const payload = JSON.parse(messageStr);
-                const entity = zigbee.deviceByFriendlyName(entityName) || zigbee.groupByName(entityName);
+                // Try to find entity by friendly name, IEEE address, or group ID
+                const entity = zigbee.deviceByFriendlyName(entityName) 
+                    || zigbee.deviceByIeeeAddr(entityName) 
+                    || zigbee.groupByName(entityName)
+                    || (!isNaN(Number(entityName)) ? zigbee.groupByID(Number(entityName)) : undefined);
                 if (entity) {
-                    if (payload.scene_store !== undefined) {
+                    if (payload.scene_store !== undefined && entity.isGroup()) {
                         const sceneId = typeof payload.scene_store === 'object' ? payload.scene_store.ID : payload.scene_store;
                         const sceneName = typeof payload.scene_store === 'object' ? payload.scene_store.name : `Scene ${sceneId}`;
                         
@@ -466,19 +492,75 @@ class MockMQTT {
                         } else {
                             entity.zh.scenes.push({ id: sceneId, name: sceneName });
                         }
+                        
+                        // Store current light states for all group members
+                        const groupId = entity.id as number;
+                        if (!sceneStates[groupId]) sceneStates[groupId] = {};
+                        sceneStates[groupId][sceneId] = {};
+                        for (const member of entity.members) {
+                            const memberState = state.get(member);
+                            sceneStates[groupId][sceneId][member.ieeeAddr] = { ...memberState };
+                            process.stderr.write(`MockZ2M: Scene ${sceneId} stored state for ${member.name}: ${JSON.stringify(memberState)}\n`);
+                        }
+                        
                         process.stderr.write(`MockZ2M: Scene stored: ${sceneId} (${sceneName})\n`);
                         eventBus.emitMQTTMessagePublished(`${base}/bridge/groups`, JSON.stringify([...zigbee.groupsIterator()].map(g => g.toJSON())));
                     }
-                    if (payload.scene_name !== undefined) {
-                        const { id, name } = payload.scene_name;
+                    if (payload.scene_rename !== undefined) {
+                        const { ID, name } = payload.scene_rename;
                         entity.zh.scenes = entity.zh.scenes || [];
-                        const scene = entity.zh.scenes.find((s: any) => s.id === id);
+                        const scene = entity.zh.scenes.find((s: any) => s.id === ID);
                         if (scene) scene.name = name;
-                        else entity.zh.scenes.push({ id, name });
-                        process.stderr.write(`MockZ2M: Scene named: ${id} -> ${name}\n`);
+                        else entity.zh.scenes.push({ id: ID, name });
+                        process.stderr.write(`MockZ2M: Scene renamed: ${ID} -> ${name}\n`);
                         eventBus.emitMQTTMessagePublished(`${base}/bridge/groups`, JSON.stringify([...zigbee.groupsIterator()].map(g => g.toJSON())));
                     }
-                    state.set(entity, payload);
+                    if (payload.scene_recall !== undefined && entity.isGroup()) {
+                        const sceneId = payload.scene_recall;
+                        const groupId = entity.id as number;
+                        process.stderr.write(`MockZ2M: Scene recalled: ${sceneId} for group ${groupId}\n`);
+                        
+                        // Apply stored scene states to all group members
+                        const groupScenes = sceneStates[groupId];
+                        const sceneData = groupScenes?.[sceneId];
+                        
+                        for (const member of entity.members) {
+                            const storedState = sceneData?.[member.ieeeAddr];
+                            if (storedState) {
+                                state.set(member, storedState);
+                                process.stderr.write(`MockZ2M: Applied scene state to ${member.name}: ${JSON.stringify(storedState)}\n`);
+                            } else {
+                                // Fallback: turn on with default brightness if no stored state
+                                state.set(member, { state: 'ON', brightness: 200 });
+                                process.stderr.write(`MockZ2M: No stored state for ${member.name}, using default\n`);
+                            }
+                            eventBus.emitMQTTMessagePublished(`${base}/${member.name}`, JSON.stringify(state.get(member)));
+                        }
+                    }
+                    if (payload.scene_add !== undefined) {
+                        // scene_add is sent to individual devices to add them to a group's scene
+                        const { ID, group_id, name, state: sceneState } = payload.scene_add;
+                        process.stderr.write(`MockZ2M: Scene add for device ${entityName}: scene ${ID} in group ${group_id}, state: ${sceneState}\n`);
+                        // In real Z2M, this stores the device's scene state in the device itself
+                        // For mock, we just acknowledge it
+                    }
+                    if (payload.scene_remove !== undefined) {
+                        const sceneId = payload.scene_remove;
+                        entity.zh.scenes = entity.zh.scenes || [];
+                        entity.zh.scenes = entity.zh.scenes.filter((s: any) => s.id !== sceneId);
+                        process.stderr.write(`MockZ2M: Scene removed: ${sceneId}\n`);
+                        eventBus.emitMQTTMessagePublished(`${base}/bridge/groups`, JSON.stringify([...zigbee.groupsIterator()].map(g => g.toJSON())));
+                    }
+                    // Don't set scene_* payloads as state
+                    const statePayload = { ...payload };
+                    delete statePayload.scene_store;
+                    delete statePayload.scene_rename;
+                    delete statePayload.scene_recall;
+                    delete statePayload.scene_add;
+                    delete statePayload.scene_remove;
+                    if (Object.keys(statePayload).length > 0) {
+                        state.set(entity, statePayload);
+                    }
                     // Echo back state
                     eventBus.emitMQTTMessagePublished(`${base}/${entityName}`, JSON.stringify(state.get(entity)));
                 } else {

@@ -20,7 +20,7 @@ interface LightStateDelta {
     brightness?: number;
     color?: { hue: number; saturation: number } | XYColor;
     color_temp?: number;
-    transition?: number; // Added transition property
+    transition?: number;
 }
 
 function objectIsEmpty(obj: object): boolean {
@@ -122,44 +122,81 @@ function getLocalStorage(key: string): any {
 }
 
 class Api {
-    socket?: WebSocket;
+    private socket?: WebSocket;
     private tryingSockets: WebSocket[] = [];
-    requests: Map<string, PromiseCallbacks> = new Map();
-    transactionNumber = 1;
-    transactionRndPrefix: string;
+    private requests: Map<string, PromiseCallbacks> = new Map();
+    private transactionNumber = 1;
+    private transactionRndPrefix: string;
+    private reconnectTimeout?: ReturnType<typeof setTimeout>;
+    private connectTimeout?: ReturnType<typeof setTimeout>;
+    private connectedLocalAddress?: string;  // Track which server we're connected to
+    private reconnectAttempts = 0;
+    private extensionCheckPerformed = false;
+    private nameToIeeeMap: Map<string, string> = new Map();
+
     store: Store = proxy({
         devices: {},
         groups: {},
         permitJoin: false,
         servers: getLocalStorage(CREDENTIALS_LOCAL_STORAGE_ITEM_NAME) || [],
-        activeServerIndex: -1,
         connected: false,
         connectionState: 'idle',
         extensions: [],
         users: {},
     });
     errorHandlers: Array<(msg: string) => void> = [];
-    nameToIeeeMap: Map<string, string> = new Map();
     
-    // Reconnection state
-    private reconnectAttempts = 0;
-    private reconnectTimeout?: ReturnType<typeof setTimeout>;
-    private initialConnectTimeout?: ReturnType<typeof setTimeout>;
-    private currentServer?: ServerCredentials;  // The server we're connected/connecting to
-    private shouldReconnect = false;  // Only reconnect after a successful connection drops
+    constructor() {
+        this.transactionRndPrefix = (Math.random() + 1).toString(36).substring(2,7);
 
+        // Load cached data from localStorage
+        for (const topic of ['bridge/devices', 'bridge/groups']) {
+            const data = localStorage.getItem(topic);
+            if (data) this.onMessage({ data } as MessageEvent);
+        }
+        
+        // Persist servers list to localStorage on changes
+        $(() => {
+            setLocalStorage(CREDENTIALS_LOCAL_STORAGE_ITEM_NAME, this.store.servers);
+        });
+        
+        // Reactive connection management based on servers[0].status
+        $(() => {
+            const server = this.store.servers[0];
+            const status = server?.status;
+            const localAddress = server?.localAddress;
+            
+            // Flush cache when switching to a different server
+            if (localAddress && localAddress !== this.connectedLocalAddress) {
+                this.flushCache();
+            }
+            
+            if (!server || status === 'disabled') {
+                this.disconnect();
+            } else if (status === 'enabled' || status === 'try') {
+                // Only connect if not already connected/connecting to this server
+                if (this.store.connectionState === 'idle' || this.store.connectionState === 'error') {
+                    this.connect(server);
+                }
+            }
+        });
+    }
     
-    // Extension management
-    private extensionCheckPerformed = false;
-
+    private flushCache(): void {
+        console.log("api/flushCache");
+        localStorage.removeItem('bridge/devices');
+        localStorage.removeItem('bridge/groups');
+        copy(this.store.devices, {});
+        copy(this.store.groups, {});
+        this.store.extensions = [];
+        copy(this.store.users, {});
+        this.nameToIeeeMap.clear();
+        this.extensionCheckPerformed = false;
+    }
+    
     public extractVersionFromExtension(extensionContent: string): string | null {
-        const lines = extensionContent.split('\n');
-        if (lines.length === 0) return null;
-        
-        const firstLine = lines[0];
-        if (!firstLine) return null;
-        
-        const versionMatch = firstLine.match(/v(\d+(?:\.\d+)?)/);
+        const firstLine = extensionContent.split('\n')[0];
+        const versionMatch = firstLine?.match(/v(\d+(?:\.\d+)?)/);
         return versionMatch?.[1] || null;
     }
 
@@ -193,95 +230,164 @@ class Api {
                 code = firstLine + '\n' + code;
             }
 
-            await this.send("bridge", "request", "extension", "save", {
-                name: `${name}.js`,
-                code
-            });
+            await this.send("bridge", "request", "extension", "save", { name: `${name}.js`, code });
             console.log(`Extension ${name} installed successfully`);
         } catch (error) {
             console.error(`Failed to install extension ${name}:`, error);
         }
     }
     
-    constructor() {
-        this.transactionRndPrefix = (Math.random() + 1).toString(36).substring(2,7);
-
-        // Load data cached in localStorage
-        for (const topic of ['bridge/devices', 'bridge/groups']) {
-            let data = localStorage.getItem(topic);
-            if (data) this.onMessage({data} as MessageEvent);
-        }
-        
-        // Persist servers list to localStorage on changes
-        $(() => {
-            setLocalStorage(CREDENTIALS_LOCAL_STORAGE_ITEM_NAME, this.store.servers);
-        });
-        
-        // Auto-connect to saved server on startup
-        if (this.store.servers.length > 0) {
-            if (this.store.activeServerIndex === -1) {
-                this.store.activeServerIndex = 0;
-            }
-            const server = this.store.servers[this.store.activeServerIndex];
-            if (server) {
-                this.connect(clone(unproxy(server)));
-            }
-        }
-    }
-    
-    /**
-     * Connect to a server with the given credentials.
-     * This is the only way to initiate a connection - no reactive triggers.
-     */
-    connect(server: ServerCredentials): void {
+    private connect(server: ServerCredentials): void {
         console.log("api/connect", server.localAddress);
-        
-        // Stop any existing connection
         this.disconnect();
-        
-        // Store the server we're connecting to
-        this.currentServer = server;
+        this.connectedLocalAddress = server.localAddress;
         this.store.connectionState = 'connecting';
-        this.store.connected = false;
         delete this.store.lastConnectError;
         
-        this.connectInternal(server);
+        // Timeout for connection attempt
+        this.connectTimeout = setTimeout(() => {
+            if (this.store.connectionState === 'connecting' || this.store.connectionState === 'authenticating') {
+                console.error("api/connect - Connection timed out");
+                this.handleConnectionFailure("Connection timed out. Please check the server address and port.");
+            }
+        }, 4000);
+
+        // Build connection URLs (try both local and external if available)
+        const connections: { hostname: string, port: number }[] = [];
+        const [localHost, serverPort] = server.localAddress.split(':');
+        connections.push({ hostname: ipToHexDomain(localHost!), port: parseInt(serverPort || '43597') });
+        
+        if (server.externalAddress) {
+            const [externalHost, externalPort] = server.externalAddress.split(':');
+            connections.push({ hostname: ipToHexDomain(externalHost!), port: parseInt(externalPort || '43597') });
+        }
+
+        for (const { hostname, port } of connections) {
+            try {
+                const url = new URL(`wss://${hostname}:${port}/api`);
+                url.searchParams.append("lightlynx", "1");
+                if (server.username && server.secret) {
+                    url.searchParams.append("user", server.username);
+                    url.searchParams.append("secret", server.secret);
+                }
+                const socket = new WebSocket(url.toString(), ["lightlynx"]);
+                this.tryingSockets.push(socket);
+                socket.addEventListener("message", this.onMessage);
+                socket.addEventListener("close", this.onClose);
+                socket.addEventListener("open", this.onOpen);
+                socket.addEventListener("error", (e) => console.error("WebSocket error", (e.target as WebSocket)?.url));
+            } catch (error) {
+                console.error(`Failed to initiate connection to ${hostname}:`, error);
+            }
+        }
+
+        if (this.tryingSockets.length === 0) {
+            this.handleConnectionFailure("Failed to initiate any connection.");
+        }
     }
     
-    /**
-     * Disconnect from the current server and stop any reconnection attempts.
-     */
-    disconnect(): void {
+    private disconnect(): void {
         console.log("api/disconnect");
-        this.shouldReconnect = false;
-        this.reconnectAttempts = 0;
         clearTimeout(this.reconnectTimeout);
-        this.clearInitialConnectTimeout();
+        clearTimeout(this.connectTimeout);
         
-        if (this.socket) {
-            this.socket.close();
-            this.socket = undefined;
-        }
-        for (const s of this.tryingSockets) {
-            s.close();
-        }
+        this.socket?.close();
+        this.socket = undefined;
+        for (const s of this.tryingSockets) s.close();
         this.tryingSockets = [];
         
         this.store.connectionState = 'idle';
         this.store.connected = false;
     }
+    
+    private handleConnectionFailure(errorMessage: string): void {
+        clearTimeout(this.connectTimeout);
+        this.socket?.close();
+        this.socket = undefined;
+        for (const s of this.tryingSockets) s.close();
+        this.tryingSockets = [];
+        
+        const server = this.store.servers[0];
+        if (server?.status === 'try') {
+            // Single attempt mode: disable on failure
+            server.status = 'disabled';
+            this.store.connectionState = 'error';
+            this.store.lastConnectError = errorMessage;
+        } else if (server?.status === 'enabled') {
+            // Persistent mode: schedule retry with exponential backoff
+            const delay = Math.min(500 * Math.pow(2, this.reconnectAttempts++), 16000);
+            console.log(`api/scheduleReconnect in ${delay}ms (attempt ${this.reconnectAttempts})`);
+            this.store.connectionState = 'error';
+            this.store.lastConnectError = errorMessage;
+            this.reconnectTimeout = setTimeout(() => {
+                if (this.store.servers[0]?.status === 'enabled') {
+                    this.store.connectionState = 'idle'; // Trigger reactive reconnect
+                }
+            }, delay);
+        } else {
+            this.store.connectionState = 'idle';
+        }
+    }
+    
+    private onOpen = (event: Event): void => {
+        const socket = event.target as WebSocket;
+        console.log("api/onOpen - WebSocket opened", socket.url);
+        
+        if (this.socket) {
+            socket.close(); // Already have a winner
+            return;
+        }
 
-    private clearInitialConnectTimeout(): void {
-        if (this.initialConnectTimeout) {
-            clearTimeout(this.initialConnectTimeout);
-            this.initialConnectTimeout = undefined;
+        this.socket = socket;
+        for (const s of this.tryingSockets) {
+            if (s !== socket) s.close();
+        }
+        this.tryingSockets = [];
+        this.store.connectionState = 'authenticating';
+        delete this.store.lastConnectError;
+    }
+    
+    private onClose = (e: CloseEvent): void => {
+        const socket = e.target as WebSocket;
+        console.log("api/onClose", socket.url, e.code, e.reason);
+
+        if (this.store.connectionState === 'idle') return; // Already disconnected
+
+        if (this.socket === socket) {
+            // Our active socket closed
+            this.socket = undefined;
+            this.store.connected = false;
+            
+            if (e.code === UNAUTHORIZED_ERROR_CODE) {
+                this.handleConnectionFailure("Unauthorized, please check your credentials.");
+            } else if (this.store.connectionState === 'connected') {
+                // Was connected, now dropped - retry if enabled
+                this.handleConnectionFailure("Connection lost.");
+            } else {
+                this.handleConnectionFailure("Connection failed. Please check the server address.");
+            }
+        } else {
+            // One of the racing sockets failed
+            this.tryingSockets = this.tryingSockets.filter(s => s !== socket);
+            if (this.tryingSockets.length === 0 && !this.socket) {
+                this.handleConnectionFailure("Connection failed. Please check the server address.");
+            }
+        }
+    }
+    
+    private resolvePromises(payload: any): void {
+        const { transaction, status } = payload || {};
+        if (transaction !== undefined && this.requests.has(transaction)) {
+            const { resolve, reject } = this.requests.get(transaction)!;
+            (status === "ok" || status === undefined) ? resolve() : reject();
+            this.requests.delete(transaction);
         }
     }
     
     send = (...topicAndPayload: any[]): Promise<void> => {
-        let payload: any = topicAndPayload.pop()
-        let topic = topicAndPayload.join("/")
-        console.log("api/send", topic, JSON.stringify(payload).substr(0,100));
+        let payload: any = topicAndPayload.pop();
+        let topic = topicAndPayload.join("/");
+        console.log("api/send", topic, JSON.stringify(payload).substr(0, 100));
 
         let promise: Promise<void>;
         if (topic.startsWith('bridge/request/')) {
@@ -299,219 +405,51 @@ class Api {
             return Promise.reject(new Error("WebSocket not connected"));
         }
         
-        let message = JSON.stringify({topic, payload}, (_, v) => v === undefined ? null : v);
-        this.socket.send(message);
+        this.socket.send(JSON.stringify({ topic, payload }, (_, v) => v === undefined ? null : v));
         return promise;
     }
 
-    setLightState(target: string|number, lightState: LightState) {
-        console.log('api/setLightState', target, lightState)
+    setLightState(target: string | number, lightState: LightState) {
+        console.log('api/setLightState', target, lightState);
 
         if (typeof target === 'number') {
-            let groupId: number = target;
-            for(let ieee of this.store.groups[groupId]?.members || []) {
-                this.setLightState(ieee, lightState)
+            for (let ieee of this.store.groups[target]?.members || []) {
+                this.setLightState(ieee, lightState);
             }
             return;
         }
 
-        let ieee: string = target;
-        const dev = this.store.devices[ieee];
+        const dev = this.store.devices[target];
         if (!dev?.lightCaps) {
-            console.log('api/setLightState unknown device', target)
+            console.log('api/setLightState unknown device', target);
             return;
         }
-        let cap = dev.lightCaps;
-        lightState = tailorLightState(lightState, cap);
-        let oldState = dev.lightState || {};
-
-        let delta = createLightStateDelta(oldState, lightState);
+        
+        lightState = tailorLightState(lightState, dev.lightCaps);
+        const delta = createLightStateDelta(dev.lightState || {}, lightState);
+        
         if (!objectIsEmpty(delta)) {
-            console.log('merge', dev.lightState, lightState)
+            console.log('merge', dev.lightState, lightState);
             if (dev.lightState) copy(dev.lightState, lightState);
             else dev.lightState = lightState;
-            let held = this.heldLightDeltas.get(ieee);
+            
+            let held = this.heldLightDeltas.get(target);
             if (held != null) {
                 copy(held, delta);
-            }
-            else {
-                this.heldLightDeltas.set(ieee, delta);
-                this.heldLightTimeouts.set(ieee, setTimeout(() => this.transmitHeldLightDelta(ieee), 0));
-            }
-        }
-    }
-
-    private scheduleReconnect(): void {
-        if (!this.shouldReconnect || !this.currentServer) return;
-        
-        this.reconnectAttempts += 1;
-        const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts - 1), 30000);
-        console.log(`api/scheduleReconnect in ${delay}ms (attempt ${this.reconnectAttempts})`);
-
-        this.reconnectTimeout = setTimeout(() => {
-            if (this.currentServer) {
-                this.store.connectionState = 'connecting';
-                this.connectInternal(this.currentServer);
-            }
-        }, delay);
-    }
-    
-    /**
-     * Internal connection method used for reconnection (doesn't reset state)
-     */
-    private connectInternal(server: ServerCredentials): void {
-        this.clearInitialConnectTimeout();
-        this.initialConnectTimeout = setTimeout(() => {
-            if (this.store.connectionState === 'connecting' || this.store.connectionState === 'authenticating') {
-                console.error("api/connectInternal - Connection timed out");
-                this.disconnect();
-                this.store.connectionState = 'error';
-                this.store.lastConnectError = "Connection timed out. Please check the server address and port.";
-            }
-        }, 4000); // 4 seconds timeout
-
-        for (const s of this.tryingSockets) {
-            s.close();
-        }
-        this.tryingSockets = [];
-
-        const connections: { hostname: string, port: number }[] = [];
-        
-        const [localHost, serverPort] = server.localAddress.split(':');
-        connections.push({ hostname: ipToHexDomain(localHost!), port: parseInt(serverPort || '43597') });
-        
-        if (server.externalAddress) {
-            const [externalHost, externalPort] = server.externalAddress.split(':');
-            connections.push({ hostname: ipToHexDomain(externalHost!), port: parseInt(externalPort || '43597') });
-        }
-
-        const protocols = ["lightlynx"];
-
-        for (const { hostname, port } of connections) {
-            try {
-                const protocol = "wss";
-                const url = new URL(`${protocol}://${hostname}:${port}/api`);
-                url.searchParams.append("lightlynx", "1");
-                if (server.username && server.secret) {
-                    url.searchParams.append("user", server.username);
-                    url.searchParams.append("secret", server.secret);
-                }
-
-                const socket = new WebSocket(url.toString(), protocols);
-                this.tryingSockets.push(socket);
-                socket.addEventListener("message", this.onMessage);
-                socket.addEventListener("close", this.onClose);
-                socket.addEventListener("open", this.onOpen);
-                socket.addEventListener("error", this.onError);
-            } catch (error) {
-                console.error(`Failed to initiate connection to ${hostname}:`, error);
-            }
-        }
-
-        if (this.tryingSockets.length === 0 && !this.socket) {
-            this.store.connectionState = 'error';
-            this.store.lastConnectError = "Failed to initiate any connection.";
-        }
-    }
-    
-    private onOpen = (event: Event): void => {
-        const socket = event.target as WebSocket;
-        console.log("api/onOpen - WebSocket opened", socket.url);
-        
-        if (this.socket) {
-            // We already have a winner!
-            socket.close();
-            return;
-        }
-
-        // We have a winner
-        this.socket = socket;
-        
-        // Close all other "trying" sockets
-        for (const s of this.tryingSockets) {
-            if (s !== socket) {
-                s.close();
-            }
-        }
-        this.tryingSockets = [];
-
-        // Don't mark as connected yet - wait for first message to confirm auth succeeded
-        this.store.connectionState = 'authenticating';
-        delete this.store.lastConnectError;
-        clearTimeout(this.reconnectTimeout);
-    }
-
-    private onError = (event: any): void => {
-        console.error("WebSocket error", (event.target as WebSocket)?.url);
-        // Don't set error state here - wait for onClose which always follows onError
-    }
-    
-    private resolvePromises(payload: any): void {
-        const {transaction, status} = payload || {};
-        if (transaction !== undefined && this.requests.has(transaction)) {
-            const { resolve, reject } = this.requests.get(transaction)!;
-            if (status === "ok" || status === undefined) {
-                resolve();
             } else {
-                reject();
-            }
-            this.requests.delete(transaction);
-        }
-    }
-
-    private onClose = (e: CloseEvent): void => {
-        const socket = e.target as WebSocket;
-        console.log("api/onClose", socket.url, e.code, e.reason);
-
-        if (this.socket && socket !== this.socket) {
-            // Not our active socket, or it was one of the losers we just closed
-            return;
-        }
-
-        if (this.store.connectionState === 'idle') {
-            // We've already explicitly disconnected
-            return;
-        }
-
-        if (this.socket === socket) {
-            // Our active socket closed
-            this.socket = undefined;
-            this.store.connected = false;
-            this.clearInitialConnectTimeout();
-            
-            if (e.code === UNAUTHORIZED_ERROR_CODE) {
-                this.store.connectionState = 'error';
-                this.store.lastConnectError = "Unauthorized, please check your credentials.";
-                this.shouldReconnect = false;  // Don't retry bad credentials
-            } else if (this.shouldReconnect) {
-                // Connection dropped after successful connection - try to reconnect
-                this.scheduleReconnect();
-            } else {
-                // Initial connection failed
-                this.store.connectionState = 'error';
-                this.store.lastConnectError = "Connection failed. Please check the server address.";
-            }
-        } else {
-            // One of the "trying" sockets failed
-            this.tryingSockets = this.tryingSockets.filter(s => s !== socket);
-            if (this.tryingSockets.length === 0 && !this.socket) {
-                // All attempts failed
-                this.clearInitialConnectTimeout();
-                this.store.connectionState = 'error';
-                this.store.lastConnectError = "Connection failed. Please check the server address.";
+                this.heldLightDeltas.set(target, delta);
+                this.heldLightTimeouts.set(target, setTimeout(() => this.transmitHeldLightDelta(target), 0));
             }
         }
     }
 
     // Used to send at most 3 updates per second to zigbee2mqtt
-    heldLightDeltas: Map<string, LightStateDelta> = new Map();
-    heldLightTimeouts: Map<string, ReturnType<typeof setTimeout>> = new Map();
+    private heldLightDeltas: Map<string, LightStateDelta> = new Map();
+    private heldLightTimeouts: Map<string, ReturnType<typeof setTimeout>> = new Map();
 
-    // Used to delay updates from zigbee2mqtt shortly after we've ask it to update state,
-    // as it's probably just an echo, and perhaps its echoing an older value than our latest
-    // update, which would interfere with sliding in our UI.
-    echoTimeouts: Map<string, ReturnType<typeof setTimeout>> = new Map();
-    echoLightStates: Map<string, LightState> = new Map();
+    // Used to delay updates from zigbee2mqtt shortly after we've asked it to update state
+    private echoTimeouts: Map<string, ReturnType<typeof setTimeout>> = new Map();
+    private echoLightStates: Map<string, LightState> = new Map();
 
     private handleLightState(ieee: string, payload: any) {
         let lightState : LightState = {
@@ -654,19 +592,21 @@ class Api {
 
     private onMessage = (event: MessageEvent): void => {
         const socket = event.target as WebSocket;
-        if (socket && socket !== this.socket) {
-            // Shouldn't happen if we close others onOpen, but good to check
-            return;
-        }
+        if (socket && socket !== this.socket) return;
 
         // First message confirms authentication succeeded
         if (this.store.connectionState === 'authenticating') {
             console.log("api/onMessage - Authentication confirmed");
+            clearTimeout(this.connectTimeout);
             this.store.connected = true;
             this.store.connectionState = 'connected';
-            this.clearInitialConnectTimeout();
             this.reconnectAttempts = 0;
-            this.shouldReconnect = true;  // Enable auto-reconnect after successful connection
+            
+            // If status was 'try', upgrade to 'enabled' on success
+            const server = this.store.servers[0];
+            if (server?.status === 'try') {
+                server.status = 'enabled';
+            }
         }
         
         const message = JSON.parse(event.data);
@@ -674,23 +614,21 @@ class Api {
         let payload = message.payload;
 
         if (!topic && message.transaction) {
-            // Raw Z2M response over WebSocket
             this.resolvePromises(message);
             return;
         }
 
         if (!topic) return;
 
-        if (topic==='bridge/devices' || topic==='bridge/groups') {
+        if (topic === 'bridge/devices' || topic === 'bridge/groups') {
             localStorage.setItem(topic, event.data);
         }
-        // console.log('api/incoming', topic, payload);
 
         if (topic.startsWith("bridge/")) {
             topic = topic.substr(7);
             if (topic.startsWith("response/")) {
                 if (payload.status === 'error') {
-                    for(let handler of this.errorHandlers) {
+                    for (let handler of this.errorHandlers) {
                         handler(payload.error);
                     }
                 }
@@ -702,11 +640,7 @@ class Api {
             else if (topic === "extensions") {
                 this.store.extensions = payload || [];
                 console.log('api/received extensions', this.store.extensions.length);
-                // Check extension after receiving the list
                 this.checkAndUpdateExtensions();
-            }
-            else if (topic === "info" || topic === "logging") {
-                // Ignore!
             }
             else if (topic === "lightlynx/users") {
                 copy(this.store.users, payload || {});
@@ -715,16 +649,10 @@ class Api {
                 this.store.remoteAccessEnabled = payload.remoteAccess;
                 this.store.externalAddress = payload.externalAddress;
                 
-                // Update current server credentials with external address if we're connected
-                if (this.currentServer) {
-                    this.currentServer.externalAddress = this.store.externalAddress;
-                    
-                    // Also update it in the stored servers list to ensure it's persisted for next session
-                    for (const s of this.store.servers) {
-                        if (s.localAddress === this.currentServer.localAddress && s.username === this.currentServer.username) {
-                            s.externalAddress = this.store.externalAddress;
-                        }
-                    }
+                // Update server credentials with external address
+                const server = this.store.servers[0];
+                if (server && server.localAddress === this.connectedLocalAddress) {
+                    server.externalAddress = this.store.externalAddress;
                 }
             }
             else if (topic === "devices") {

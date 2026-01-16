@@ -88,13 +88,14 @@ export interface Extension {
     code: string;
 }
 
+export type ServerStatus = 'enabled' | 'disabled' | 'try';
+
 export interface ServerCredentials {
-    name: string;      // user-friendly name
     localAddress: string;  // Server address (ip[:port])
     externalAddress?: string; // External address (ip:port)
     username: string;
     secret: string;
-    lastConnected?: number;  // timestamp
+    status: ServerStatus;  // enabled: maintain connection, disabled: no connection, try: single attempt
 }
 
 // Connection state machine
@@ -106,7 +107,6 @@ export interface Store {
     groups: Record<number, Group>;   // Group ID -> Group
     permitJoin: boolean;
     servers: ServerCredentials[];    // All saved servers
-    activeServerIndex: number;       // Index of currently active server (-1 if none)
     connected: boolean;              // Connection status (legacy, derived from connectionState)
     connectionState: ConnectionState; // Explicit connection state
     lastConnectError?: string;       // Last connection error message

@@ -4,7 +4,6 @@ import fs from 'fs';
 import path from 'path';
 import http from 'http';
 import https from 'https';
-import os from 'os';
 import dgram from 'dgram';
 import WebSocket, { WebSocketServer } from 'ws';
 
@@ -164,24 +163,13 @@ class LightLynxAPI {
     // === SSL Management ===
 
     private getLocalIp() {
-        const interfaces = os.networkInterfaces();
-        for (const name of Object.keys(interfaces)) {
-            const ifaces = interfaces[name];
-            if (!ifaces) continue;
-            for (const iface of ifaces) {
-                if (iface.family === 'IPv4' && !iface.internal) {
-                    const parts = iface.address.split('.');
-                    if (parts.length === 4) {
-                        const a = Number(parts[0]), b = Number(parts[1]);
-                        if (a === 10 || (a === 192 && b === 168) || (a === 172 && b >= 16 && b <= 31)) {
-                            return iface.address;
-                        }
-                    }
-                }
-            }
-        }
-        return null;
-    }
+        // This doesn't actually send anything, but figures out which interface would be used to reach the internet
+        const socket = dgram.createSocket('udp4');
+        socket.connect(80, '8.8.8.8');
+        const address = socket.address().address;
+        socket.close();
+        return address;
+   }
 
     private async getExternalHost(): Promise<string | null> {
         try {

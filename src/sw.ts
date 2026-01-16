@@ -26,7 +26,8 @@ sw.addEventListener('activate', (event: ExtendableEvent) => {
 // --- Fetch Event ---
 
 sw.addEventListener('fetch', (event: FetchEvent) => {
-    if (event.request.method === 'GET') {
+    const url = new URL(event.request.url);
+    if (event.request.method === 'GET' && url.origin === sw.location.origin) {
         event.respondWith(handleGetRequest(event));
     }
 });
@@ -34,7 +35,7 @@ sw.addEventListener('fetch', (event: FetchEvent) => {
 // --- Caching and Revalidation Logic ---
 
 let revalidationPromises: Promise<RevalidationResult>[] = [];
-let reloadDebounceTimeout: number | null = null;
+let reloadDebounceTimeout: ReturnType<typeof setTimeout> | undefined;
 
 /**
  * Handles a GET request by serving from cache first, then revalidating.

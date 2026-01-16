@@ -1,7 +1,7 @@
 /// <reference types="vite/client" />
 import {$, proxy, ref, onEach, isEmpty, copy, dump, unproxy, peek, partition, clone} from 'aberdeen';
 import * as route from 'aberdeen/route';
-import { grow } from 'aberdeen/transitions';
+import { grow, shrink } from 'aberdeen/transitions';
 import api from './api';
 import * as icons from './icons';
 import * as colors from './colors';
@@ -203,7 +203,7 @@ function drawConfirmPage(): void {
 		return;
 	}
 
-	$('div.padding:2em display:flex flex-direction:column gap:2em', () => {
+	$('div padding:8px display:flex flex-direction:column gap:2em', () => {
 		$('p font-size:1.2em text-align:center #', confirmState.message);
 		
 		$('div.row gap:1em', () => {
@@ -230,7 +230,7 @@ function drawPromptPage(): void {
 		return;
 	}
 
-	$('div.padding:2em display:flex flex-direction:column gap:2em', () => {
+	$('div padding:8px display:flex flex-direction:column gap:2em', () => {
 		$('p font-size:1.2em text-align:center #', promptState.message);
 		
 		$('input type=text width:100%', {
@@ -267,7 +267,7 @@ function drawRemoteInfoPage(): void {
 	routeState.title = 'Remote Access';
 	routeState.subTitle = 'Information';
 
-	$('div.padding:1em line-height:1.6em', () => {
+	$('div padding:8px line-height:1.6em', () => {
 		$('h1 margin-top:0 #How it works');
 		$('p#', 'Remote access allows you to control your lights from anywhere in the world. When enabled, your server becomes accessible via a secure, encrypted connection.');
 		
@@ -537,10 +537,45 @@ function drawMain(): void {
 
 	$(() => {
 		if (admin.value) {
+			drawRemoteAccessToggle();
 			drawManagementSection();
 			drawUsersSection();
 			drawExtensionsSection();
 		}
+	});
+}
+
+function drawRemoteAccessToggle(): void {
+	const remoteBusy = proxy(false);
+	$('h1#Remote Access');
+	$('div.item', () => {
+		$('label flex:1 row gap:1rem align-items:center', () => {
+			$({'.busy': remoteBusy.value});
+			$('input type=checkbox', {
+				checked: api.store.remoteAccessEnabled,
+				disabled: remoteBusy.value,
+				change: async (e: Event) => {
+					const checked = (e.target as HTMLInputElement).checked;
+					remoteBusy.value = true;
+					try {
+						await api.setRemoteAccess(checked);
+						if (checked) {
+							notify("Remote access enabled. Ensure your router supports UPnP or you have manually forwarded port 43597.");
+						}
+					} catch (e: any) {
+						notify("Failed to toggle remote access: " + e.message);
+					} finally {
+						remoteBusy.value = false;
+					}
+				}
+			});
+			$('h2#Enable remote access');
+		});
+		icons.info('margin-left:auto click=', (e: Event) => {
+			e.stopPropagation();
+			e.preventDefault();
+			route.go(['remote-info']);
+		});
 	});
 }
 
@@ -576,19 +611,14 @@ function drawLandingPage(): void {
 }
 
 function drawConnectionPage(): void {
-	routeState.title = 'Connect';
+	const editMode = !!route.current.search.edit;
+	routeState.title = editMode ? 'Edit connection' : 'Create connection';
 	routeState.subTitle = 'Zigbee2MQTT';
 	
-	// Stop any reconnection attempts while on this page
-	// But only if we're not currently busy connecting
-	if (api.store.connectionState !== 'connecting' && api.store.connectionState !== 'authenticating' && api.store.connectionState !== 'connected') {
-		api.disconnect();
-	}
-	
-	const activeServer = unproxy(api.store.servers)[peek(api.store, 'activeServerIndex')];
+	const serverToEdit = editMode ? unproxy(api.store.servers)[0] : undefined;
 	const formData = proxy({
-		localAddress: activeServer?.localAddress || '',
-		username: activeServer?.username || 'admin',
+		localAddress: serverToEdit?.localAddress || '',
+		username: serverToEdit?.username || 'admin',
 		password: '', // Don't pre-fill password in UI if it's stored as secret
 	});
 
@@ -610,27 +640,39 @@ function drawConnectionPage(): void {
 	async function handleSubmit(e: Event): Promise<void> {
 		e.preventDefault();
 		
-		const secret = await hashSecret(formData.username, formData.password);
+		let secret = serverToEdit?.secret || '';
+		if (formData.password) {
+			secret = await hashSecret(formData.username, formData.password);
+		}
+		let externalAddress = serverToEdit?.externalAddress;
+		if (formData.localAddress !== serverToEdit?.localAddress) {
+			// Reset external address if local address has changed
+			externalAddress = undefined;
+		}
 
 		const server: ServerCredentials = {
-			name: formData.localAddress,
 			localAddress: formData.localAddress,
 			username: formData.username,
 			secret,
-			lastConnected: Date.now()
+			externalAddress,
+			status: 'try',  // Try once, becomes 'enabled' on success or 'disabled' on failure
 		};
 		
-		const isUpdate = api.store.activeServerIndex >= 0;
-		if (isUpdate) {
+		if (editMode) {
 			// Update existing server credentials
-			Object.assign(api.store.servers[api.store.activeServerIndex]!, server);
+			Object.assign(api.store.servers[0]!, server);
 		} else {
 			// Add new server
-			api.store.servers.push(server);
-			api.store.activeServerIndex = api.store.servers.length - 1;
+			api.store.servers.unshift(server);
+			route.current.search.edit = 'y'; // Now we're editing this one
 		}
-		
-		api.connect(server);
+	}
+
+	async function handleDelete(): Promise<void> {
+		if (await askConfirm('Are you sure you want to remove these credentials?')) {
+			api.store.servers.shift();
+			route.back('/');
+		}
 	}
 	
 	$('div.login-form', () => {
@@ -647,13 +689,16 @@ function drawConnectionPage(): void {
 			
 			$('div.field', () => {
 				$('label#Password');
-				$('input type=password required=', true, 'bind=', ref(formData, 'password'));
+				$('input type=password bind=', ref(formData, 'password'), 'placeholder=', editMode ? 'Leave empty to keep current' : '');
 			});
 			
 			const busy = api.store.connectionState === 'connecting' || api.store.connectionState === 'authenticating';
 			
 			$('div.row margin-top:1em', () => {
-				$('button.secondary#Cancel', 'click=', () => {
+				if (editMode) {
+					$('button.danger text=Delete click=', handleDelete);
+				}
+				$('button.secondary text=Cancel click=', () => {
 					route.back('/');
 				});
 				$('button.primary type=submit', {'.busy': busy}, () => {
@@ -680,7 +725,7 @@ function disableJoin(): void {
 
 $('div.root', () => {
 	$(() => {
-		$({'.landing-page': api.store.activeServerIndex < 0 && route.current.p[0] !== 'connect'});
+		$({'.landing-page': isEmpty(api.store.servers) && route.current.path === '/'});
 	});
 		$('header', () => {
 			$('img.logo src=', logoUrl, 'click=', () => route.back('/'));
@@ -702,9 +747,9 @@ $('div.root', () => {
 				}
 			});
 			$(() => {
-				if (api.store.activeServerIndex >= 0 && api.store.connectionState !== 'connected') {
+				if (!isEmpty(api.store.servers) && api.store.connectionState !== 'connected') {
 					const spinning = api.store.connectionState === 'connecting' || api.store.connectionState === 'authenticating';
-					icons.reconnect({'.spinning=': spinning}, '.off click=', () => route.go(['connect']));
+					icons.reconnect({'.spinning=': spinning}, '.off click=', () => route.go({p: ['connect'], search: {edit: 'y'}}));
 				}
 			});
 			$(() => {
@@ -713,7 +758,7 @@ $('div.root', () => {
 				}
 			});
 			$(() => {
-				if (api.store.activeServerIndex < 0) return;
+				if (isEmpty(api.store.servers)) return;
 				let lowest = 100;
 				for (const device of Object.values(api.store.devices)) {
 					const b = device.meta?.battery;
@@ -730,15 +775,20 @@ $('div.root', () => {
 				});
 			});
 			$(() => {
-				if (api.store.activeServerIndex < 0) return;
+				if (isEmpty(api.store.servers)) return;
 				icons.more('click=', () => menuOpen.value = !menuOpen.value);
+			});
+			$(() => {
+				if (admin.value) {
+					icons.admin('.on click=', () => admin.value = false);
+				}
 			});
 		});
 
 	$(() => {
 		if (!menuOpen.value) return;
-		$('div.menu-overlay click=', () => menuOpen.value = false);
-		$('div.menu', () => {
+		$('div.menu-overlay click=', () => menuOpen.value = false, {create: 'fadeIn', destroy: 'fadeOut'});
+		$('div.menu', {create: grow, destroy: shrink}, () => {
 			// Admin Toggle
 			$('div.menu-item click=', () => {
 				admin.value = !admin.value;
@@ -749,37 +799,6 @@ $('div.root', () => {
 			});
 
 			if (admin.value) {
-				const remoteBusy = proxy(false);
-				$('label.menu-item pointer-events:auto', () => {
-					$({'.busy': remoteBusy.value});
-					$('input type=checkbox', {
-						checked: api.store.remoteAccessEnabled,
-						disabled: remoteBusy.value,
-						change: async (e: Event) => {
-							const checked = (e.target as HTMLInputElement).checked;
-							remoteBusy.value = true;
-							try {
-								await api.setRemoteAccess(checked);
-								if (checked) {
-									notify("Remote access enabled. Ensure your router supports UPnP or you have manually forwarded port 43597.");
-								}
-							} catch (e: any) {
-								notify("Failed to toggle remote access: " + e.message);
-							} finally {
-								remoteBusy.value = false;
-							}
-						}
-					});
-					icons.cloud();
-					$(`# Remote access`);
-					icons.info('margin-left:auto click=', (e: Event) => {
-						e.stopPropagation();
-						e.preventDefault();
-						menuOpen.value = false;
-						route.go(['remote-info']);
-					});
-				});
-
 				$('div.menu-item click=', () => {
 					menuOpen.value = false;
 					route.go(['dump']);
@@ -791,18 +810,30 @@ $('div.root', () => {
 
 			$('div.menu-divider');
 
+			// Logout
+			$('div.menu-item click=', async () => {
+				route.go({p: ['connect'], search: {edit: 'y'}})
+				menuOpen.value = false;
+			}, () => {
+				icons.edit();
+				$(`# Manage server settings`);
+			});
+
 			// Switch servers
 			onEach(api.store.servers, (server, index) => {
-				if (index === api.store.activeServerIndex) return;
+				if (index === 0) return;
 				$('div.menu-item click=', () => {
-					api.store.activeServerIndex = index;
 					menuOpen.value = false;
-					// Connect to the new server with its credentials
-					api.connect(clone(unproxy(server)));
+					// Move selected server to front and enable it
+					const selectedServer = api.store.servers.splice(index, 1)[0];
+					if (selectedServer) {
+						selectedServer.status = 'enabled';
+						api.store.servers.unshift(selectedServer);
+					}
 					route.go(['/']);
 				}, () => {
 					icons.reconnect();
-					$(`# Switch to ${server.name || server.localAddress}`);
+					$(`# Switch to ${server.localAddress}`);
 				});
 			});
 
@@ -816,27 +847,7 @@ $('div.root', () => {
 				route.go(['connect']);
 			}, () => {
 				icons.create();
-				$(`# Connect to another server`);
-			});
-
-			// Logout
-			$('div.menu-item.danger click=', async () => {
-				if (await askConfirm('Are you sure you want to log out and remove these credentials?')) {
-					api.disconnect();
-					const index = api.store.activeServerIndex;
-					api.store.servers.splice(index, 1);
-					api.store.activeServerIndex = api.store.servers.length - 1; // May be -1 if none left
-					menuOpen.value = false;
-					// If there's another server, connect to it
-					if (api.store.activeServerIndex >= 0) {
-						const newServer = api.store.servers[api.store.activeServerIndex];
-						if (newServer) api.connect(clone(unproxy(newServer)));
-					}
-					route.go(['/']);
-				}
-			}, () => {
-				icons.eject();
-				$(`# Logout from server`);
+				$(`#Add a server`);
 			});
 		});
 	});
@@ -851,7 +862,7 @@ $('div.root', () => {
 			// Show Landing page if no server active
 			if (p[0] === 'connect') {
 				drawConnectionPage();
-			} else if (api.store.activeServerIndex < 0) {
+			} else if (isEmpty(api.store.servers)) {
 				drawLandingPage();
 			} else if (p[0]==='group' && p[1]) {
 				drawGroup(parseInt(p[1]));
