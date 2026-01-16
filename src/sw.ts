@@ -4,12 +4,6 @@ const sw = self as unknown as ServiceWorkerGlobalScope;
 
 const CACHE_NAME = 'lights-cache-v1';
 
-// --- Types ---
-
-interface RevalidationResult {
-    updated: boolean;
-    response?: Response;
-}
 
 // --- Lifecycle Events ---
 
@@ -27,15 +21,11 @@ sw.addEventListener('activate', (event: ExtendableEvent) => {
 
 sw.addEventListener('fetch', (event: FetchEvent) => {
     const url = new URL(event.request.url);
-    if (event.request.method === 'GET' && url.origin === sw.location.origin) {
+    if (event.request.method === 'GET' && url.origin === sw.location.origin && /*vite */ !url.pathname.startsWith('/@')) {
         event.respondWith(handleGetRequest(event));
     }
 });
 
-// --- Caching and Revalidation Logic ---
-
-let revalidationPromises: Promise<RevalidationResult>[] = [];
-let reloadDebounceTimeout: ReturnType<typeof setTimeout> | undefined;
 
 /**
  * Handles a GET request by serving from cache first, then revalidating.
@@ -45,33 +35,12 @@ async function handleGetRequest(event: FetchEvent): Promise<Response> {
     const cachedResponse = await cache.match(event.request);
     
     // Start revalidation in the background.
-    const networkPromise = revalidate(event.request, cachedResponse?.clone(), cache);
-    revalidationPromises.push(networkPromise);
-    
-    // Wait 500ms after the last fetch event to check for updates.
-    if (reloadDebounceTimeout) clearTimeout(reloadDebounceTimeout);
-    reloadDebounceTimeout = setTimeout(checkRevalidations, 500);
+    const responsePromise = revalidate(event.request, cachedResponse?.clone(), cache);
     
     // Return cached response if available, otherwise wait for the network fetch from revalidate.
-    return cachedResponse || (await networkPromise).response || new Response('Not Found', { status: 404 });
+    return cachedResponse || await responsePromise;
 }
 
-/**
- * Checks all completed revalidation promises and reloads clients if needed.
- */
-async function checkRevalidations(): Promise<void> {
-    const results = await Promise.all(revalidationPromises);
-    revalidationPromises = []; // Clear the queue
-    
-    const shouldReload = results.some(result => result.updated);
-    
-    if (shouldReload) {
-        console.log('Service Worker: Changes detected, reloading clients.');
-        await reloadAllClients();
-    } else {
-        console.log('Service Worker: All resources up-to-date.');
-    }
-}
 
 /**
  * Revalidates a request against the network with a timeout.
@@ -80,13 +49,11 @@ async function revalidate(
     request: Request, 
     cachedResponseCopy: Response | undefined,
     cache: Cache
-): Promise<RevalidationResult> {
+): Promise<Response> {
     try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
-        
         const headers = new Headers(request.headers);
         if (cachedResponseCopy) {
+            await new Promise(resolve => setTimeout(resolve, 1000)); // Give the page some time to load before revalidating
             if (cachedResponseCopy.headers.has('ETag')) {
                 headers.set('If-None-Match', cachedResponseCopy.headers.get('ETag')!);
             }
@@ -95,13 +62,7 @@ async function revalidate(
             }
         }
         
-        const networkResponse = await fetch(request.url, {
-            signal: controller.signal,
-            headers,
-            cache: 'no-store',
-        });
-        
-        clearTimeout(timeoutId);
+        const networkResponse = await fetch(request.url, {headers, cache: 'no-store' });
         
         if (networkResponse.status === 200) {
             // Check if the response content is actually different from cached version
@@ -113,45 +74,49 @@ async function revalidate(
                 isActuallyUpdated = networkText !== cachedText;
             }
             
-            // Cache the new response
-            await cache.put(request, networkResponse.clone());
+            if (isActuallyUpdated || !cachedResponseCopy) {
+                // Cache the new response
+                await cache.put(request, networkResponse.clone());
+            }
 
             if (isActuallyUpdated) {
                 console.log(`Service Worker: Resource updated: ${request.url}`);
+                notifyUpdateAvailable();
             }
 
-            return { updated: isActuallyUpdated, response: networkResponse };
+            return networkResponse;
         }
         
         if (cachedResponseCopy && networkResponse.status === 304) {
             // Not modified.
-            return { updated: false, response: cachedResponseCopy };
+            return cachedResponseCopy;
         }
         
         if (networkResponse.status >= 400 && networkResponse.status < 500) {
             // Client error.
             console.log(`Service Worker: Resource failed with ${networkResponse.status}: ${request.url}`);
-            return { updated: false, response: networkResponse };
+            return networkResponse;
         }
         
         // Other statuses (e.g., 5xx), serve stale content if available.
-        return { updated: false, response: networkResponse };
+        return networkResponse;
 
     } catch (error) {
         console.error(`Service Worker: Network error for ${request.url}:`, error);
         // On error, we don't trigger a reload and serve stale content if we have it.
-        return { updated: false, response: cachedResponseCopy };
+        return cachedResponseCopy || new Response('Network Error', { status: 504 });
     }
 }
 
 /**
- * Reloads all window clients controlled by this service worker.
+ * Notifies all window clients that an update is available.
  */
-async function reloadAllClients(): Promise<void> {
+let notified = false;
+async function notifyUpdateAvailable(): Promise<void> {
+    if (notified) return;
+    notified = true;
     const clients = await sw.clients.matchAll({ type: 'window' });
     for (const client of clients) {
-        if ('navigate' in client) {
-            (client as WindowClient).navigate(client.url);
-        }
+        client.postMessage({ type: 'UPDATE_AVAILABLE' });
     }
 }

@@ -14,14 +14,16 @@ import swUrl from './sw.ts?worker&url';
 
 route.setLog(true);
 
+const updateAvailable = proxy(false);
+
 if ('serviceWorker' in navigator) {
 	navigator.serviceWorker.register(swUrl, { type: import.meta.env.DEV ? 'module' : 'classic' });
 	
-	// Listen for reload messages from the service worker
+	// Listen for update available messages from the service worker
 	navigator.serviceWorker.addEventListener('message', (event) => {
-		if (event.data && event.data.type === 'RELOAD_PAGE') {
-			console.log('Reload on service worker request');
-			window.location.reload();
+		if (event.data && event.data.type === 'UPDATE_AVAILABLE') {
+			console.log('Update available from service worker');
+			updateAvailable.value = true;
 		}
 	});
 }
@@ -747,6 +749,11 @@ $('div.root', () => {
 				}
 			});
 			$(() => {
+				if (updateAvailable.value) {
+					icons.reload('.update-available click=', () => window.location.reload());
+				}
+			});
+			$(() => {
 				if (!isEmpty(api.store.servers) && api.store.connectionState !== 'connected') {
 					const spinning = api.store.connectionState === 'connecting' || api.store.connectionState === 'authenticating';
 					icons.reconnect({'.spinning=': spinning}, '.off click=', () => route.go({p: ['connect'], search: {edit: 'y'}}));
@@ -1135,6 +1142,7 @@ export function drawSceneEditor(group: Group, groupId: number): void {
 		if (!await askConfirm(`Are you sure you want to overwrite the '${scene.name}' scene for group '${group.name}' with the current light state?`)) return;
 		api.send(group.name, "set", {scene_store: {ID: scene.id, name: scene.name}});
 
+		// Also store any off-states into the scene (for some reason that doesn't happen by default)
 		for(let ieee of group.members) {
 			if (!api.store.devices[ieee]?.lightState?.on) {
 				api.send(ieee, "set", {scene_add: {ID: scene.id, group_id: groupId, name: scene.name, state: "OFF"}});

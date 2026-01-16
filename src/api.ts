@@ -167,7 +167,7 @@ class Api {
             const localAddress = server?.localAddress;
             
             // Flush cache when switching to a different server
-            if (localAddress && localAddress !== this.connectedLocalAddress) {
+            if (this.connectedLocalAddress && localAddress !== this.connectedLocalAddress) {
                 this.flushCache();
             }
             
@@ -287,6 +287,7 @@ class Api {
     }
     
     private disconnect(): void {
+        if (!this.socket && this.tryingSockets.length === 0) return;
         console.log("api/disconnect");
         clearTimeout(this.reconnectTimeout);
         clearTimeout(this.connectTimeout);

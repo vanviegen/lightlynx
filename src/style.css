@@ -129,6 +129,11 @@ header .off, .critical, header .critical {
   animation: pulse-opacity 1.5s ease-in-out infinite;
 }
 
+.update-available {
+  color: #4caf50;
+  animation: pulse-opacity 1.5s ease-in-out infinite;
+}
+
 @keyframes pulse-opacity {
   0% { opacity: 1; }
   50% { opacity: 0.3; }
@@ -827,6 +832,17 @@ button.secondary {
 button.secondary:hover {
   background: #f4810e20;
 }
+
+button.danger {
+  background: transparent;
+  border: 2px solid #f44;
+  color: #f44;
+}
+
+button.danger:hover {
+  background: #f4810e20;
+}
+
 
 /* Guide Page */
 .guide {
