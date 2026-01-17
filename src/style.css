@@ -238,21 +238,52 @@ small.item {
 }
 
 
-.circle,
+.circle {
+  width: 52px;
+  height: 28px;
+  border-radius: 14px;
+  border: 1px solid #333;
+  background-color: #080808;
+  cursor: pointer;
+  flex-shrink: 0;
+  position: relative;
+  overflow: visible;
+  transition: background-color 0.3s ease, border-color 0.3s ease;
+  --knob-color: #555;
+  --knob-glow: none;
+}
+
+.circle::after {
+  content: '';
+  position: absolute;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background-color: var(--knob-color, #555);
+  top: 2px;
+  left: 2px;
+  transition: transform 0.3s ease, background-color 0.3s ease, box-shadow 0.3s ease;
+  box-shadow: var(--knob-glow, none);
+}
+
+.circle.on {
+  border-color: #555;
+}
+
+.circle.on::after {
+  transform: translateX(24px);
+}
+
 .squircle {
   width: 32px;
   height: 32px;
-  border-radius: 50%;
+  border-radius: 25%;
   border: 1px solid #333;
   padding: 0;
   transition: background-color 500ms;
   background-color: black;
   cursor: pointer;
   flex-shrink: 0;
-}
-
-.squircle {
-  border-radius: 25%;
 }
 
 main>p {

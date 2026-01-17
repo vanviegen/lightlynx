@@ -32,10 +32,14 @@ export function drawBulbCircle(device: Device, ieee: string): void {
         api.setLightState(ieee, { on: !device.lightState?.on });
     }
     $('div.circle click=', onClick, () => {
+        // Reactive scope: only this inner function re-runs on state change
+        const isOn = device.lightState?.on;
         const rgb = getBulbRgb(device);
+        // Use a visible gray for the off state knob, light color for on state
+        const knobColor = isOn ? rgb : '#555';
         $({
-            $backgroundColor: rgb,
-            $boxShadow: rgb == '#000000' ? '' : `0 0 15px ${rgb}`,
+            '.on': isOn,
+            style: `--knob-color: ${knobColor}; --knob-glow: ${isOn ? `0 0 10px ${rgb}` : 'none'}`,
         });
     });
 }
