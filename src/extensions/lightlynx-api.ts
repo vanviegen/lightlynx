@@ -78,8 +78,9 @@ class LightLynxAPI {
                     nodeHttpsOptions: { cert, key }
                 };
             } else {
-                this.log('info', 'Starting');
+                this.log('info', 'Requesting SSL certificate');
                 await this.setupSSL();
+                this.log('info', 'Starting HTTPS server on port ' + PORT);
             }
 
             if (!this.config.ssl?.nodeHttpsOptions?.cert) {
@@ -162,13 +163,20 @@ class LightLynxAPI {
 
     // === SSL Management ===
 
-    private getLocalIp() {
+    private getLocalIp(): Promise<string | undefined> {
         // This doesn't actually send anything, but figures out which interface would be used to reach the internet
-        const socket = dgram.createSocket('udp4');
-        socket.connect(80, '8.8.8.8');
-        const address = socket.address().address;
-        socket.close();
-        return address;
+        return new Promise((resolve) => {
+            const socket = dgram.createSocket('udp4');
+            socket.on('error', () => {
+                socket.close();
+                resolve(undefined);
+            });
+            socket.connect(80, '8.8.8.8', () => {
+                const address = socket.address().address;
+                socket.close();
+                resolve(address);
+            });
+        });
    }
 
     private async getExternalHost(): Promise<string | null> {
@@ -187,7 +195,7 @@ class LightLynxAPI {
         const cfg = this.config;
 
         const externalIp = (cfg.remoteAccess ? await this.getExternalHost() : undefined) || cfg.ssl?.externalIp;
-        const localIp = this.getLocalIp() || cfg.ssl?.localIp;
+        const localIp = await this.getLocalIp() || cfg.ssl?.localIp;
         let changes = false;
 
         if ((externalIp || localIp) && (!cfg.ssl || localIp !== cfg.ssl.localIp  || externalIp !== cfg.ssl.externalIp || cfg.ssl.expiresAt - Date.now() < SSL_RENEW_THRESHOLD)) {
@@ -228,7 +236,7 @@ class LightLynxAPI {
 
     private async setupUPnP(storedPort?: number): Promise<number | undefined> {
         try {
-            const localIp = this.getLocalIp();
+            const localIp = await this.getLocalIp();
             if (!localIp) throw new Error('Could not determine local IP');
             const gatewayUrl = await this.discoverGateway();
             if (!gatewayUrl) throw new Error('Could not find UPnP gateway');

@@ -625,8 +625,9 @@ function drawConnectionPage(): void {
 	});
 
 	// Watch for connection success and navigate away
+	const saved = proxy(false);
 	$(() => {
-		if (api.store.connectionState === 'connected') {
+		if (saved.value && api.store.servers[0]?.status === 'enabled') {
 			route.back('/');
 		}
 	});
@@ -659,7 +660,9 @@ function drawConnectionPage(): void {
 			externalAddress,
 			status: 'try',  // Try once, becomes 'enabled' on success or 'disabled' on failure
 		};
-		
+
+		saved.value = true;
+
 		if (editMode) {
 			// Update existing server credentials
 			Object.assign(api.store.servers[0]!, server);
