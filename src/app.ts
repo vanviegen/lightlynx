@@ -619,12 +619,16 @@ function drawLandingPage(): void {
 	});
 }
 
+const connectionPageState = proxy({ saved: false });
+
 function drawConnectionPage(): void {
-	const editMode = !!route.current.search.edit;
-	routeState.title = editMode ? 'Edit connection' : 'New connection';
-	routeState.subTitle = 'Z2M';
 	
-	const serverToEdit = editMode ? unproxy(api.store.servers)[0] : undefined;
+	$(() => {
+		routeState.title = route.current.search.edit ? 'Edit connection' : 'New connection';
+		routeState.subTitle = 'Z2M';
+	});
+	
+	const serverToEdit = unproxy(route).current.search.edit ? unproxy(api.store.servers)[0] : undefined;
 	const formData = proxy({
 		localAddress: serverToEdit?.localAddress || '',
 		username: serverToEdit?.username || 'admin',
@@ -632,9 +636,9 @@ function drawConnectionPage(): void {
 	});
 
 	// Watch for connection success and navigate away
-	const saved = proxy(false);
 	$(() => {
-		if (saved.value && api.store.servers[0]?.status === 'enabled') {
+		if (connectionPageState.saved && api.store.servers[0]?.status === 'enabled') {
+			connectionPageState.saved = false;
 			route.back('/');
 		}
 	});
@@ -668,9 +672,9 @@ function drawConnectionPage(): void {
 			status: 'try',  // Try once, becomes 'enabled' on success or 'disabled' on failure
 		};
 
-		saved.value = true;
+		connectionPageState.saved = true;
 
-		if (editMode) {
+		if (route.current.search.edit) {
 			// Update existing server credentials
 			Object.assign(api.store.servers[0]!, server);
 		} else {
@@ -701,20 +705,20 @@ function drawConnectionPage(): void {
 			
 			$('div.field', () => {
 				$('label#Password');
-				$('input type=password bind=', ref(formData, 'password'), 'placeholder=', editMode ? 'Leave empty to keep current' : '');
+				$('input type=password bind=', ref(formData, 'password'), 'placeholder=', route.current.search.edit ? 'Leave empty to keep current' : '');
 			});
 			
 			const busy = api.store.connectionState === 'connecting' || api.store.connectionState === 'authenticating';
 			
 			$('div.row margin-top:1em', () => {
-				if (editMode) {
+				if (route.current.search.edit) {
 					$('button.danger text=Delete click=', handleDelete);
 				}
 				$('button.secondary text=Cancel click=', () => {
 					route.back('/');
 				});
 				$('button.primary type=submit', {'.busy': busy}, () => {
-					$(busy ? '#Connecting...' : editMode ? '#Save' : '#Create');
+					$(busy ? '#Connecting...' : route.current.search.edit ? '#Save' : '#Create');
 				});
 			});
 		});

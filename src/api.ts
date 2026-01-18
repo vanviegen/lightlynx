@@ -42,6 +42,7 @@ function colorsEqual(a?: ColorValue, b?: ColorValue): boolean {
 function ipToHexDomain(ip: string): string {
     const parts = ip.split('.');
     if (parts.length !== 4) return ip;
+    if (parts.some(p => isNaN(parseInt(p)))) return ip;
     const hex = parts.map(p => parseInt(p).toString(16).padStart(2, '0')).join('');
     return `x${hex}.lightlynx.eu`;
 }
@@ -270,6 +271,11 @@ class Api {
                     }
                     this.tryingSockets = [];
                     this.store.connectionState = 'authenticating';
+                    this.reconnectAttempts = 0;
+                    if (this.reconnectTimeout) {
+                        clearTimeout(this.reconnectTimeout);
+                        this.reconnectTimeout = undefined;
+                    }
                 });
                 
                 socket.addEventListener("close", (e) => {
@@ -309,6 +315,9 @@ class Api {
     }
     
     private handleConnectionFailure(errorMessage: string): void {
+        if (this.socket && this.store.connected) {
+            return;
+        }
         console.log("api/connectionFailed", errorMessage);
         clearTimeout(this.connectTimeout);
         this.socket?.close();
@@ -620,8 +629,11 @@ class Api {
         // First message confirms authentication succeeded
         if (this.store.connectionState === 'authenticating') {
             console.log("api/onMessage - Authentication confirmed");
+            clearTimeout(this.connectTimeout);
+            this.connectTimeout = undefined;
             this.store.connected = true;
             this.store.connectionState = 'connected';
+            this.reconnectAttempts = 0;
             
             // If status was 'try', upgrade to 'enabled' on success
             const server = this.store.servers[0];
