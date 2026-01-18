@@ -21,7 +21,7 @@ sw.addEventListener('activate', (event: ExtendableEvent) => {
 
 sw.addEventListener('fetch', (event: FetchEvent) => {
     const url = new URL(event.request.url);
-    if (event.request.method === 'GET' && url.origin === sw.location.origin && /*vite */ !url.pathname.startsWith('/@')) {
+    if (event.request.method === 'GET' && url.origin === sw.location.origin) {
         event.respondWith(handleGetRequest(event));
     }
 });

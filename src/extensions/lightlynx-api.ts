@@ -1,5 +1,3 @@
-// lightlynx-api v1
-import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
 import http from 'http';
@@ -8,7 +6,7 @@ import dgram from 'dgram';
 import WebSocket, { WebSocketServer } from 'ws';
 
 const CONFIG_FILE = 'lightlynx.json';
-const PORT = 43598;
+const PORT = 43597;
 const SSL_RENEW_THRESHOLD = 10 * 24 * 60 * 60 * 1000; // 10 days
 
 interface UserConfig {
@@ -66,33 +64,28 @@ class LightLynxAPI {
 
         const mock = (globalThis as any).MOCK_Z2M;
 
-        if (mock && mock.httpPort) {
-            this.log('info', `Starting on mock HTTP port ${mock.httpPort}`);
-            this.server = http.createServer();
+        if (mock && mock.certFile) {
+            // Fallback for mock environment
+            this.log('info', 'Starting using mock SSL certificate');
+            const { cert, key } = JSON.parse(fs.readFileSync(mock.certFile, 'utf8'));
+            
+            this.config.ssl = {
+                expiresAt: Date.now() + 1000000000,
+                nodeHttpsOptions: { cert, key }
+            };
         } else {
-            if (mock && mock.certFile) {
-                // Fallback for mock environment
-                this.log('info', 'Starting using mock SSL certificate');
-                const { cert, key } = JSON.parse(fs.readFileSync(mock.certFile, 'utf8'));
-                
-                this.config.ssl = {
-                    expiresAt: Date.now() + 1000000000,
-                    nodeHttpsOptions: { cert, key }
-                };
-            } else {
-                this.log('info', 'Requesting SSL certificate');
-                await this.setupSSL();
-                this.log('info', 'Starting HTTPS server on port ' + PORT);
-            }
-
-            if (!this.config.ssl?.nodeHttpsOptions?.cert) {
-                this.log('error', 'Failed to setup SSL. Cannot start server.');
-                return;
-            }
-
-            const ssl = this.config.ssl;
-            this.server = https.createServer(ssl.nodeHttpsOptions);
+            this.log('info', 'Requesting SSL certificate');
+            await this.setupSSL();
+            this.log('info', 'Starting HTTPS server on port ' + PORT);
         }
+
+        const ssl = this.config.ssl;
+        if (!ssl?.nodeHttpsOptions?.cert) {
+            this.log('error', 'Failed to setup SSL. Cannot start server.');
+            return;
+        }
+
+        this.server = https.createServer(ssl.nodeHttpsOptions);
 
         this.server.on('upgrade', (req, socket, head) => this.onUpgrade(req, socket, head));
         this.server.on('request', (req, res) => {
@@ -111,8 +104,7 @@ class LightLynxAPI {
         });
         this.wss.on('connection', (ws: any, req: any) => this.onConnection(ws, req));
 
-        const listenPort = (mock && mock.httpPort) || PORT;
-        this.server.listen(listenPort);
+        this.server.listen(mock?.httpsPort || PORT);
 
         this.eventBus.onMQTTMessagePublished(this, (data: any) => this.onMQTTPublish(data));
         this.eventBus.onPublishEntityState(this, (data: any) => this.onEntityState(data));
@@ -674,7 +666,6 @@ class LightLynxAPI {
         try {
             if (category === 'config') {
                 switch (action) {
-                    case 'getConfig': response = { data: await this.getPayloadForConfig(), status: 'ok' }; break;
                     case 'setRemoteAccess':
                         this.config.remoteAccess = !!message.enabled;
                         this.saveConfig();

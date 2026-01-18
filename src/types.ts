@@ -100,7 +100,7 @@ export interface ServerCredentials {
 }
 
 // Connection state machine
-export type ConnectionState = 'idle' | 'connecting' | 'authenticating' | 'connected' | 'error';
+export type ConnectionState = 'idle' | 'connecting' | 'authenticating' | 'connected' | 'reconnecting';
 
 // Store interface for the global application state
 export interface Store {

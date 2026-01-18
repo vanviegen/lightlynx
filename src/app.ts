@@ -16,8 +16,9 @@ route.setLog(true);
 
 const updateAvailable = proxy(false);
 
-if ('serviceWorker' in navigator) {
-	navigator.serviceWorker.register(swUrl, { type: import.meta.env.DEV ? 'module' : 'classic' });
+// Disable service worker in dev mode to avoid caching conflicts with Vite HMR
+if (!import.meta.env.DEV && 'serviceWorker' in navigator) {
+	navigator.serviceWorker.register(swUrl, { type: 'classic' });
 	
 	// Listen for update available messages from the service worker
 	navigator.serviceWorker.addEventListener('message', (event) => {
@@ -117,7 +118,7 @@ function promptInstallExtension(ext: 'api' | 'automation', reason: string): bool
 				$(`button.secondary flex:0 margin-top:0.5rem #Install`, {'.busy': busy, click: async () => {
 					busy.value = true;
 					try {
-						await api.installExtension(`lightlynx-${ext}`);
+						await api.installExtension(ext);
 					} finally {
 						busy.value = false;
 					}
@@ -1431,7 +1432,7 @@ function drawExtensionsSection(): void {
 						icons.create('.link', {'.busy': busy, click: async () => {
 							busy.value = true;
 							try {
-								await api.installExtension(`lightlynx-${name}`);
+								await api.installExtension(name);
 							} finally {
 								busy.value = false;
 							}

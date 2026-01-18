@@ -1,12 +1,11 @@
-import { $, proxy, clone, copy, unproxy } from "aberdeen";
+import { $, proxy, clone, copy, unproxy, peek } from "aberdeen";
 import * as colors from "./colors";
-import { LightState, XYColor, HSColor, ColorValue, isHS, isXY, Store, LightCaps, Device, Group, ServerCredentials } from "./types";
+import { LightState, XYColor, HSColor, ColorValue, isHS, isXY, Store, LightCaps, Device, Group } from "./types";
 
 const CREDENTIALS_LOCAL_STORAGE_ITEM_NAME = "lightlynx-servers";
-const UNAUTHORIZED_ERROR_CODE = 4401;
 
 const EXTENSION_VERSIONS: Record<string, number> = {
-    "api": 2,
+    "api": 17,
     "automation": 1,
 };
 
@@ -127,12 +126,12 @@ class Api {
     private requests: Map<string, PromiseCallbacks> = new Map();
     private transactionNumber = 1;
     private transactionRndPrefix: string;
-    private reconnectTimeout?: ReturnType<typeof setTimeout>;
-    private connectTimeout?: ReturnType<typeof setTimeout>;
-    private connectedLocalAddress?: string;  // Track which server we're connected to
-    private reconnectAttempts = 0;
     private extensionCheckPerformed = false;
     private nameToIeeeMap: Map<string, string> = new Map();
+    private currentConnectionKey: string | null = null;
+    private reconnectTimeout?: ReturnType<typeof setTimeout>;
+    private connectTimeout?: ReturnType<typeof setTimeout>;
+    private reconnectAttempts = 0;
 
     store: Store = proxy({
         devices: {},
@@ -167,28 +166,186 @@ class Api {
             setLocalStorage(CREDENTIALS_LOCAL_STORAGE_ITEM_NAME, this.store.servers);
         });
         
-        // Reactive connection management based on servers[0].status
+        // Reactive connection management
         $(() => {
             const server = this.store.servers[0];
-            const status = server?.status;
-            const localAddress = server?.localAddress;
             
-            // Flush cache when switching to a different server
-            if (this.connectedLocalAddress && localAddress !== this.connectedLocalAddress) {
+            // Compute the wanted connection key (null = no connection wanted)
+            // Reading localAddress/username/secret subscribes to credential changes
+            // Reading status subscribes to disabled state - but try→enabled change 
+            // still computes the same key, so no reconnect happens
+            const wantedKey = server && server.status !== 'disabled'
+                ? `${server.localAddress}|${server.username}|${server.secret}`
+                : null;
+            
+
+            
+            // Only act if the target changed
+            if (wantedKey === this.currentConnectionKey) return;
+            
+            // Switching connections - flush cache if we had a previous one
+            if (this.currentConnectionKey) {
                 this.flushCache();
             }
+            this.currentConnectionKey = wantedKey;
+            this.disconnect();
             
-            if (!server || status === 'disabled') {
-                this.disconnect();
-            } else if (status === 'enabled' || status === 'try') {
-                // Only connect if not already connected/connecting to this server
-                if (this.store.connectionState === 'idle' || this.store.connectionState === 'error') {
-                    this.connect(server);
-                }
+            if (wantedKey && server) {
+                // Extract values using peek() to avoid subscribing to externalAddress
+                this.connect({
+                    localAddress: server.localAddress,
+                    externalAddress: peek(server, 'externalAddress'),
+                    username: server.username,
+                    secret: server.secret,
+                });
             }
         });
     }
+
+    private disconnect(): void {
+        if (!this.socket && this.tryingSockets.length === 0 && !this.reconnectTimeout) return;
+        console.log("api/disconnect");
+        
+        clearTimeout(this.reconnectTimeout);
+        clearTimeout(this.connectTimeout);
+        this.reconnectTimeout = undefined;
+        this.connectTimeout = undefined;
+        
+        this.socket?.close();
+        this.socket = undefined;
+        for (const s of this.tryingSockets) s.close();
+        this.tryingSockets = [];
+        
+        this.store.connectionState = 'idle';
+        this.store.connected = false;
+        this.reconnectAttempts = 0;
+    }
+
+    private connect(creds: { localAddress: string; externalAddress?: string; username?: string; secret?: string }): void {
+        console.log("api/connect", creds.localAddress);
+        
+        this.store.connectionState = 'connecting';
+        delete this.store.lastConnectError;
+        
+        // Timeout for connection attempt
+        this.connectTimeout = setTimeout(() => {
+            this.handleConnectionFailure("Connection timed out. Please check the server address and port.");
+        }, 4000);
+
+        // Build connection URLs (try both local and external if available)
+        const connections: { hostname: string, port: number }[] = [];
+        const [localHost, serverPort] = creds.localAddress.split(':');
+        connections.push({ hostname: ipToHexDomain(localHost!), port: parseInt(serverPort || '43597') });
+        
+        if (creds.externalAddress) {
+            const [externalHost, externalPort] = creds.externalAddress.split(':');
+            connections.push({ hostname: ipToHexDomain(externalHost!), port: parseInt(externalPort || '43597') });
+        }
+
+        for (const { hostname, port } of connections) {
+            try {
+                const url = new URL(`wss://${hostname}:${port}/api`);
+                url.searchParams.append("lightlynx", "1");
+                if (creds.username) {
+                    url.searchParams.append("user", creds.username);
+                    url.searchParams.append("secret", creds.secret || '');
+                }
+                const socket = new WebSocket(url.toString(), ["lightlynx"]);
+                this.tryingSockets.push(socket);
+                
+                socket.addEventListener("error", (e) => {
+                    console.error("WebSocket error", (e.target as WebSocket)?.url);
+                });
+                
+                socket.addEventListener("open", () => {
+                    if (this.socket) {
+                        socket.close();  // Already have a winner
+                        return;
+                    }
+                    console.log("api/onOpen", socket.url);
+                    
+                    this.socket = socket;
+                    for (const s of this.tryingSockets) {
+                        if (s !== socket) s.close();
+                    }
+                    this.tryingSockets = [];
+                    this.store.connectionState = 'authenticating';
+                });
+                
+                socket.addEventListener("close", (e) => {
+                    console.log("api/onClose", socket.url, e.code, e.reason);
+                    
+                    if (this.socket === socket) {
+                        // Our active socket closed
+                        this.socket = undefined;
+                        if (e.code === 401) {
+                            this.handleConnectionFailure("Unauthorized, please check your credentials.");
+                        } else if (this.store.connectionState === 'connected') {
+                            this.handleConnectionFailure("Connection lost.");
+                        } else {
+                            this.handleConnectionFailure("Connection failed. Please check the server address.");
+                        }
+                    } else {
+                        // One of the racing sockets failed
+                        const index = this.tryingSockets.indexOf(socket);
+                        if (index !== -1) {
+                            this.tryingSockets.splice(index, 1);
+                            if (this.tryingSockets.length === 0 && !this.socket) {
+                                this.handleConnectionFailure("Connection failed. Please check the server address.");
+                            }
+                        }
+                    }
+                });
+                
+                socket.addEventListener("message", this.onMessage);
+            } catch (error) {
+                console.error(`Failed to initiate connection to ${hostname}:`, error);
+            }
+        }
+
+        if (this.tryingSockets.length === 0) {
+            this.handleConnectionFailure("Failed to initiate any connection.");
+        }
+    }
     
+    private handleConnectionFailure(errorMessage: string): void {
+        console.log("api/connectionFailed", errorMessage);
+        clearTimeout(this.connectTimeout);
+        this.socket?.close();
+        this.socket = undefined;
+        for (const s of this.tryingSockets) s.close();
+        this.tryingSockets = [];
+        this.store.connected = false;
+        this.store.lastConnectError = errorMessage;
+        
+        const server = this.store.servers[0];
+        if (server?.status === 'try') {
+            // Single attempt mode: disable on failure
+            server.status = 'disabled';
+            this.store.connectionState = 'idle';
+        } else if (server?.status === 'enabled') {
+            // Persistent mode: schedule retry with exponential backoff
+            const delay = Math.min(500 * Math.pow(2, this.reconnectAttempts++), 16000);
+            console.log(`api/scheduleReconnect in ${delay}ms (attempt ${this.reconnectAttempts})`);
+            this.store.connectionState = 'reconnecting';
+            // Extract credentials now (not in the timeout callback)
+            const creds = {
+                localAddress: server.localAddress,
+                externalAddress: server.externalAddress,
+                username: server.username,
+                secret: server.secret,
+            };
+            this.reconnectTimeout = setTimeout(() => {
+                this.reconnectTimeout = undefined;
+                if (this.store.servers[0]?.status === 'enabled') {
+                    this.connect(creds);
+                }
+            }, delay);
+        } else {
+            this.store.connectionState = 'idle';
+        }
+    }
+
     private flushCache(): void {
         console.log("api/flushCache");
         localStorage.removeItem('bridge/devices');
@@ -241,145 +398,6 @@ class Api {
             const message = error instanceof Error ? error.message : String(error);
             console.error(`Failed to install extension ${name}:`, message);
             this.notify('error', `Failed to install extension ${name}: ${message}`);
-        }
-    }
-    
-    private connect(server: ServerCredentials): void {
-        console.log("api/connect", server.localAddress);
-        this.disconnect();
-        this.connectedLocalAddress = server.localAddress;
-        this.store.connectionState = 'connecting';
-        delete this.store.lastConnectError;
-        
-        // Timeout for connection attempt
-        this.connectTimeout = setTimeout(() => {
-            if (this.store.connectionState === 'connecting' || this.store.connectionState === 'authenticating') {
-                console.error("api/connect - Connection timed out");
-                this.handleConnectionFailure("Connection timed out. Please check the server address and port.");
-            }
-        }, 4000);
-
-        // Build connection URLs (try both local and external if available)
-        const connections: { hostname: string, port: number }[] = [];
-        const [localHost, serverPort] = server.localAddress.split(':');
-        connections.push({ hostname: ipToHexDomain(localHost!), port: parseInt(serverPort || '43597') });
-        
-        if (server.externalAddress) {
-            const [externalHost, externalPort] = server.externalAddress.split(':');
-            connections.push({ hostname: ipToHexDomain(externalHost!), port: parseInt(externalPort || '43597') });
-        }
-
-        for (const { hostname, port } of connections) {
-            try {
-                const url = new URL(`wss://${hostname}:${port}/api`);
-                url.searchParams.append("lightlynx", "1");
-                if (server.username) {
-                    url.searchParams.append("user", server.username);
-                    url.searchParams.append("secret", server.secret || '');
-                }
-                const socket = new WebSocket(url.toString(), ["lightlynx"]);
-                this.tryingSockets.push(socket);
-                socket.addEventListener("message", this.onMessage);
-                socket.addEventListener("close", this.onClose);
-                socket.addEventListener("open", this.onOpen);
-                socket.addEventListener("error", (e) => console.error("WebSocket error", (e.target as WebSocket)?.url));
-            } catch (error) {
-                console.error(`Failed to initiate connection to ${hostname}:`, error);
-            }
-        }
-
-        if (this.tryingSockets.length === 0) {
-            this.handleConnectionFailure("Failed to initiate any connection.");
-        }
-    }
-    
-    private disconnect(): void {
-        if (!this.socket && this.tryingSockets.length === 0) return;
-        console.log("api/disconnect");
-        clearTimeout(this.reconnectTimeout);
-        clearTimeout(this.connectTimeout);
-        
-        this.socket?.close();
-        this.socket = undefined;
-        for (const s of this.tryingSockets) s.close();
-        this.tryingSockets = [];
-        
-        this.store.connectionState = 'idle';
-        this.store.connected = false;
-    }
-    
-    private handleConnectionFailure(errorMessage: string): void {
-        clearTimeout(this.connectTimeout);
-        this.socket?.close();
-        this.socket = undefined;
-        for (const s of this.tryingSockets) s.close();
-        this.tryingSockets = [];
-        
-        const server = this.store.servers[0];
-        if (server?.status === 'try') {
-            // Single attempt mode: disable on failure
-            server.status = 'disabled';
-            this.store.connectionState = 'error';
-            this.store.lastConnectError = errorMessage;
-        } else if (server?.status === 'enabled') {
-            // Persistent mode: schedule retry with exponential backoff
-            const delay = Math.min(500 * Math.pow(2, this.reconnectAttempts++), 16000);
-            console.log(`api/scheduleReconnect in ${delay}ms (attempt ${this.reconnectAttempts})`);
-            this.store.connectionState = 'error';
-            this.store.lastConnectError = errorMessage;
-            this.reconnectTimeout = setTimeout(() => {
-                if (this.store.servers[0]?.status === 'enabled') {
-                    this.store.connectionState = 'idle'; // Trigger reactive reconnect
-                }
-            }, delay);
-        } else {
-            this.store.connectionState = 'idle';
-        }
-    }
-    
-    private onOpen = (event: Event): void => {
-        const socket = event.target as WebSocket;
-        console.log("api/onOpen - WebSocket opened", socket.url);
-        
-        if (this.socket) {
-            socket.close(); // Already have a winner
-            return;
-        }
-
-        this.socket = socket;
-        for (const s of this.tryingSockets) {
-            if (s !== socket) s.close();
-        }
-        this.tryingSockets = [];
-        this.store.connectionState = 'authenticating';
-        delete this.store.lastConnectError;
-    }
-    
-    private onClose = (e: CloseEvent): void => {
-        const socket = e.target as WebSocket;
-        console.log("api/onClose", socket.url, e.code, e.reason);
-
-        if (this.store.connectionState === 'idle') return; // Already disconnected
-
-        if (this.socket === socket) {
-            // Our active socket closed
-            this.socket = undefined;
-            this.store.connected = false;
-            
-            if (e.code === UNAUTHORIZED_ERROR_CODE) {
-                this.handleConnectionFailure("Unauthorized, please check your credentials.");
-            } else if (this.store.connectionState === 'connected') {
-                // Was connected, now dropped - retry if enabled
-                this.handleConnectionFailure("Connection lost.");
-            } else {
-                this.handleConnectionFailure("Connection failed. Please check the server address.");
-            }
-        } else {
-            // One of the racing sockets failed
-            this.tryingSockets = this.tryingSockets.filter(s => s !== socket);
-            if (this.tryingSockets.length === 0 && !this.socket) {
-                this.handleConnectionFailure("Connection failed. Please check the server address.");
-            }
         }
     }
     
@@ -602,10 +620,8 @@ class Api {
         // First message confirms authentication succeeded
         if (this.store.connectionState === 'authenticating') {
             console.log("api/onMessage - Authentication confirmed");
-            clearTimeout(this.connectTimeout);
             this.store.connected = true;
             this.store.connectionState = 'connected';
-            this.reconnectAttempts = 0;
             
             // If status was 'try', upgrade to 'enabled' on success
             const server = this.store.servers[0];
@@ -654,7 +670,7 @@ class Api {
                 
                 // Update server credentials with external address
                 const server = this.store.servers[0];
-                if (server && server.localAddress === this.connectedLocalAddress) {
+                if (server && this.store.connected) {
                     server.externalAddress = this.store.externalAddress;
                 }
             }

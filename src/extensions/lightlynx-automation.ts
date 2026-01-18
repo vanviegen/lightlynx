@@ -1,5 +1,3 @@
-// lightlynx-automation v1
-
 /**
  * Sunrise/sunset script logic and LightLynxAutomation logic transposed to TS
  */
