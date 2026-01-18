@@ -8,7 +8,7 @@ import dgram from 'dgram';
 import WebSocket, { WebSocketServer } from 'ws';
 
 const CONFIG_FILE = 'lightlynx.json';
-const PORT = 43597;
+const PORT = 43598;
 const SSL_RENEW_THRESHOLD = 10 * 24 * 60 * 60 * 1000; // 10 days
 
 interface UserConfig {
@@ -48,6 +48,8 @@ class LightLynxAPI {
     private server?: http.Server | https.Server;
     private wss?: WebSocketServer;
     private refreshTimer?: NodeJS.Timeout;
+    private activeScenes: Record<string, number | undefined> = {};
+    private sceneSetTimestamps: Map<string, number> = new Map();
 
     constructor(zigbee: any, mqtt: any, state: any, _publishEntityState: any, eventBus: any, _enableDisableExtension: any, _restartCallback: any, _addExtension: any, _settings: any, logger: any) {
         this.zigbee = zigbee;
@@ -381,26 +383,25 @@ class LightLynxAPI {
     }
 
     private seedAdminUser() {
-        if (!this.config.users.admin || !this.config.users.admin.secret) {
-            const password = crypto.randomBytes(16).toString('hex');
-            const saltString = "LightLynx-Salt-v1-" + "admin";
-            const secret = crypto.pbkdf2Sync(password, saltString, 100000, 32, 'sha256').toString('hex');
-            
+        if (!this.config.users.admin) {
             this.config.users.admin = {
-                secret,
+                secret: '',
                 isAdmin: true,
                 allowedDevices: [],
                 allowedGroups: [],
-                allowRemote: true
+                allowRemote: false
             };
             this.saveConfig();
-            this.log('info', `Created default 'admin' user with password: ${password}`);
+            this.log('info', `Created default 'admin' user with no password`);
         }
     }
 
     private validateUser(username: string, password: string): UserConfig | null {
         const user = this.config.users[username];
         if (!user) return null;
+        // Empty secret means no password set - allow login with empty password
+        if (user.secret === '' && password === '') return user;
+        // Non-empty secret requires matching password
         if (password !== user.secret) return null;
         return user;
     }
@@ -433,7 +434,8 @@ class LightLynxAPI {
                 isAdmin: user.isAdmin,
                 allowedDevices: user.allowedDevices,
                 allowedGroups: user.allowedGroups,
-                allowRemote: user.allowRemote
+                allowRemote: user.allowRemote,
+                hasPassword: !!user.secret
             };
         }
         return result;
@@ -447,10 +449,10 @@ class LightLynxAPI {
         }
 
         const username = url.searchParams.get('user');
-        const password = url.searchParams.get('secret');
+        const password = url.searchParams.get('secret') || '';
         const clientIp = this.getClientIp(req);
 
-        const user = username ? this.validateUser(username, password!) : null;
+        const user = username ? this.validateUser(username, password) : null;
         if (!user) {
             socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
             socket.destroy();
@@ -503,6 +505,7 @@ class LightLynxAPI {
             ws.send(JSON.stringify({ topic: 'bridge/lightlynx/users', payload: this.getUsersForBroadcast() }));
         }
         ws.send(JSON.stringify({ topic: 'bridge/lightlynx/config', payload: await this.getPayloadForConfig() }));
+        ws.send(JSON.stringify({ topic: 'lightlynx/sceneSet', payload: this.activeScenes }));
     }
 
     private filterPayload(topic: string, payload: any) {
@@ -625,6 +628,37 @@ class LightLynxAPI {
     }
 
     private async onMQTTRequest(data: any) {
+        // Handle scene_recall and scene_store on group/set
+        if (data.topic.startsWith(`${this.mqttBaseTopic}/`) && data.topic.endsWith('/set')) {
+            const groupName = data.topic.slice(this.mqttBaseTopic.length + 1, -4);
+            let message: any;
+            try { message = JSON.parse(data.message); } catch { return; }
+            
+            if (message.scene_recall !== undefined || message.scene_store !== undefined) {
+                const sceneId = message.scene_recall ?? message.scene_store?.ID;
+                this.sceneSetTimestamps.set(groupName, Date.now());
+                if (this.activeScenes[groupName] !== sceneId) {
+                    this.activeScenes[groupName] = sceneId;
+                    this.broadcastSceneSet(groupName, sceneId);
+                }
+            }
+            return;
+        }
+
+        // Handle group state changes (not /set, just the group name)
+        const topicWithoutBase = data.topic.startsWith(`${this.mqttBaseTopic}/`) 
+            ? data.topic.slice(this.mqttBaseTopic.length + 1) 
+            : null;
+        if (topicWithoutBase && !topicWithoutBase.includes('/') && this.findGroupByName(topicWithoutBase)) {
+            const groupName = topicWithoutBase;
+            const lastSceneTime = this.sceneSetTimestamps.get(groupName) || 0;
+            if (Date.now() - lastSceneTime > 500 && this.activeScenes[groupName] !== undefined) {
+                this.activeScenes[groupName] = undefined;
+                this.broadcastSceneSet(groupName, undefined);
+            }
+            return;
+        }
+
         const prefix = `${this.mqttBaseTopic}/bridge/request/lightlynx/`;
         if (!data.topic.startsWith(prefix)) return;
 
@@ -681,10 +715,12 @@ class LightLynxAPI {
 
     private addUser(message: any) {
         const { username, secret, isAdmin, allowedDevices, allowedGroups, allowRemote } = message;
-        if (!username || !secret) throw new Error('Username and secret required');
+        if (!username) throw new Error('Username required');
         if (username === 'admin') throw new Error('Cannot add admin user');
         if (this.config.users[username]) throw new Error('User already exists');
-        this.config.users[username] = { secret, isAdmin: !!isAdmin, allowedDevices: allowedDevices || [], allowedGroups: allowedGroups || [], allowRemote: !!allowRemote };
+        // Block remote access if no password is set
+        if (allowRemote && !secret) throw new Error('Cannot enable remote access without a password');
+        this.config.users[username] = { secret: secret || '', isAdmin: !!isAdmin, allowedDevices: allowedDevices || [], allowedGroups: allowedGroups || [], allowRemote: !!allowRemote };
         this.saveConfig();
         return { status: 'ok' };
     }
@@ -694,11 +730,15 @@ class LightLynxAPI {
         if (!username) throw new Error('Username required');
         const user = this.config.users[username];
         if (!user) throw new Error('User not found');
-        if (secret) user.secret = secret;
+        if (secret !== undefined) user.secret = secret;
         if (isAdmin !== undefined) user.isAdmin = isAdmin;
         if (allowedDevices !== undefined) user.allowedDevices = allowedDevices;
         if (allowedGroups !== undefined) user.allowedGroups = allowedGroups;
-        if (allowRemote !== undefined) user.allowRemote = allowRemote;
+        if (allowRemote !== undefined) {
+            // Block remote access if no password is set
+            if (allowRemote && !user.secret) throw new Error('Cannot enable remote access without a password');
+            user.allowRemote = allowRemote;
+        }
         this.saveConfig();
         return { status: 'ok' };
     }
@@ -718,6 +758,15 @@ class LightLynxAPI {
         for (const [ws, clientInfo] of this.clients) {
             if (ws.readyState === WebSocket.OPEN && clientInfo.isAdmin) {
                 ws.send(JSON.stringify({ topic: 'lightlynx/users', payload }));
+            }
+        }
+    }
+
+    private broadcastSceneSet(groupName: string, sceneId: number | undefined) {
+        const payload = { [groupName]: sceneId };
+        for (const [ws, _clientInfo] of this.clients) {
+            if (ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ topic: 'lightlynx/sceneSet', payload }));
             }
         }
     }

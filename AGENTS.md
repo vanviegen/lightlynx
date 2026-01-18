@@ -90,7 +90,7 @@ Requires `.env` file with BunnyCDN credentials (see `.env.example`):
 ## API Communication
 
 The app communicates with Zigbee2MQTT via WebSocket:
-- Connection URL: `wss://x<hex-ip>.lightlynx.eu:43597/api`
+- Connection URL: `wss://x<hex-ip>.lightlynx.eu:43598/api`
 - Authentication: `user` and `secret` (PBKDF2 hash of password) provided as URL search parameters
 - Messages follow Z2M's topic-based format: `api.send(topic, ...path, payload)`
 - Light state changes use optimistic updates with debouncing
@@ -120,10 +120,10 @@ Version checking via first-line comments (`// lightlynx-<name> v<version>`). Aut
 
 ## Testing
 
-Integration tests use Playwright and a mock Zigbee2MQTT server (`src/mock-z2m.ts`). The latter doesn't do any Zigbee nor MQTT nor web API, but runs our lightlynx-api extension (exposing a WebSocket API on port 43597) by default, and is capable of runnings lightlynx-automation as well.
+Integration tests use Playwright and a mock Zigbee2MQTT server (`src/mock-z2m.ts`). The latter doesn't do any Zigbee nor MQTT nor web API, but runs our lightlynx-api extension (exposing a WebSocket API on port 43598) by default, and is capable of runnings lightlynx-automation as well.
 
 - `npm test`: Runs the suite. Playwright orchestrates running mock-z2m.
-- `npm run mock-z2m`: Start mock-z2m manually. Supports `--http-port PORT` argument to run an HTTP server on PORT instead of HTTPS on 43597.
+- `npm run mock-z2m`: Start mock-z2m manually. Supports `--http-port PORT` argument to run an HTTP server on PORT instead of HTTPS on 43598.
 
 ## Service Worker
 

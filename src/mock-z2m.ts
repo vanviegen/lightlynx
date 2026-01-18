@@ -9,50 +9,30 @@ const require = createRequire(import.meta.url);
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const httpPortArgIndex = process.argv.indexOf('--http-port');
-const httpPortArg = httpPortArgIndex !== -1 ? parseInt(process.argv[httpPortArgIndex + 1] || '43596') : undefined;
-
-(globalThis as any).MOCK_Z2M = (httpPortArg && !isNaN(httpPortArg)) ? { httpPort: httpPortArg } : {
+(globalThis as any).MOCK_Z2M = {
+    httpsPort: 43598,
     certFile: path.join(__dirname, 'mock-certs.json')
 };
 
 // --- Environment Setup ---
-const dataPath = path.join(__dirname, '..', 'tmp', 'z2m-data');
+const dataPath = `/tmp/mock-z2m-${process.pid}`;
 if (!fs.existsSync(dataPath)) fs.mkdirSync(dataPath, { recursive: true });
 process.env.ZIGBEE2MQTT_DATA = dataPath;
 
-// Pre-seed lightlynx.json with known admin secret ('admin') and mock SSL info
-const configPath = path.join(dataPath, 'lightlynx.json');
-
-let config: any = {
-    users: {
-        admin: {
-            secret: 'd06c9a42fd009db016217823db9f64b62309bf89f27261921e78ddc8cd7eb2fc', // 'admin'
-            isAdmin: true,
-            allowRemote: true
-        }
-    },
-    ssl: {},
-    remoteAccess: false
-};
-
-if (fs.existsSync(configPath)) {
+// Cleanup on exit (including Ctrl-C)
+function cleanup() {
     try {
-        const existing = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-        // Persist SSL config if it exists
-        if (existing.ssl) {
-            config.ssl = existing.ssl;
-        }
-        // Migration logic for mock data
-        if (existing.remote_access !== undefined && existing.remoteAccess === undefined) {
-          config.remoteAccess = existing.remote_access;
+        if (fs.existsSync(dataPath)) {
+            fs.rmSync(dataPath, { recursive: true, force: true });
+            console.log(`Cleaned up ${dataPath}`);
         }
     } catch (err) {
-        console.error('Error reading existing lightlynx.json in mock:', err);
+        console.error(`Failed to cleanup ${dataPath}:`, err);
     }
 }
-
-fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
+process.on('exit', cleanup);
+process.on('SIGINT', () => { cleanup(); process.exit(0); });
+process.on('SIGTERM', () => { cleanup(); process.exit(0); });
 
 // --- Types ---
 

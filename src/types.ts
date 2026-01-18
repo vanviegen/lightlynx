@@ -78,6 +78,7 @@ export interface User {
     allowedDevices: string[];
     allowedGroups: number[];
     allowRemote: boolean;
+    hasPassword?: boolean; // Whether user has a password set
     secret?: string; // Only used for UI editing, not stored in state dump
     password?: string;
 }
@@ -115,6 +116,7 @@ export interface Store {
     remoteAccessEnabled?: boolean;  // From lightlynx-api config
     localAddress?: string;        // From lightlynx-api config
     externalAddress?: string;      // From lightlynx-api config
+    activeScenes: Record<string, number | undefined>; // Group name -> active scene ID
 }
 
 // Helper functions for color type checking

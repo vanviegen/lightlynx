@@ -120,6 +120,16 @@ header .off, .critical, header .critical {
   color: #f4810e;
 }
 
+.muted {
+  color: #888;
+  font-size: 0.85em;
+}
+
+.disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
 
 .spinning {
   animation: header-spin 2s linear infinite;
@@ -235,6 +245,34 @@ small.item {
 .item.link > svg:last-child {
   margin-left: auto;
   width: 24px;
+}
+
+/* Active scene highlighting */
+.item.link.active-scene {
+  background: #f4810e30;
+}
+
+.grid .options .active-scene {
+  background: #f4810e50;
+  border-radius: 4px;
+  padding: 2px;
+  margin: -2px;
+}
+
+.badge {
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  background-color: #333;
+  color: #aaa;
+  margin-left: auto;
+  align-self: center;
+}
+
+.badge.warning {
+  background-color: #f4810e30;
+  color: #f4810e;
 }
 
 
@@ -441,6 +479,18 @@ label.checkbox {
   animation: toast-in 0.3s ease-out;
 }
 
+.toast.error {
+  border-left-color: #f44;
+}
+
+.toast.warning {
+  border-left-color: #f4810e;
+}
+
+.toast.info {
+  border-left-color: #2196f3;
+}
+
 @keyframes toast-in {
   from { transform: translateY(100%); opacity: 0; }
   to { transform: translateY(0); opacity: 1; }
@@ -523,6 +573,7 @@ main.fadeOut {
   z-index: 1;
   opacity: 0;
   visibility: hidden;
+  pointer-events: none;
 }
 main.fadeOut * {
   transition: visibility 0.2s ease-out;

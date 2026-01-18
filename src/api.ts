@@ -5,14 +5,14 @@ import { LightState, XYColor, HSColor, ColorValue, isHS, isXY, Store, LightCaps,
 const CREDENTIALS_LOCAL_STORAGE_ITEM_NAME = "lightlynx-servers";
 const UNAUTHORIZED_ERROR_CODE = 4401;
 
-export const EXTENSION_VERSIONS: Record<string, string> = {
-    'lightlynx-api': '1',
-    'lightlynx-automation': '1',
+const EXTENSION_VERSIONS: Record<string, number> = {
+    "api": 2,
+    "automation": 1,
 };
 
 interface PromiseCallbacks {
     resolve: () => void;
-    reject: () => void;
+    reject: (err: Error) => void;
 }
 
 interface LightStateDelta {
@@ -143,8 +143,15 @@ class Api {
         connectionState: 'idle',
         extensions: [],
         users: {},
+        activeScenes: {},
     });
-    errorHandlers: Array<(msg: string) => void> = [];
+    notifyHandlers: Array<(type: 'error' | 'info' | 'warning', msg: string) => void> = [];
+    
+    notify = (type: 'error' | 'info' | 'warning', msg: string): void => {
+        for (const handler of this.notifyHandlers) {
+            handler(type, msg);
+        }
+    };
     
     constructor() {
         this.transactionRndPrefix = (Math.random() + 1).toString(36).substring(2,7);
@@ -194,10 +201,10 @@ class Api {
         this.extensionCheckPerformed = false;
     }
     
-    public extractVersionFromExtension(extensionContent: string): string | null {
+    public extractVersionFromExtension(extensionContent: string): number | undefined {
         const firstLine = extensionContent.split('\n')[0];
-        const versionMatch = firstLine?.match(/v(\d+(?:\.\d+)?)/);
-        return versionMatch?.[1] || null;
+        const versionMatch = firstLine?.match(/ v([0-9]+)/i);
+        return versionMatch ? parseInt(versionMatch[1]!) : undefined;
     }
 
     public async checkAndUpdateExtensions(): Promise<void> {
@@ -205,10 +212,11 @@ class Api {
         this.extensionCheckPerformed = true;
 
         for (const [name, expectedVersion] of Object.entries(EXTENSION_VERSIONS)) {
-            const ext = this.store.extensions.find(e => e.name === name + '.js');
-            const installedVersion = ext ? this.extractVersionFromExtension(ext.code) : null;
+            const ext = this.store.extensions.find(e => e.name === `lightlynx-${name}.js`);
+            if (!ext) continue;
+            const installedVersion = this.extractVersionFromExtension(ext.code);
             
-            if (ext && installedVersion !== expectedVersion) {
+            if (installedVersion !== expectedVersion) {
                 console.log(`Extension ${name} version mismatch: installed=${installedVersion}, expected=${expectedVersion}`);
                 await this.installExtension(name);
             }
@@ -216,24 +224,23 @@ class Api {
     }
 
     public async installExtension(name: string): Promise<void> {
-        const version = EXTENSION_VERSIONS[name];
-        if (!version) return;
+        const version = EXTENSION_VERSIONS[name] || 0;
+        const fileName = `lightlynx-${name}.js`;
 
         try {
-            const response = await fetch(`/extensions/${name}.js`);
+            const response = await fetch(`/extensions/${fileName}`);
             if (!response.ok) throw new Error(`HTTP ${response.status}`);
             let code = await response.text();
             
-            // Ensure first line is the version comment
-            const firstLine = `// ${name} v${version}`;
-            if (!code.startsWith(firstLine)) {
-                code = firstLine + '\n' + code;
-            }
+            const header = `// ${name} v${version}\n`;
 
-            await this.send("bridge", "request", "extension", "save", { name: `${name}.js`, code });
+            await this.send("bridge", "request", "extension", "save", { name: fileName, code: header+code });
             console.log(`Extension ${name} installed successfully`);
+            this.notify('info', `Extension ${name} installed successfully`);
         } catch (error) {
-            console.error(`Failed to install extension ${name}:`, error);
+            const message = error instanceof Error ? error.message : String(error);
+            console.error(`Failed to install extension ${name}:`, message);
+            this.notify('error', `Failed to install extension ${name}: ${message}`);
         }
     }
     
@@ -266,9 +273,9 @@ class Api {
             try {
                 const url = new URL(`wss://${hostname}:${port}/api`);
                 url.searchParams.append("lightlynx", "1");
-                if (server.username && server.secret) {
+                if (server.username) {
                     url.searchParams.append("user", server.username);
-                    url.searchParams.append("secret", server.secret);
+                    url.searchParams.append("secret", server.secret || '');
                 }
                 const socket = new WebSocket(url.toString(), ["lightlynx"]);
                 this.tryingSockets.push(socket);
@@ -377,37 +384,34 @@ class Api {
     }
     
     private resolvePromises(payload: any): void {
-        const { transaction, status } = payload || {};
+        const { transaction, status, error } = payload || {};
         if (transaction !== undefined && this.requests.has(transaction)) {
             const { resolve, reject } = this.requests.get(transaction)!;
-            (status === "ok" || status === undefined) ? resolve() : reject();
+            (status === "ok" || status === undefined) ? resolve() : reject(new Error(error || 'Unknown error'));
             this.requests.delete(transaction);
         }
     }
     
-    send = (...topicAndPayload: any[]): Promise<void> => {
+    send = async (...topicAndPayload: any[]): Promise<void> => {
         let payload: any = topicAndPayload.pop();
         let topic = topicAndPayload.join("/");
         console.log("api/send", topic, JSON.stringify(payload).substr(0, 100));
 
-        let promise: Promise<void>;
-        if (topic.startsWith('bridge/request/')) {
-            const transaction = `${this.transactionRndPrefix}-${this.transactionNumber++}`;
-            promise = new Promise<void>((resolve, reject) => {
-                this.requests.set(transaction, { resolve, reject });
-            });
-            payload = { ...payload, transaction };
-        } else {
-            promise = Promise.resolve();
-        }
-        
         if (!this.socket || this.socket.readyState !== WebSocket.OPEN) {
             console.warn("api/send - WebSocket not connected, message dropped");
-            return Promise.reject(new Error("WebSocket not connected"));
+            throw new Error("WebSocket not connected");
         }
-        
+
+        if (topic.startsWith('bridge/request/')) {
+            const transaction = `${this.transactionRndPrefix}-${this.transactionNumber++}`;
+            payload = { ...payload, transaction };
+        }
         this.socket.send(JSON.stringify({ topic, payload }, (_, v) => v === undefined ? null : v));
-        return promise;
+        if (payload.transaction) {
+            await new Promise<void>((resolve, reject) => {
+                this.requests.set(payload.transaction, { resolve, reject });
+            });
+        }
     }
 
     setLightState(target: string | number, lightState: LightState) {
@@ -511,7 +515,7 @@ class Api {
                     } else {
                         // For booleans (supportsBrightness, etc), use OR (any member supports it)
                         if (groupCaps[name] === undefined) groupCaps[name] = obj;
-                        else if (typeof obj === 'boolean') groupCaps[name] = groupCaps[name] || obj;
+                        else if (typeof obj === 'boolean') groupCaps[name] = groupCaps[name] || obj as any;
                     }
                 }
                 
@@ -629,9 +633,7 @@ class Api {
             topic = topic.substr(7);
             if (topic.startsWith("response/")) {
                 if (payload.status === 'error') {
-                    for (let handler of this.errorHandlers) {
-                        handler(payload.error);
-                    }
+                    this.notify('error', payload.error);
                 }
                 this.resolvePromises(payload);
             }
@@ -654,6 +656,16 @@ class Api {
                 const server = this.store.servers[0];
                 if (server && server.localAddress === this.connectedLocalAddress) {
                     server.externalAddress = this.store.externalAddress;
+                }
+            }
+            else if (topic === "lightlynx/sceneSet") {
+                // Merge incoming scene updates into activeScenes
+                for (const [groupName, sceneId] of Object.entries(payload)) {
+                    if (sceneId === undefined) {
+                        delete this.store.activeScenes[groupName];
+                    } else {
+                        this.store.activeScenes[groupName] = sceneId as number;
+                    }
                 }
             }
             else if (topic === "devices") {

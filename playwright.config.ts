@@ -31,7 +31,7 @@ export default defineConfig({
   webServer: [
     {
       command: 'exec npm run mock-z2m',
-      port: 43597,
+      port: 43598,
       reuseExistingServer: false,
     },
     {

@@ -39,17 +39,21 @@ const menuOpen = proxy(false);
 
 interface Toast {
 	id: number;
+	type: 'error' | 'info' | 'warning';
 	message: string;
 }
 const toasts = proxy([] as Toast[]);
-export function notify(message: string) {
+export function notify(type: 'error' | 'info' | 'warning', message: string) {
 	const id = Math.random();
-	toasts.push({ id, message });
+	toasts.push({ id, type, message });
 	setTimeout(() => {
 		const index = toasts.findIndex(t => t.id === id);
 		if (index !== -1) toasts.splice(index, 1);
-	}, 3000);
+	}, 10000);
 }
+
+// Register notify handler to show API messages as toasts
+api.notifyHandlers.push(notify);
 
 const confirmState = proxy({
 	message: '',
@@ -343,7 +347,8 @@ function drawGroup(groupId: number): void {
 			function recall(): void {
 				api.send(group.name, "set", {scene_recall: scene.id});
 			}
-			$('div.item.link click=', recall, () => {
+			const isActive = () => api.store.activeScenes[group.name] === scene.id;
+			$('div.item.link click=', recall, {'.active-scene': isActive}, () => {
 				let icon = icons.scenes[scene.shortName.toLowerCase()] || icons.empty;
 				icon();
 				$('h2#', admin.value ? scene.name : scene.shortName);
@@ -517,9 +522,10 @@ function drawMain(): void {
 						function onClick(): void {
 							api.send(group.name, "set", {scene_recall: scene.id});
 						}
+						const isActive = () => api.store.activeScenes[group.name] === scene.id;
 						const icon = icons.scenes[scene.shortName.toLowerCase()];
-						if (icon) icon('.link click=', onClick);
-						else $('div.scene.link#', scene.shortName, 'click=', onClick);
+						if (icon) icon('.link click=', onClick, {'.active-scene': isActive});
+						else $('div.scene.link#', scene.shortName, {'.active-scene': isActive}, 'click=', onClick);
 					},  scene => `${scene.suffix || 'x'}#${scene.name}`);
 					
 					if (!group.scenes || group.scenes.length === 0) {
@@ -562,10 +568,10 @@ function drawRemoteAccessToggle(): void {
 					try {
 						await api.setRemoteAccess(checked);
 						if (checked) {
-							notify("Remote access enabled. Ensure your router supports UPnP or you have manually forwarded port 43597.");
+							notify('info', "Remote access enabled. Ensure your router supports UPnP or you have manually forwarded port 43597.");
 						}
 					} catch (e: any) {
-						notify("Failed to toggle remote access: " + e.message);
+						notify('error', "Failed to toggle remote access: " + e.message);
 					} finally {
 						remoteBusy.value = false;
 					}
@@ -614,8 +620,8 @@ function drawLandingPage(): void {
 
 function drawConnectionPage(): void {
 	const editMode = !!route.current.search.edit;
-	routeState.title = editMode ? 'Edit connection' : 'Create connection';
-	routeState.subTitle = 'Zigbee2MQTT';
+	routeState.title = editMode ? 'Edit connection' : 'New connection';
+	routeState.subTitle = 'Z2M';
 	
 	const serverToEdit = editMode ? unproxy(api.store.servers)[0] : undefined;
 	const formData = proxy({
@@ -635,7 +641,7 @@ function drawConnectionPage(): void {
 	// Watch for connection error and show toast
 	$(() => {
 		if (api.store.lastConnectError) {
-			notify(api.store.lastConnectError);
+			notify('error', api.store.lastConnectError);
 			api.store.lastConnectError = '';
 		}
 	});
@@ -707,7 +713,7 @@ function drawConnectionPage(): void {
 					route.back('/');
 				});
 				$('button.primary type=submit', {'.busy': busy}, () => {
-					$(busy ? '#Connecting...' : '#Connect');
+					$(busy ? '#Connecting...' : editMode ? '#Save' : '#Create');
 				});
 			});
 		});
@@ -797,7 +803,7 @@ $('div.root', () => {
 
 	$(() => {
 		if (!menuOpen.value) return;
-		$('div.menu-overlay click=', () => menuOpen.value = false, {create: 'fadeIn', destroy: 'fadeOut'});
+		$('div.menu-overlay click=', () => menuOpen.value = false);
 		$('div.menu', {create: grow, destroy: shrink}, () => {
 			// Admin Toggle
 			$('div.menu-item click=', () => {
@@ -900,7 +906,7 @@ $('div.root', () => {
 	// Toast container
 	$('div.toasts', () => {
 		onEach(toasts, (toast: Toast) => {
-			$('div.toast#', toast.message);
+			$(`div.toast.${toast.type}#`, toast.message);
 		});
 	});
 });
@@ -1373,7 +1379,8 @@ function drawUsersSection(): void {
 			$('div.item.link', {click: () => route.go(['user', username])}, () => {
 				(user.isAdmin ? icons.shield : icons.user)();
 				$('h2#', username);
-				if (user.allowRemote) $('span.badge#Remote');
+				if (!user.hasPassword) $('span.badge.warning#No password');
+				else if (user.allowRemote) $('span.badge#Remote');
 			});
 		});
 	});
@@ -1446,7 +1453,7 @@ function drawUserEditor(): void {
 		isAdmin: false,
 		allowedDevices: [],
 		allowedGroups: [],
-		allowRemote: true,
+		allowRemote: false, // Can't enable without password
 		password: ''
 	}) : proxy(clone(unproxy(storeUser || {
 		isAdmin: true,
@@ -1481,12 +1488,20 @@ function drawUserEditor(): void {
 			$('input type=checkbox bind=', ref(user, 'isAdmin'));
 			$('h2#Admin access');
 		});
-
-		$('label.item', () => {
-			$('input type=checkbox bind=', ref(user, 'allowRemote'));
-			$('h2#Allow remote access');
-		});
 	}
+
+	$('label.item', () => {
+		// Can only enable remote access if user has password (either existing or being set)
+		const hasOrSettingPassword = () => user.password || storeUser?.hasPassword;
+		$('input type=checkbox bind=', ref(user, 'allowRemote'), {
+			'.disabled': () => !hasOrSettingPassword(),
+			title: () => hasOrSettingPassword() ? '' : 'Set a password first to enable remote access'
+		});
+		$('h2#Allow remote access');
+		$(() => {
+			if (!hasOrSettingPassword()) $('p.muted#Requires password');
+		});
+	});
 
 	$(() => {
 		if (user.isAdmin) return;
@@ -1556,7 +1571,7 @@ function drawUserEditor(): void {
 			}
 			route.up();
 		} catch (e: any) {
-			notify(e.message || "Failed to save user");
+			notify('error', e.message || "Failed to save user");
 		} finally {
 			busy.value = false;
 		}
