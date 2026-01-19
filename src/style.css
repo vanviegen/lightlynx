@@ -432,24 +432,24 @@ label.checkbox {
   text-shadow: 2px 2px 4px white;
 }
 
-.grid > .off {
-  color: #888;
-}
-
-.grid svg {
+.grid .options .link {
   filter: drop-shadow(0px 0px 2px black);
   color: inherit;
+  color: white;
   height: 28px;
   width: auto;
 }
 
-/* Active scene icons on main grid - add glow effect */
-.grid > *:not(.off) .link.active-scene {
-  color: #e6730d;
-  filter: drop-shadow(0px 0px 2px black);
+.grid .off .options .link {
+  color: #aaa;
 }
 
-.grid > .bright svg {
+/* Active scene icons on main grid - add glow effect */
+.grid > *:not(.off) .options .link.active-scene {
+  border-bottom: 2px solid;
+}
+
+.grid .options.bright .link {
   color: black;
   filter: drop-shadow(0px 0px 2px white);
 }
