@@ -469,39 +469,17 @@ function drawMain(): void {
 	routeState.subTitle = '';
 
 
-	$("div.grid", () => {
+	$("div.group-list", () => {
 		onEach(api.store.groups, (group, groupId) => {
-			$('div', () => {
-				$(() => {
-					let bgs: string[] = [];
-					let totalBrightness = 0;
-					for(let ieee of group.members) {
-						let device = api.store.devices[ieee];
-						if (device) {
-							let rgb = getBulbRgb(device);
-							totalBrightness += [1,3,5].map(idx => parseInt(rgb.substr(idx,2), 16)).reduce((a,b)=>a+b, 0);
-							bgs.push(rgb);
-						}
-					}
-					bgs.sort();
-					if (bgs.length == 1) {
-						$({$backgroundColor: bgs[0]});
-					} else {
-						$({$backgroundImage: `linear-gradient(45deg, ${bgs.join(', ')})`});
-					}
-					
-					let brightness = totalBrightness / bgs.length / 3;
-					$({
-						".bright": brightness > 127,
-						".off": brightness < 1,
-					});
-				});
-					
-				$("div display:flex gap:8px align-items:center mb:4", () => {
-					drawBulbCircle(group, parseInt(groupId));
-					$('h2.link#', group.name, 'click=', () => route.go(['group', groupId]));
-				});
-				$("div.options", () => {
+			$('div.group-row', () => {
+				// Toggle button
+				drawBulbCircle(group, parseInt(groupId));
+				
+				// Name and chevron (includes spacer, min 20px padding)
+				$('div.group-name.link flex:1 click=', () => route.go(['group', groupId]), 'h2#', group.name);
+				
+				// Scene icons (horizontally scrollable)
+				$("div.group-scenes", () => {
 					onEach(group.scenes, (scene) => {
 						function onClick(): void {
 							api.send(group.name, "set", {scene_recall: scene.id});

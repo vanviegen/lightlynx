@@ -31,15 +31,45 @@ export function drawBulbCircle(target: Device | Group, targetId: string | number
     function onClick(): void {
         api.setLightState(targetId, { on: !target.lightState?.on });
     }
+    
+    const isGroup = !!(target as any).members;
+    
     $('div.circle click=', onClick, () => {
         // Reactive scope: only this inner function re-runs on state change
         const isOn = target.lightState?.on;
-        const rgb = getBulbRgb(target);
-        // Use a visible gray for the off state knob, light color for on state
-        const knobColor = isOn ? rgb : '#555';
+        
+        let knobColor = '#555';
+        let knobBackground = '';
+        
+        if (isGroup && isOn) {
+            // For groups, collect all colors for gradient
+            let bgs: string[] = [];
+            const group = target as Group;
+            for(let ieee of group.members) {
+                let device = api.store.devices[ieee];
+                if (device) {
+                    bgs.push(getBulbRgb(device));
+                }
+            }
+            bgs.sort();
+            if (bgs.length === 1) {
+                knobColor = bgs[0];
+            } else if (bgs.length > 1) {
+                knobBackground = `linear-gradient(135deg, ${bgs.join(', ')})`;
+                knobColor = bgs[0]; // Fallback for browsers that don't support gradients
+            }
+        } else if (isOn) {
+            // Single device
+            knobColor = getBulbRgb(target);
+        }
+        
+        const knobGlow = isOn ? `0 0 10px ${knobColor}` : 'none';
+        // Use gradient if available, otherwise use solid color
+        const finalBackground = knobBackground || knobColor;
+        
         $({
             '.on': isOn,
-            style: `--knob-color: ${knobColor}; --knob-glow: ${isOn ? `0 0 10px ${rgb}` : 'none'}`,
+            style: `--knob-color: ${knobColor}; --knob-background: ${finalBackground}; --knob-glow: ${knobGlow}`,
         });
     });
 }

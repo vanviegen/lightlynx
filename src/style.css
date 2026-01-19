@@ -292,7 +292,22 @@ small.item {
   overflow: visible;
   transition: background-color 0.3s ease, border-color 0.3s ease;
   --knob-color: #555;
+  --knob-background: none;
   --knob-glow: none;
+}
+
+/* Two-circle design: off-state circle (always dark) and on-state circle (with gradient) */
+.circle::before {
+  content: '';
+  position: absolute;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background-color: #555;
+  top: 2px;
+  left: 2px;
+  transition: transform 0.3s ease, opacity 0.3s ease;
+  opacity: 1;
 }
 
 .circle::after {
@@ -301,19 +316,26 @@ small.item {
   width: 22px;
   height: 22px;
   border-radius: 50%;
-  background-color: var(--knob-color, #555);
+  background: var(--knob-background, var(--knob-color, #555));
   top: 2px;
   left: 2px;
-  transition: transform 0.3s ease, background-color 0.3s ease, box-shadow 0.3s ease;
+  transition: transform 0.3s ease, opacity 0.3s ease, box-shadow 0.3s ease;
   box-shadow: var(--knob-glow, none);
+  opacity: 0;
 }
 
 .circle.on {
   border-color: #555;
 }
 
+.circle.on::before {
+  transform: translateX(24px);
+  opacity: 0;
+}
+
 .circle.on::after {
   transform: translateX(24px);
+  opacity: 1;
 }
 
 .squircle {
@@ -408,50 +430,92 @@ label.checkbox {
   display: flex;
 }
 
-.grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+.group-list {
+  display: flex;
+  flex-direction: column;
   gap: 8px;
   margin: 8px;
 }
 
-.grid > * {
-  border-radius: 4px;
-  text-shadow: 2px 2px 4px #000;
-  padding: 5px 8px;
+.group-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background-color: #1a1612;
+  border-radius: 8px;
+  padding: 8px 12px;
+  transition: background-color 0.2s ease;
+}
+
+.group-row:hover {
+  background-color: #221c16;
+}
+
+.group-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow: hidden;
+  flex-shrink: 1;
+  cursor: pointer;
+  user-select: none;
+  padding-right: 20px;
+  margin: -4px -8px;
+  padding-top: 12px;
+  padding-bottom: 12px;
+  padding-left: 8px;
+  border-radius: 6px;
+  transition: background-color 0.15s ease;
+}
+
+.group-name:hover {
+  background-color: rgba(255, 255, 255, 0.03);
+}
+
+.group-name h2 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
-  line-height: 1.5em;
+  flex: 1;
 }
 
-.grid > * > .options {
-  margin-top: 4px;
+.group-name .icon {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  opacity: 0.5;
 }
 
-.grid > .bright {
-  color: black;
-  text-shadow: 2px 2px 4px white;
+.group-scenes {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none;  /* IE and Edge */
+  flex-shrink: 0;
 }
 
-.grid .options .link {
-  filter: drop-shadow(0px 0px 2px black);
-  color: inherit;
-  color: white;
-  height: 28px;
-  width: auto;
+.group-scenes::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, Opera */
 }
 
-.grid .off .options .link {
+.group-scenes .link {
+  flex-shrink: 0;
   color: #aaa;
+  transition: color 0.2s ease;
 }
 
-/* Active scene icons on main grid - add glow effect */
-.grid > *:not(.off) .options .link.active-scene {
-  border-bottom: 2px solid;
+.group-scenes .link:hover {
+  color: #fff;
 }
 
-.grid .options.bright .link {
-  color: black;
-  filter: drop-shadow(0px 0px 2px white);
+.group-scenes .link.active-scene {
+  color: #f4810e;
 }
 
 
