@@ -469,14 +469,17 @@ function drawMain(): void {
 	routeState.subTitle = '';
 
 
-	$("div.group-list", () => {
+	$("div.list", () => {
 		onEach(api.store.groups, (group, groupId) => {
-			$('div.group-row', () => {
+			$('div.item.group-row', () => {
 				// Toggle button
 				drawBulbCircle(group, parseInt(groupId));
 				
 				// Name and chevron (includes spacer, min 20px padding)
-				$('div.group-name.link flex:1 click=', () => route.go(['group', groupId]), 'h2#', group.name);
+				$('h2.link flex:1 click=', () => route.go(['group', groupId]), () => {
+					$('#', group.name);
+					icons.chevronRight();
+				});
 				
 				// Scene icons (horizontally scrollable)
 				$("div.group-scenes", () => {
