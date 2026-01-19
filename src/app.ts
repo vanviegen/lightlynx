@@ -56,32 +56,25 @@ export function notify(type: 'error' | 'info' | 'warning', message: string) {
 // Register notify handler to show API messages as toasts
 api.notifyHandlers.push(notify);
 
-const confirmState = proxy({
-	message: '',
-	resolve: null as ((v: boolean) => void) | null
-});
 
-async function askConfirm(message: string): Promise<boolean> {
-	return new Promise(resolve => {
-		confirmState.message = message;
-		confirmState.resolve = resolve;
-		route.go(['confirm']);
+const dialogResolvers: Record<number, (value: any) => void> = {};
+
+function askDialog(type: 'confirm' | 'prompt', message: string, options: {defaultValue?: string, title?: string} = {}): Promise<any> {
+	const resolveId = 0 | (Math.random() * 1000000);
+	const result = new Promise(resolve => {
+		dialogResolvers[resolveId] = resolve;
+		route.go({p: ['prompt'], state: {type, message, resolveId, value: options.defaultValue || '', title: options.title}});
 	});
+	delete dialogResolvers[resolveId];
+	return result as any;
 }
 
-const promptState = proxy({
-	message: '',
-	value: '',
-	resolve: null as ((v: string | null) => void) | null
-});
+async function askConfirm(message: string, title?: string): Promise<boolean> {
+	return askDialog('confirm', message, {title});
+}
 
-async function askPrompt(message: string, defaultValue = ''): Promise<string | null> {
-	return new Promise(resolve => {
-		promptState.message = message;
-		promptState.value = defaultValue;
-		promptState.resolve = resolve;
-		route.go(['prompt']);
-	});
+async function askPrompt(message: string, defaultValue = '', title?: string): Promise<string | undefined> {
+	return askDialog('prompt', message, {defaultValue, title});
 }
 
 $(() => {
@@ -203,69 +196,52 @@ function drawDump(): void {
 	dump(api.store);
 }
 
-function drawConfirmPage(): void {
-	routeState.title = 'Confirmation';
-	if (!confirmState.resolve) {
-		route.back('/');
-		return;
-	}
-
-	$('div padding:8px display:flex flex-direction:column gap:2em', () => {
-		$('p font-size:1.2em text-align:center #', confirmState.message);
-		
-		$('div.row gap:1em', () => {
-			$('button.secondary flex:1 #No', 'click=', () => {
-				const resolve = confirmState.resolve;
-				confirmState.resolve = null;
-				if (resolve) resolve(false);
-				route.back();
-			});
-			$('button.primary flex:1 #Yes', 'click=', () => {
-				const resolve = confirmState.resolve;
-				confirmState.resolve = null;
-				if (resolve) resolve(true);
-				route.back();
-			});
-		});
-	});
-}
-
 function drawPromptPage(): void {
-	routeState.title = 'Input';
-	if (!promptState.resolve) {
-		route.back('/');
-		return;
-	}
+	const state = route.current.state;
+	const resolve = dialogResolvers[state.resolveId];
+	if (!resolve) return route.back('/');
+	
+	const isConfirm = state.type === 'confirm';
+	routeState.title = state.title || (isConfirm ? 'Confirm' : 'Question');
+	const value = proxy(state.value || '');
 
-	$('div padding:8px display:flex flex-direction:column gap:2em', () => {
-		$('p font-size:1.2em text-align:center #', promptState.message);
+	$('div padding:8px display:flex flex-direction:column mt:@3 gap:@3', () => {
+		$('p font-size:1.2em #', state.message);
 		
-		$('input type=text width:100%', {
-			value: promptState.value,
-			input: (e: any) => promptState.value = e.target.value,
-			keydown: (e: KeyboardEvent) => {
-				if (e.key === 'Enter') {
-					const resolve = promptState.resolve;
-					promptState.resolve = null;
-					if (resolve) resolve(promptState.value);
-					route.back();
-				}
+		$(() => {
+			if (!isConfirm) {
+				$('input type=text width:100%', {
+					bind: value,
+					keydown: (e: KeyboardEvent) => {
+						if (e.key === 'Enter') {
+							resolve(value.value);
+							route.back();
+						}
+					}
+				});
 			}
 		});
 
 		$('div.row gap:1em', () => {
-			$('button.secondary flex:1 #Cancel', 'click=', () => {
-				const resolve = promptState.resolve;
-				promptState.resolve = null;
-				if (resolve) resolve(null);
-				route.back();
-			});
-			$('button.primary flex:1 #OK', 'click=', () => {
-				const resolve = promptState.resolve;
-				promptState.resolve = null;
-				if (resolve) resolve(promptState.value);
-				route.back();
-			});
+			if (isConfirm) {
+				$('button.secondary flex:1 #No', 'click=', () => {
+					resolve(false);
+					route.back();
+				});
+				$('button.primary flex:1 #Yes', 'click=', () => {
+					resolve(true);
+					route.back();
+				});
+			} else {
+				$('button.secondary flex:1 #Cancel', 'click=', () => {
+					resolve(undefined);
+					route.back();
+				});
+				$('button.primary flex:1 #OK', 'click=', () => {
+					resolve(value.value);
+					route.back();
+				});
+			}
 		});
 	});
 }
@@ -325,6 +301,7 @@ function drawGroup(groupId: number): void {
 	
 	async function createScene(): Promise<void> {
 		const name = await askPrompt("What should the new scene be called?")
+		console.log('ready', name);
 		if (!name) return
 		
 		let freeId = 0;
@@ -494,30 +471,32 @@ function drawMain(): void {
 
 	$("div.grid", () => {
 		onEach(api.store.groups, (group, groupId) => {
-			$("div", () => {
-				let bgs: string[] = [];
-				let totalBrightness = 0;
-				for(let ieee of group.members) {
-					let device = api.store.devices[ieee];
-					if (device) {
-						let rgb = getBulbRgb(device);
-						totalBrightness += [1,3,5].map(idx => parseInt(rgb.substr(idx,2), 16)).reduce((a,b)=>a+b, 0);
-						bgs.push(rgb);
+			$('div', () => {
+				$(() => {
+					let bgs: string[] = [];
+					let totalBrightness = 0;
+					for(let ieee of group.members) {
+						let device = api.store.devices[ieee];
+						if (device) {
+							let rgb = getBulbRgb(device);
+							totalBrightness += [1,3,5].map(idx => parseInt(rgb.substr(idx,2), 16)).reduce((a,b)=>a+b, 0);
+							bgs.push(rgb);
+						}
 					}
-				}
-				bgs.sort();
-				if (bgs.length == 1) {
-					$({$backgroundColor: bgs[0]});
-				} else {
-					$({$backgroundImage: `linear-gradient(45deg, ${bgs.join(', ')})`});
-				}
-				
-				let brightness = totalBrightness / bgs.length / 3;
-				$({
-					".bright": brightness > 127,
-					".off": brightness < 1,
+					bgs.sort();
+					if (bgs.length == 1) {
+						$({$backgroundColor: bgs[0]});
+					} else {
+						$({$backgroundImage: `linear-gradient(45deg, ${bgs.join(', ')})`});
+					}
+					
+					let brightness = totalBrightness / bgs.length / 3;
+					$({
+						".bright": brightness > 127,
+						".off": brightness < 1,
+					});
 				});
-				
+					
 				$("div display:flex gap:8px align-items:center mb:4", () => {
 					drawBulbCircle(group, parseInt(groupId));
 					$('h2.link#', group.name, 'click=', () => route.go(['group', groupId]));
@@ -886,8 +865,6 @@ $('div.root', () => {
 				drawUserEditor();
 			} else if (p[0] === 'dump') {
 				drawDump();
-			} else if (p[0] === 'confirm') {
-				drawConfirmPage();
 			} else if (p[0] === 'prompt') {
 				drawPromptPage();
 			} else if (p[0] === 'remote-info') {
@@ -1029,7 +1006,9 @@ export function drawSceneEditor(group: Group, groupId: number): void {
 	}
 	const sceneId = parseInt(route.current.p[3]);
 	const scene = group.scenes.find(s => s.id === sceneId)!;
-	if (!scene) return drawEmpty('Scene not found');
+	if (!scene) {
+		return route.up();
+	}
 
 	$(() => {
 		routeState.title = group.name + ' · ' + scene.shortName;
@@ -1125,7 +1104,7 @@ export function drawSceneEditor(group: Group, groupId: number): void {
 				});
 				$(() => {
 					if (trigger.startTime && trigger.endTime) {
-						$('div.scene-times', {$create: grow}, () => {
+						$('div.scene-times', {create: grow, destroy: shrink}, () => {
 							$('label#From ')
 							drawTimeEditor(trigger.startTime!);
 							$('label#Until ')
