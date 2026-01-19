@@ -13,8 +13,8 @@ interface TrackingState {
 
 let tracking: TrackingState | undefined;
 
-export function getBulbRgb(device: Device): string {
-    let state = device.lightState || {} as LightState;
+export function getBulbRgb(target: Device | Group): string {
+    let state = target.lightState || {} as LightState;
     if (!state.on) {
         return "#000000";
     } else {
@@ -23,18 +23,18 @@ export function getBulbRgb(device: Device): string {
     }
 }
 
-export function drawBulbCircle(device: Device, ieee: string): void {
-    if (!device.lightCaps) {
-        icons.sensor();
+export function drawBulbCircle(target: Device | Group, targetId: string | number): void {
+    if (!target.lightCaps || (target as any).members && Object.keys(target.lightCaps).length === 0) {
+        if (!(target as any).members) icons.sensor();
         return;
     }
     function onClick(): void {
-        api.setLightState(ieee, { on: !device.lightState?.on });
+        api.setLightState(targetId, { on: !target.lightState?.on });
     }
     $('div.circle click=', onClick, () => {
         // Reactive scope: only this inner function re-runs on state change
-        const isOn = device.lightState?.on;
-        const rgb = getBulbRgb(device);
+        const isOn = target.lightState?.on;
+        const rgb = getBulbRgb(target);
         // Use a visible gray for the off state knob, light color for on state
         const knobColor = isOn ? rgb : '#555';
         $({

@@ -518,9 +518,11 @@ function drawMain(): void {
 					".off": brightness < 1,
 				});
 				
-				$('h2.link#', group.name, 'click=', () => route.go(['group', groupId]));
+				$("div display:flex gap:8px align-items:center mb:4", () => {
+					drawBulbCircle(group, parseInt(groupId));
+					$('h2.link#', group.name, 'click=', () => route.go(['group', groupId]));
+				});
 				$("div.options", () => {
-					icons.off('click=', () => api.setLightState(parseInt(groupId), {on: false}));
 					onEach(group.scenes, (scene) => {
 						function onClick(): void {
 							api.send(group.name, "set", {scene_recall: scene.id});
@@ -795,40 +797,31 @@ $('div.root', () => {
 			});
 			$(() => {
 				if (isEmpty(api.store.servers)) return;
-				icons.more('click=', () => menuOpen.value = !menuOpen.value);
+				icons.lan('click=', () => menuOpen.value = !menuOpen.value);
 			});
 			$(() => {
-				if (admin.value) {
-					icons.admin('.on click=', () => admin.value = false);
-				}
+				const server = api.store.servers[0];
+				if (!server) return;
+				const user = api.store.users[server.username];
+				if (!user?.isAdmin) return;
+				
+				let holdTimeout: any;
+				icons.admin({
+					'.on': admin.value,
+					'mousedown': () => { holdTimeout = setTimeout(() => route.go(['dump']), 1000); },
+					'mouseup': () => clearTimeout(holdTimeout),
+					'mouseleave': () => clearTimeout(holdTimeout),
+					'touchstart': () => { holdTimeout = setTimeout(() => route.go(['dump']), 1000); },
+					'touchend': () => clearTimeout(holdTimeout),
+					'click': () => admin.value = !admin.value,
+				});
 			});
 		});
 
 	$(() => {
 		if (!menuOpen.value) return;
 		$('div.menu-overlay click=', () => menuOpen.value = false);
-		$('div.menu', {create: grow, destroy: shrink}, () => {
-			// Admin Toggle
-			$('div.menu-item click=', () => {
-				admin.value = !admin.value;
-				menuOpen.value = false;
-			}, () => {
-				icons.admin();
-				$(`# ${admin.value ? 'Leave' : 'Enter'} admin mode`);
-			});
-
-			if (admin.value) {
-				$('div.menu-item click=', () => {
-					menuOpen.value = false;
-					route.go(['dump']);
-				}, () => {
-					icons.bug();
-					$(`# Debug info`);
-				});
-			}
-
-			$('div.menu-divider');
-
+		$('div.menu', {create: '.menu-fade', destroy: '.menu-fade'}, () => {
 			// Logout
 			$('div.menu-item click=', async () => {
 				route.go({p: ['connect'], search: {edit: 'y'}})
@@ -1467,13 +1460,13 @@ function drawUserEditor(): void {
 	$('h1#Settings');
 	if (isNew) {
 		$('div.item', () => {
-			$('h2#Username');
+			$('h2.form-label#Username');
 			$('input', {bind: newUsername, placeholder: 'Username'});
 		});
 	}
 
 	$('div.item', () => {
-		$('h2#Password');
+		$('h2.form-label#Password');
 		$('input type=password', {bind: ref(user, 'password'), placeholder: isNew ? 'Required' : 'Leave empty to keep current'});
 	});
 

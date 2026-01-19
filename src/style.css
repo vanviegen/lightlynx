@@ -108,10 +108,6 @@ header .icon {
   color: #888;
 }
 
-header .icon.on {
-  color: #0d8;
-}
-
 header .off, .critical, header .critical {
   color: #f44;
 }
@@ -203,6 +199,19 @@ small.item {
   flex: 1 0 auto;
   font-weight: normal;
 }
+
+.item > h2.form-label {
+  flex: 0 0 120px;
+}
+
+.item > input[type="checkbox"]:first-child {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  margin: 0;
+  align-self: center;
+}
+
 .item>h2.link {
   padding: 0 4px;
 }
@@ -234,7 +243,7 @@ small.item {
   border-radius: 4px;
 }
 
-.link:hover {
+.link:hover, .icon:hover {
   background: repeating-linear-gradient(45deg, #ffb06000 0px, #ffb06000 4px, #ffb06030 5px, #ffb06030 9px);
 }
  
@@ -251,11 +260,7 @@ small.item {
 .item.link.active-scene {
   background: #f4810e30;
   border-left: 4px solid #f4810e;
-}
-
-/* Active scene icons on main grid - add glow effect */
-.grid .options .active-scene {
-  filter: drop-shadow(0 0 8px #f4810e) drop-shadow(2px 2px 4px black);
+  padding-left: 4px;
 }
 
 .badge {
@@ -352,16 +357,15 @@ main>p {
   color: #f4810e;
 }
 
-.icon:hover {
+.icon.on {
   color: #e6730d;
 }
 
-.icon.on {
-  color: #fb3403;
-}
-
 .item > .icon:first-child {
+  flex: none;
   width: 32px;
+  height: 32px;
+  align-self: center;
 }
 
 h1 {
@@ -433,15 +437,21 @@ label.checkbox {
 }
 
 .grid svg {
-  filter: drop-shadow(2px 2px 4px black);
+  filter: drop-shadow(0px 0px 2px black);
   color: inherit;
   height: 28px;
   width: auto;
 }
 
+/* Active scene icons on main grid - add glow effect */
+.grid > *:not(.off) .link.active-scene {
+  color: #e6730d;
+  filter: drop-shadow(0px 0px 2px black);
+}
+
 .grid > .bright svg {
   color: black;
-  filter: drop-shadow(2px 2px 4px white);
+  filter: drop-shadow(0px 0px 2px white);
 }
 
 
@@ -504,7 +514,13 @@ label.checkbox {
   z-index: 100;
 }
 
+.menu-fade {
+  opacity: 0;
+  transform: translateY(-10px);
+}
+
 .menu {
+  transition: opacity 0.2s ease-out, transform 0.2s ease-out;
   position: absolute;
   top: 48px;
   right: 8px;

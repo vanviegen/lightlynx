@@ -468,8 +468,16 @@ class Api {
         console.log('api/setLightState', target, lightState);
 
         if (typeof target === 'number') {
-            for (let ieee of this.store.groups[target]?.members || []) {
-                this.setLightState(ieee, lightState);
+            const group = this.store.groups[target];
+            if (!group) return;
+            if (lightState.on != null && Object.keys(lightState).length === 1) {
+                // Just an on/off toggle, emit it to the group
+                this.send(group.name, "set", createLightStateDelta({}, lightState));
+            } else {
+                // Other params changing. We'll customize this per member, creating a state prediction
+                for (let ieee of this.store.groups[target]?.members || []) {
+                    this.setLightState(ieee, lightState);
+                }
             }
             return;
         }

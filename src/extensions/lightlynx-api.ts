@@ -699,6 +699,7 @@ class LightLynxAPI {
         } catch (err: any) {
             response = { status: 'error', error: err.message };
         }
+        if (message.transaction) response.transaction = message.transaction;
         await this.mqtt.publish(`bridge/response/lightlynx/${path}`, JSON.stringify(response));
     }
 

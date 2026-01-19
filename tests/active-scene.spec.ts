@@ -14,7 +14,7 @@ test.describe('Active Scene', () => {
     await page.getByRole('button', { name: 'OK' }).click();
     
     // Wait for scene to appear
-    const sceneItem = page.locator('.list').locator('.item.link', { hasText: 'Test Scene' });
+    const sceneItem = page.locator('main:not(.fadeOut) .list').locator('.item.link', { hasText: 'Test Scene' }).first();
     await expect(sceneItem).toBeVisible();
 
     // Initially, scene should NOT be active
@@ -47,8 +47,8 @@ test.describe('Active Scene', () => {
     await page.getByRole('textbox').fill('Evening');
     await page.getByRole('button', { name: 'OK' }).click();
     
-    const eveningScene = page.locator('.list').locator('.item.link', { hasText: 'Evening' });
-    const morningScene = page.locator('.list').locator('.item.link', { hasText: 'Morning' });
+    const eveningScene = page.locator('main:not(.fadeOut) .list').locator('.item.link', { hasText: 'Evening' }).first();
+    const morningScene = page.locator('main:not(.fadeOut) .list').locator('.item.link', { hasText: 'Morning' }).first();
     await expect(eveningScene).toBeVisible();
     await expect(morningScene).toBeVisible();
 
