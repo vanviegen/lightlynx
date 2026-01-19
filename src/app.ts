@@ -1,5 +1,5 @@
 /// <reference types="vite/client" />
-import {$, proxy, ref, onEach, isEmpty, copy, dump, unproxy, peek, partition, clone} from 'aberdeen';
+import {$, proxy, ref, onEach, isEmpty, copy, dump, unproxy, peek, partition, clone, derive} from 'aberdeen';
 import * as route from 'aberdeen/route';
 import { grow, shrink } from 'aberdeen/transitions';
 import api from './api';
@@ -108,7 +108,7 @@ function isExtensionInstalled(ext: 'api' | 'automation'): boolean {
 function promptInstallExtension(ext: 'api' | 'automation', reason: string): boolean {
 	const isInstalled = isExtensionInstalled(ext);
 	$(() => {
-		if (admin.value && !api.store.extensions.some(e => e.name === `lightlynx-${ext}.js`)) {
+		if (admin.value && !isExtensionInstalled(ext)) {
 			$('section.row gap:1rem align-items:start', () => {
 				$('p flex:1 #', `${reason} requires our `, () => {
 					$('strong#', ext);
@@ -348,7 +348,7 @@ function drawGroup(groupId: number): void {
 			function recall(): void {
 				api.send(group.name, "set", {scene_recall: scene.id});
 			}
-			const isActive = () => api.store.activeScenes[group.name] === scene.id;
+			const isActive = derive(() => api.store.activeScenes[group.name] == scene.id);
 			$('div.item.link click=', recall, {'.active-scene': isActive}, () => {
 				let icon = icons.scenes[scene.shortName.toLowerCase()] || icons.empty;
 				icon();
@@ -465,6 +465,8 @@ function drawManagementSection(): void {
 			icons.createGroup();
 			$('h2#Create group');
 		});
+
+		drawRemoteAccessToggle();
 	});
 }
 
@@ -523,7 +525,7 @@ function drawMain(): void {
 						function onClick(): void {
 							api.send(group.name, "set", {scene_recall: scene.id});
 						}
-						const isActive = () => api.store.activeScenes[group.name] === scene.id;
+						const isActive = derive(() => api.store.activeScenes[group.name] == scene.id);
 						const icon = icons.scenes[scene.shortName.toLowerCase()];
 						if (icon) icon('.link click=', onClick, {'.active-scene': isActive});
 						else $('div.scene.link#', scene.shortName, {'.active-scene': isActive}, 'click=', onClick);
@@ -546,7 +548,6 @@ function drawMain(): void {
 
 	$(() => {
 		if (admin.value) {
-			drawRemoteAccessToggle();
 			drawManagementSection();
 			drawUsersSection();
 			drawExtensionsSection();
@@ -556,30 +557,27 @@ function drawMain(): void {
 
 function drawRemoteAccessToggle(): void {
 	const remoteBusy = proxy(false);
-	$('h1#Remote Access');
-	$('div.item', () => {
-		$('label flex:1 row gap:1rem align-items:center', () => {
-			$({'.busy': remoteBusy.value});
-			$('input type=checkbox', {
-				checked: api.store.remoteAccessEnabled,
-				disabled: remoteBusy.value,
-				change: async (e: Event) => {
-					const checked = (e.target as HTMLInputElement).checked;
-					remoteBusy.value = true;
-					try {
-						await api.setRemoteAccess(checked);
-						if (checked) {
-							notify('info', "Remote access enabled. Ensure your router supports UPnP or you have manually forwarded port 43597.");
-						}
-					} catch (e: any) {
-						notify('error', "Failed to toggle remote access: " + e.message);
-					} finally {
-						remoteBusy.value = false;
+	$('label.item', () => {
+		$({'.busy': remoteBusy.value});
+		$('input type=checkbox', {
+			checked: api.store.remoteAccessEnabled,
+			disabled: remoteBusy.value,
+			change: async (e: Event) => {
+				const checked = (e.target as HTMLInputElement).checked;
+				remoteBusy.value = true;
+				try {
+					await api.setRemoteAccess(checked);
+					if (checked) {
+						notify('info', "Remote access enabled. Ensure your router supports UPnP or you have manually forwarded port 43597.");
 					}
+				} catch (e: any) {
+					notify('error', "Failed to toggle remote access: " + e.message);
+				} finally {
+					remoteBusy.value = false;
 				}
-			});
-			$('h2#Enable remote access');
+			}
 		});
+		$('h2#Remote access');
 		icons.info('margin-left:auto click=', (e: Event) => {
 			e.stopPropagation();
 			e.preventDefault();
@@ -1371,15 +1369,6 @@ function drawUsersSection(): void {
 	}
 
 	$('div.list', () => {
-		// Implicit admin user
-		if (!api.store.users['admin']) {
-			$('div.item.link', {click: () => route.go(['user', 'admin'])}, () => {
-				icons.shield();
-				$('h2#admin');
-				$('p#System Administrator');
-			});
-		}
-
 		onEach(api.store.users, (user, username) => {
 			$('div.item.link', {click: () => route.go(['user', username])}, () => {
 				(user.isAdmin ? icons.shield : icons.user)();
@@ -1416,19 +1405,19 @@ function drawExtensionsSection(): void {
 	$('div.list', () => {
 		const standard = ['api', 'automation'];
 		for (const name of standard) {
-			const fullName = `lightlynx-${name}.js`;
+			const fileName = `lightlynx-${name}.js`;
 			$(() => {
-				const ext = api.store.extensions.find(e => e.name === fullName);
+				const ext = api.store.extensions.find(e => e.name === fileName);
 				$('div.item', () => {
 					icons.extension();
 					$('h2 flex:1 #', name);
 					if (ext) {
-						const version = api.extractVersionFromExtension(ext.code);
-						if (version) $('p#v' + version);
+						const hash = api.extractHashFromExtension(ext.code);
+						if (hash) $('p#' + hash);
 						
 						const busy = proxy(false);
 						icons.remove('.link', {'.busy': busy, click: () => {
-							uninstall(fullName, busy);
+							uninstall(ext.name, busy);
 						}});
 					} else {
 						$('p#N/A');

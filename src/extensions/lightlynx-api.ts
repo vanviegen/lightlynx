@@ -47,7 +47,7 @@ class LightLynxAPI {
     private wss?: WebSocketServer;
     private refreshTimer?: NodeJS.Timeout;
     private activeScenes: Record<string, number | undefined> = {};
-    private sceneSetTimestamps: Map<string, number> = new Map();
+    private lastSceneTime: Record<string, number> = {};
 
     constructor(zigbee: any, mqtt: any, state: any, _publishEntityState: any, eventBus: any, _enableDisableExtension: any, _restartCallback: any, _addExtension: any, _settings: any, logger: any) {
         this.zigbee = zigbee;
@@ -497,7 +497,7 @@ class LightLynxAPI {
             ws.send(JSON.stringify({ topic: 'bridge/lightlynx/users', payload: this.getUsersForBroadcast() }));
         }
         ws.send(JSON.stringify({ topic: 'bridge/lightlynx/config', payload: await this.getPayloadForConfig() }));
-        ws.send(JSON.stringify({ topic: 'lightlynx/sceneSet', payload: this.activeScenes }));
+        ws.send(JSON.stringify({ topic: 'bridge/lightlynx/sceneSet', payload: this.activeScenes }));
     }
 
     private filterPayload(topic: string, payload: any) {
@@ -619,37 +619,51 @@ class LightLynxAPI {
         }
     }
 
-    private async onMQTTRequest(data: any) {
-        // Handle scene_recall and scene_store on group/set
-        if (data.topic.startsWith(`${this.mqttBaseTopic}/`) && data.topic.endsWith('/set')) {
-            const groupName = data.topic.slice(this.mqttBaseTopic.length + 1, -4);
+    private handleSceneTracking(data: any) {
+       
+        if (!data.topic.startsWith(`${this.mqttBaseTopic}/`)) return;
+        const parts = data.topic.slice(this.mqttBaseTopic.length + 1).split('/');
+        if (parts[0] === 'bridge') return; // Ignore bridge topics
+            
+        
+        const groupName = parts[0];
+        if (!groupName || !this.findGroupByName(groupName)) return;
+        
+        if (parts.length === 2 && parts[1] === 'set') {
+            // <base>/<groupName>/set - check for scene commands
             let message: any;
             try { message = JSON.parse(data.message); } catch { return; }
             
-            if (message.scene_recall !== undefined || message.scene_store !== undefined) {
-                const sceneId = message.scene_recall ?? message.scene_store?.ID;
-                this.sceneSetTimestamps.set(groupName, Date.now());
+            if (message.scene_recall !== undefined) {
+                const sceneId = message.scene_recall;
+                this.lastSceneTime[groupName] = Date.now();
                 if (this.activeScenes[groupName] !== sceneId) {
                     this.activeScenes[groupName] = sceneId;
-                    this.broadcastSceneSet(groupName, sceneId);
+                    this.broadcastSceneChange(groupName, sceneId);
                 }
             }
-            return;
-        }
-
-        // Handle group state changes (not /set, just the group name)
-        const topicWithoutBase = data.topic.startsWith(`${this.mqttBaseTopic}/`) 
-            ? data.topic.slice(this.mqttBaseTopic.length + 1) 
-            : null;
-        if (topicWithoutBase && !topicWithoutBase.includes('/') && this.findGroupByName(topicWithoutBase)) {
-            const groupName = topicWithoutBase;
-            const lastSceneTime = this.sceneSetTimestamps.get(groupName) || 0;
-            if (Date.now() - lastSceneTime > 500 && this.activeScenes[groupName] !== undefined) {
+        } else if (parts.length === 1) {
+            // <base>/<groupName> - state update, clear scene if not recent
+            const timeSinceScene = Date.now() - (this.lastSceneTime[groupName] || 0);
+            if (timeSinceScene > 500 && this.activeScenes[groupName] !== undefined) {
                 this.activeScenes[groupName] = undefined;
-                this.broadcastSceneSet(groupName, undefined);
+                this.broadcastSceneChange(groupName, undefined);
             }
-            return;
         }
+    }
+
+    private broadcastSceneChange(groupName: string, sceneId: number | undefined) {
+        const payload: Record<string, number | undefined> = { [groupName]: sceneId };
+        for (const [ws, _clientInfo] of this.clients) {
+            if (ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ topic: 'bridge/lightlynx/sceneSet', payload }));
+            }
+        }
+    }
+
+    private async onMQTTRequest(data: any) {
+        // Handle scene tracking for group /set commands
+        this.handleSceneTracking(data);
 
         const prefix = `${this.mqttBaseTopic}/bridge/request/lightlynx/`;
         if (!data.topic.startsWith(prefix)) return;
@@ -692,7 +706,7 @@ class LightLynxAPI {
         const payload = await this.getPayloadForConfig();
         for (const [ws, _clientInfo] of this.clients) {
             if (ws.readyState === WebSocket.OPEN) {
-                ws.send(JSON.stringify({ topic: 'lightlynx/config', payload }));
+                ws.send(JSON.stringify({ topic: 'bridge/lightlynx/config', payload }));
             }
         }
     }
@@ -749,15 +763,6 @@ class LightLynxAPI {
         for (const [ws, clientInfo] of this.clients) {
             if (ws.readyState === WebSocket.OPEN && clientInfo.isAdmin) {
                 ws.send(JSON.stringify({ topic: 'lightlynx/users', payload }));
-            }
-        }
-    }
-
-    private broadcastSceneSet(groupName: string, sceneId: number | undefined) {
-        const payload = { [groupName]: sceneId };
-        for (const [ws, _clientInfo] of this.clients) {
-            if (ws.readyState === WebSocket.OPEN) {
-                ws.send(JSON.stringify({ topic: 'lightlynx/sceneSet', payload }));
             }
         }
     }

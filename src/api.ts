@@ -4,10 +4,20 @@ import { LightState, XYColor, HSColor, ColorValue, isHS, isXY, Store, LightCaps,
 
 const CREDENTIALS_LOCAL_STORAGE_ITEM_NAME = "lightlynx-servers";
 
-const EXTENSION_VERSIONS: Record<string, number> = {
-    "api": 17,
-    "automation": 1,
-};
+// Inlined by Vite from build.frontend/extensions/versions.json
+declare const __EXTENSION_VERSIONS__: Record<string, string>;
+let EXTENSION_VERSIONS: Record<string, string> = typeof __EXTENSION_VERSIONS__ !== 'undefined' ? __EXTENSION_VERSIONS__ : {};
+
+// In dev mode, fetch versions dynamically
+if (import.meta.env.DEV) {
+    fetch('/extensions/versions.json')
+        .then(r => r.json())
+        .then(versions => {
+            EXTENSION_VERSIONS = versions;
+            console.log('Extension versions loaded:', versions);
+        })
+        .catch(err => console.error('Failed to load extension versions:', err));
+}
 
 interface PromiseCallbacks {
     resolve: () => void;
@@ -367,41 +377,54 @@ class Api {
         this.extensionCheckPerformed = false;
     }
     
-    public extractVersionFromExtension(extensionContent: string): number | undefined {
-        const firstLine = extensionContent.split('\n')[0];
-        const versionMatch = firstLine?.match(/ v([0-9]+)/i);
-        return versionMatch ? parseInt(versionMatch[1]!) : undefined;
+    public extractHashFromExtension(extensionCode: string): string | undefined {
+        // Extract hash from first line comment like "// hash=d1474d1c"
+        const firstLine = extensionCode.split('\n')[0];
+        const match = firstLine?.match(/^\/\/\s+hash=([a-f0-9]{8})/);
+        return match ? match[1] : undefined;
     }
 
     public async checkAndUpdateExtensions(): Promise<void> {
         if (this.extensionCheckPerformed) return;
         this.extensionCheckPerformed = true;
 
-        for (const [name, expectedVersion] of Object.entries(EXTENSION_VERSIONS)) {
-            const ext = this.store.extensions.find(e => e.name === `lightlynx-${name}.js`);
-            if (!ext) continue;
-            const installedVersion = this.extractVersionFromExtension(ext.code);
+        for (const [name, expectedHash] of Object.entries(EXTENSION_VERSIONS)) {
+            const fileName = `lightlynx-${name}.js`;
+            const ext = this.store.extensions.find(e => e.name === fileName);
             
-            if (installedVersion !== expectedVersion) {
-                console.log(`Extension ${name} version mismatch: installed=${installedVersion}, expected=${expectedVersion}`);
+            if (!ext) {
+                console.log(`Extension ${name} not found, skipping auto-upgrade`);
+                continue;
+            }
+            
+            const installedHash = this.extractHashFromExtension(ext.code);
+            
+            if (installedHash !== expectedHash) {
+                console.log(`Extension ${name} hash mismatch: installed=${installedHash}, expected=${expectedHash}`);
                 await this.installExtension(name);
             }
         }
     }
 
     public async installExtension(name: string): Promise<void> {
-        const version = EXTENSION_VERSIONS[name] || 0;
-        const fileName = `lightlynx-${name}.js`;
+        const hash = EXTENSION_VERSIONS[name];
+        if (!hash) {
+            throw new Error(`No hash found for extension ${name}`);
+        }
+        
+        const hashedFileName = `lightlynx-${name}-${hash}.js`;
+        const targetFileName = `lightlynx-${name}.js`;
 
         try {
-            const response = await fetch(`/extensions/${fileName}`);
+            const response = await fetch(`/extensions/${hashedFileName}`);
             if (!response.ok) throw new Error(`HTTP ${response.status}`);
             let code = await response.text();
             
-            const header = `// ${name} v${version}\n`;
+            // Prepend hash comment
+            code = `// hash=${hash}\n${code}`;
 
-            await this.send("bridge", "request", "extension", "save", { name: fileName, code: header+code });
-            console.log(`Extension ${name} installed successfully`);
+            await this.send("bridge", "request", "extension", "save", { name: targetFileName, code });
+            console.log(`Extension ${name} installed successfully (${hash})`);
             this.notify('info', `Extension ${name} installed successfully`);
         } catch (error) {
             const message = error instanceof Error ? error.message : String(error);

@@ -250,13 +250,12 @@ small.item {
 /* Active scene highlighting */
 .item.link.active-scene {
   background: #f4810e30;
+  border-left: 4px solid #f4810e;
 }
 
+/* Active scene icons on main grid - add glow effect */
 .grid .options .active-scene {
-  background: #f4810e50;
-  border-radius: 4px;
-  padding: 2px;
-  margin: -2px;
+  filter: drop-shadow(0 0 8px #f4810e) drop-shadow(2px 2px 4px black);
 }
 
 .badge {
