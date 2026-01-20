@@ -425,26 +425,15 @@ async function init() {
     mqtt.retainedMessages[`${base}/bridge/groups`] = { payload: JSON.stringify([...zigbee.groupsIterator()].map(g => g.toJSON())) } as any;
     mqtt.retainedMessages[`${base}/bridge/extensions`] = { payload: JSON.stringify([]) } as any;
 
-    // Load our API extension by default - find the hashed filename but save as unhashed
-    const extensionsDir = path.join(__dirname, '..', 'build.frontend', 'extensions');
-    const files = fs.readdirSync(extensionsDir);
-    const apiExtensionFile = files.find(f => f.match(/^lightlynx-api-[a-f0-9]{8}\.js$/));
-    
-    if (!apiExtensionFile) {
-        throw new Error('Could not find lightlynx-api extension. Run npm run build:extensions first.');
+    // Load our extension
+    const extensionPath = path.join(__dirname, '..', 'build.frontend', 'extension.js');
+    if (!fs.existsSync(extensionPath)) {
+        throw new Error('Could not find extension. Run npm run build:extensions first.');
     }
+    const code = fs.readFileSync(extensionPath, 'utf8');
     
-    const extensionPath = path.join(extensionsDir, apiExtensionFile);
-    let code = fs.readFileSync(extensionPath, 'utf8');
-    
-    // Extract hash from filename and prepend it as a comment (simulating what the client does)
-    const hashMatch = apiExtensionFile.match(/-([a-f0-9]{8})\.js$/);
-    if (hashMatch) {
-        code = `// hash=${hashMatch[1]}\n${code}`;
-    }
-    
-    // Add with the unhashed name (lightlynx-api.js) so it matches what Z2M expects
-    extensionManager.addSilently('lightlynx-api.js', code);
+    // Add with the name lightlynx.js so it matches what Z2M expects
+    extensionManager.addSilently('lightlynx.js', code);
     await extensionManager.startAll();
 }
 

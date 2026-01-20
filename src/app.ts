@@ -5,12 +5,15 @@ import { grow, shrink } from 'aberdeen/transitions';
 import api from './api';
 import * as icons from './icons';
 import * as colors from './colors';
-import { drawColorPicker, drawBulbCircle, getBulbRgb } from "./color-picker";
+import { drawColorPicker, drawBulbCircle } from "./color-picker";
 import { Device, Group, ServerCredentials, User } from './types';
 import { hashSecret } from './hash';
 
 import logoUrl from './logo.webp';
 import swUrl from './sw.ts?worker&url';
+
+const TIMEOUT_REGEXP = /^lightlynx-timeout (\d+(?:\.\d+)?)([smhd])$/m;
+
 
 route.setLog(true);
 
@@ -92,34 +95,6 @@ const groupInputs = partition(api.store.devices, (device: Device, _ieee: string)
 
 function drawEmpty(text: string): void {
 	$('div.empty#', text);
-}
-
-function isExtensionInstalled(ext: 'api' | 'automation'): boolean {
-	return api.store.extensions.some(e => e.name === `lightlynx-${ext}.js`);
-}
-
-function promptInstallExtension(ext: 'api' | 'automation', reason: string): boolean {
-	const isInstalled = isExtensionInstalled(ext);
-	$(() => {
-		if (admin.value && !isExtensionInstalled(ext)) {
-			$('section.row gap:1rem align-items:start', () => {
-				$('p flex:1 #', `${reason} requires our `, () => {
-					$('strong#', ext);
-					$('# extension.');
-				});
-				const busy = proxy(false);
-				$(`button.secondary flex:0 margin-top:0.5rem #Install`, {'.busy': busy, click: async () => {
-					busy.value = true;
-					try {
-						await api.installExtension(ext);
-					} finally {
-						busy.value = false;
-					}
-				}});
-			});
-		}
-	});
-	return isInstalled;
 }
 
 function drawBulb(ieee: string): void {
@@ -262,25 +237,56 @@ function drawRemoteInfoPage(): void {
 		$('p#', 'Remote access allows you to control your lights from anywhere in the world. When enabled, your server becomes accessible via a secure, encrypted connection.');
 		
 		$('h1#Simplified Networking');
-		$('p#', 'We use two technologies to make this "zero-config":');
+		$('p#We use two technologies to make this "zero-config":');
 		$('ul', () => {
-			$('li#', () => {
+			$('li', () => {
 				$('strong#UPnP: ');
 				$('#The server automatically asks your router to open a port (43597) so it can be reached from the internet.');
 			});
-			$('li#', () => {
+			$('li', () => {
 				$('strong#Race-to-connect: ');
 				$('#The app is smart. It tries to connect to your server locally and remotely at the same time, and picks whichever responds first. This makes the transition between home Wi-Fi and mobile data instant and seamless.');
 			});
 		});
 
 		$('h1#Security');
-		$('p#', 'Your security is our priority:');
+		$('p#Your security is our priority:');
 		$('ul', () => {
-			$('li#', 'All communication is encrypted using SSL (HTTPS/WSS).');
-			$('li#', 'Authentication is handled via PBKDF2 hashing. Your password is never sent or stored in plain text.');
-			$('li#', 'You can restrict remote access on a per-user basis in the user management settings.');
+			$('li#All communication is encrypted using SSL (HTTPS/WSS).');
+			$('li#Authentication is handled via PBKDF2 hashing. Your password is never sent or stored in plain text.');
+			$('li#You can restrict remote access on a per-user basis in the user management settings.');
 		});
+
+		$('button.primary margin-top:2em width:100% #Got it', 'click=', () => route.up());
+	});
+}
+
+function drawAutomationInfoPage(): void {
+	routeState.title = 'Automation';
+	routeState.subTitle = 'Information';
+
+	$('div padding:8px line-height:1.6em', () => {
+		$('h1 margin-top:0 #What is Automation?');
+		$('p#', 'Automation allows your lights to respond automatically to events, making your smart home truly intelligent.');
+		
+		$('h1#Features');
+		$('ul', () => {
+			$('li', () => {
+				$('strong#Scene Triggers: ');
+				$('#Activate scenes with button presses, motion sensors, or other Zigbee devices.');
+			});
+			$('li', () => {
+				$('strong#Time-based Automation: ');
+				$('#Schedule scenes to activate at specific times of day.');
+			});
+			$('li', () => {
+				$('strong#Auto-off Timers: ');
+				$('#Automatically turn off lights after a period of inactivity.');
+			});
+		});
+
+		$('h1#Privacy');
+		$('p#All automation runs locally on your Zigbee2MQTT server. No cloud services or external servers are involved.');
 
 		$('button.primary margin-top:2em width:100% #Got it', 'click=', () => route.up());
 	});
@@ -440,8 +446,7 @@ function drawManagementSection(): void {
 			const active = api.store.permitJoin;
 			$('div.item.link', {click: active ? disableJoin : permitJoin}, () => {
 				(active ? icons.stop : icons.create)();
-				$('h2#', active ? 'Stop searching' : 'Permit join');
-				if (active) $('p#Permitting devices to join...');
+				$('h2#', active ? 'Stop searching for devices' : 'Search for devices');
 			});
 		});
 
@@ -451,6 +456,30 @@ function drawManagementSection(): void {
 		});
 
 		drawRemoteAccessToggle();
+		
+		const automationBusy = proxy(false);
+		$('label.item', () => {
+			$({'.busy': automationBusy.value});
+			$('input type=checkbox', {
+				checked: api.store.automationEnabled,
+				disabled: automationBusy.value,
+				change: async (e: Event) => {
+					const checked = (e.target as HTMLInputElement).checked;
+					automationBusy.value = true;
+					try {
+						await api.setAutomation(checked);
+					} finally {
+						automationBusy.value = false;
+					}
+				}
+			});
+			$('h2#Automation');
+			icons.info('margin-left:auto click=', (e: Event) => {
+				e.stopPropagation();
+				e.preventDefault();
+				route.go(['automation-info']);
+			});
+		});
 	});
 }
 
@@ -519,7 +548,6 @@ function drawMain(): void {
 		if (admin.value) {
 			drawManagementSection();
 			drawUsersSection();
-			drawExtensionsSection();
 		}
 	});
 }
@@ -596,11 +624,11 @@ function drawConnectionPage(): void {
 		routeState.subTitle = 'Z2M';
 	});
 	
-	const serverToEdit = unproxy(route).current.search.edit ? unproxy(api.store.servers)[0] : undefined;
+	const oldData: Partial<ServerCredentials> = peek(() => route.current.search.edit ? clone(api.store.servers[0] || {}) : {});
 	const formData = proxy({
-		localAddress: serverToEdit?.localAddress || '',
-		username: serverToEdit?.username || 'admin',
-		password: serverToEdit?.secret || '',
+		localAddress: oldData.localAddress || '',
+		username: oldData.username || 'admin',
+		password: oldData.secret || '',
 	});
 
 	// Watch for connection success and navigate away
@@ -623,12 +651,12 @@ function drawConnectionPage(): void {
 	async function handleSubmit(e: Event): Promise<void> {
 		e.preventDefault();
 		
-		let secret = serverToEdit?.secret || '';
+		let secret = oldData.secret || '';
 		if (formData.password !== secret) {
 			secret = await hashSecret(formData.username, formData.password);
 		}
-		let externalAddress = serverToEdit?.externalAddress;
-		if (formData.localAddress !== serverToEdit?.localAddress) {
+		let externalAddress = oldData.externalAddress;
+		if (formData.localAddress !== oldData.localAddress) {
 			// Reset external address if local address has changed
 			externalAddress = undefined;
 		}
@@ -645,7 +673,7 @@ function drawConnectionPage(): void {
 
 		if (route.current.search.edit) {
 			// Update existing server credentials
-			Object.assign(api.store.servers[0]!, server);
+			copy(api.store.servers[0]!, server);
 		} else {
 			// Add new server
 			api.store.servers.unshift(server);
@@ -711,81 +739,82 @@ $('div.root', () => {
 	$(() => {
 		$({'.landing-page': isEmpty(api.store.servers) && route.current.path === '/'});
 	});
-		$('header', () => {
-			$('img.logo src=', logoUrl, 'click=', () => DEBUG_route_back('/'));
-			$(() => {
-				if (route.current.path !== '/') {
-					icons.back('click=', route.up);
-				}
-				$("h1.title", () => {
-					let title = routeState.title || "Light Lynx";
-					$(`#`, title);
-					if (routeState.subTitle) {
-						$('span.subTitle#'+routeState.subTitle);
-					}
-				});
-			});
-			$(() => {
-				if (routeState.drawIcons) {
-					routeState.drawIcons();
+
+	$('header', () => {
+		$('img.logo src=', logoUrl, 'click=', () => DEBUG_route_back('/'));
+		$(() => {
+			if (route.current.path !== '/') {
+				icons.back('click=', route.up);
+			}
+			$("h1.title", () => {
+				let title = routeState.title || "Light Lynx";
+				$(`#`, title);
+				if (routeState.subTitle) {
+					$('span.subTitle#'+routeState.subTitle);
 				}
 			});
-			$(() => {
-				if (updateAvailable.value) {
-					icons.reload('.update-available click=', () => window.location.reload());
-				}
-			});
-			$(() => {
-				icons.reconnect(() => {
-					const state = api.store.connectionState;
-					$({
-						'.spinning': state !== 'connected' && state !== 'idle',
-						'.off': state === 'idle',
-						'.critical': !!api.store.lastConnectError,
-						'click': () => menuOpen.value = !menuOpen.value
-					});
-				});
-			});
-			$(() => {
-				if (api.store.permitJoin) {
-					icons.create('.on.spinning click=', disableJoin);
-				}
-			});
-			$(() => {
-				if (isEmpty(api.store.servers)) return;
-				let lowest = 100;
-				for (const device of Object.values(api.store.devices)) {
-					const b = device.meta?.battery;
-					if (b !== undefined && b < lowest) lowest = b;
-				}
-				if (lowest > 15) return;
-				const critical = lowest <= 5;
-				const icon = critical ? icons.batteryEmpty : icons.batteryLow;
-				icon({
-					'.critical': critical,
-					'.warning': !critical,
-					'.pulse': critical,
-					click: () => route.go(['batteries'])
-				});
-			});
-			$(() => {
-				const server = api.store.servers[0];
-				if (!server) return;
-				const user = api.store.users[server.username];
-				if (!user?.isAdmin) return;
-				
-				let holdTimeout: any;
-				icons.admin({
-					'.on': admin.value,
-					'mousedown': () => { holdTimeout = setTimeout(() => route.go(['dump']), 1000); },
-					'mouseup': () => clearTimeout(holdTimeout),
-					'mouseleave': () => clearTimeout(holdTimeout),
-					'touchstart': () => { holdTimeout = setTimeout(() => route.go(['dump']), 1000); },
-					'touchend': () => clearTimeout(holdTimeout),
-					'click': () => admin.value = !admin.value,
+		});
+		$(() => {
+			if (routeState.drawIcons) {
+				routeState.drawIcons();
+			}
+		});
+		$(() => {
+			if (updateAvailable.value) {
+				icons.reload('.update-available click=', () => window.location.reload());
+			}
+		});
+		$(() => {
+			icons.reconnect(() => {
+				const state = api.store.connectionState;
+				$({
+					'.spinning': state !== 'connected' && state !== 'idle',
+					'.off': state === 'idle',
+					'.critical': !!api.store.lastConnectError,
+					'click': () => menuOpen.value = !menuOpen.value
 				});
 			});
 		});
+		$(() => {
+			if (api.store.permitJoin) {
+				icons.create('.on.spinning click=', disableJoin);
+			}
+		});
+		$(() => {
+			if (isEmpty(api.store.servers)) return;
+			let lowest = 100;
+			for (const device of Object.values(api.store.devices)) {
+				const b = device.meta?.battery;
+				if (b !== undefined && b < lowest) lowest = b;
+			}
+			if (lowest > 15) return;
+			const critical = lowest <= 5;
+			const icon = critical ? icons.batteryEmpty : icons.batteryLow;
+			icon({
+				'.critical': critical,
+				'.warning': !critical,
+				'.pulse': critical,
+				click: () => route.go(['batteries'])
+			});
+		});
+		$(() => {
+			const server = api.store.servers[0];
+			if (!server) return;
+			const user = api.store.users[server.username];
+			if (!user?.isAdmin) return;
+			
+			let holdTimeout: any;
+			icons.admin({
+				'.on': admin.value,
+				'mousedown': () => { holdTimeout = setTimeout(() => route.go(['dump']), 1000); },
+				'mouseup': () => clearTimeout(holdTimeout),
+				'mouseleave': () => clearTimeout(holdTimeout),
+				'touchstart': () => { holdTimeout = setTimeout(() => route.go(['dump']), 1000); },
+				'touchend': () => clearTimeout(holdTimeout),
+				'click': () => admin.value = !admin.value,
+			});
+		});
+	});
 
 	$(() => {
 		if (!menuOpen.value) return;
@@ -870,6 +899,8 @@ $('div.root', () => {
 				drawPromptPage();
 			} else if (p[0] === 'remote-info') {
 				drawRemoteInfoPage();
+			} else if (p[0] === 'automation-info') {
+				drawAutomationInfoPage();
 			} else {
 				drawMain();
 			}
@@ -1058,11 +1089,11 @@ export function drawSceneEditor(group: Group, groupId: number): void {
 	});
 
 	
-	const hasExtension = isExtensionInstalled('automation');
+	const automationEnabled = api.store.automationEnabled;
 	$('h1#Triggers', () => {
-		if (hasExtension) icons.create('click=', () => sceneState.triggers.push({type: '1'}));
+		if (automationEnabled) icons.create('click=', () => sceneState.triggers.push({type: '1'}));
 	});
-    if (hasExtension) {
+    if (automationEnabled) {
 		onEach(sceneState.triggers, (trigger, triggerIndex) => {
 			$(() => {
 				// There must be a time range for time-based triggers
@@ -1116,10 +1147,8 @@ export function drawSceneEditor(group: Group, groupId: number): void {
 
 			})
 		});
-	} else {
-		promptInstallExtension('automation', 'Triggering scenes from buttons and sensors')
-	}
-
+		if (isEmpty(sceneState.triggers)) drawEmpty("None yet");
+    }
 
 	$('h1#Actions');
 	async function save(e: Event): Promise<void> {
@@ -1200,8 +1229,10 @@ function buildDescriptionWithGroupIds(description: string | undefined, groupIds:
 
 // Parse group timeout from description (lightlynx- metadata)
 function getGroupTimeoutFromDescription(description: string | undefined): GroupTimeout | null {
+	console.log('Parsing timeout from description:', description);
 	if (!description) return null;
-	const m = description.match(/^lightlynx-timeout (\d+(?:\.\d+)?)([smhd])$/m);
+	const m = description.match(TIMEOUT_REGEXP);
+	console.log(m);
 	if (!m) return null;
 	return {
 		value: parseFloat(m[1]!),
@@ -1211,7 +1242,6 @@ function getGroupTimeoutFromDescription(description: string | undefined): GroupT
 
 // Build description with group timeout metadata
 function buildDescriptionWithGroupTimeout(description: string | undefined, timeout: GroupTimeout | null): string {
-	const TIMEOUT_REGEXP = /^lightlynx-timeout \d+(?:\.\d+)?[smhd]$/m;
 	let timeoutStr = timeout ? `lightlynx-timeout ${timeout.value}${timeout.unit}` : '';
 	let replaced = false;
 	description = (description || '').replace(TIMEOUT_REGEXP, () => {
@@ -1230,6 +1260,7 @@ function buildDescriptionWithGroupTimeout(description: string | undefined, timeo
 // Enhanced group configuration editor 
 export function drawGroupConfigurationEditor(group: Group, groupId: number): void {
     const groupState = proxy(peek(() => { // Keep in sync with upstream changes
+		console.log('GROUP' ,group)
         return {
             name: group.name,
             description: group.description,
@@ -1238,14 +1269,14 @@ export function drawGroupConfigurationEditor(group: Group, groupId: number): voi
     }));
 
 	
-	const hasExtension = isExtensionInstalled('automation');
+	const automationEnabled = api.store.automationEnabled;
 
 	$("h1", () => {
 		$("#Buttons and sensors");
-		if (hasExtension) icons.create('click=', () => route.go(['group', groupId, 'addInput']));
+		if (automationEnabled) icons.create('click=', () => route.go(['group', groupId, 'addInput']));
 	});
 
-	if (hasExtension) {
+	if (automationEnabled) {
 		onEach(groupInputs[groupId] || {}, (device, ieee) => {
 			$("div.item", () => {
 				drawBulbCircle(device, ieee);
@@ -1259,8 +1290,6 @@ export function drawGroupConfigurationEditor(group: Group, groupId: number): voi
 		if (isEmpty(groupInputs[groupId] || {})) {
 			drawEmpty("None yet");
 		}
-	} else {
-	    promptInstallExtension('automation', 'Connecting buttons and sensors to a group requires our automation Z2M extension.');
 	}
 
     $('h1#Settings');
@@ -1275,7 +1304,7 @@ export function drawGroupConfigurationEditor(group: Group, groupId: number): voi
         });
     });
     
-	if (hasExtension) {
+	if (automationEnabled) {
 		// Lights off timer checkbox
 		$('label.item', () => {
 			$('input type=checkbox', {checked: !!groupState.timeout}, 'change=', (e: Event) => {
@@ -1303,8 +1332,6 @@ export function drawGroupConfigurationEditor(group: Group, groupId: number): voi
 				});
 			});
 		});
-	} else {
-		promptInstallExtension('automation', 'The auto-off timer requires our automation Z2M extension.');
 	}
 
 	$('h1#Actions');
@@ -1330,16 +1357,9 @@ export function drawGroupConfigurationEditor(group: Group, groupId: number): voi
 }
 
 function drawUsersSection(): void {
-	const isApiInstalled = isExtensionInstalled('api');
-
 	$("h1#Users", () => {
-		if (isApiInstalled) icons.create('click=', () => route.go(['user', 'new']));
+		icons.create('click=', () => route.go(['user', 'new']));
 	});
-	
-	if (!isApiInstalled) {
-		promptInstallExtension('api', 'The Light Lynx API extension is required for user management.');
-		return;
-	}
 
 	$('div.list', () => {
 		onEach(api.store.users, (user, username) => {
@@ -1350,63 +1370,6 @@ function drawUsersSection(): void {
 				else if (user.allowRemote) $('span.badge#Remote');
 			});
 		});
-	});
-}
-
-function drawExtensionsSection(): void {
-	$('h1#Z2M Extensions');
-
-	const uninstall = async (name: string, busy: {value: boolean}) => {
-		let warning = `Are you sure you want to uninstall '${name}'?`;
-		if (name === 'lightlynx-api.js') {
-			warning += "\n\nWARNING: User management and optimized state will be disabled!";
-		}
-		if (name === 'lightlynx-automation.js') {
-			warning += "\n\nWARNING: Buttons and sensors will no longer trigger actions!";
-		}
-
-		if (await askConfirm(warning)) {
-			busy.value = true;
-			try {
-				await api.send("bridge", "request", "extension", "remove", {name});
-			} finally {
-				busy.value = false;
-			}
-		}
-	};
-
-	$('div.list', () => {
-		const standard = ['api', 'automation'];
-		for (const name of standard) {
-			const fileName = `lightlynx-${name}.js`;
-			$(() => {
-				const ext = api.store.extensions.find(e => e.name === fileName);
-				$('div.item', () => {
-					icons.extension();
-					$('h2 flex:1 #', name);
-					if (ext) {
-						const hash = api.extractHashFromExtension(ext.code);
-						if (hash) $('p#' + hash);
-						
-						const busy = proxy(false);
-						icons.remove('.link', {'.busy': busy, click: () => {
-							uninstall(ext.name, busy);
-						}});
-					} else {
-						$('p#N/A');
-						const busy = proxy(false);
-						icons.create('.link', {'.busy': busy, click: async () => {
-							busy.value = true;
-							try {
-								await api.installExtension(name);
-							} finally {
-								busy.value = false;
-							}
-						}});
-					}
-				});
-			});
-		}
 	});
 }
 

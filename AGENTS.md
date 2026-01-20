@@ -17,17 +17,16 @@
 ```
 src/
 - app.ts   # Main application - routing, UI components, device/group views
-- api.ts   # WebSocket API client for Zigbee2MQTT communication
-- types.ts   # TypeScript interfaces (Device, Group, LightState, ServerCredentials, User, etc.)
+- api.ts   # WebSocket API client for Z2M communication
+- types.ts   # TypeScript interfaces (Device, Group, LightState, ServerCredentials, User, Store, etc.)
 - color-picker.ts   # Color wheel and brightness picker UI components
 - colors.ts   # Color conversion utilities (HSV, RGB, XY, mireds)
 - icons.ts   # SVG icon components
 - sw.ts   # Service Worker for PWA caching
 - style.css   # Application styles
 - index.html   # HTML entry point
-- extensions/   # Z2M extensions (deployed to CDN)
-  - lightlynx-api.js   # User auth, optimized state, permission checking
-  - lightlynx-automation.js   # Scene triggers and automation
+- extensions/   # Z2M extension (deployed to CDN)
+  - lightlynx.ts   # Single extension: user auth, optimized state, permission checking, and optional automation
 - backend/   # Bunny.net edge scripts
   - cert.ts   # SSL certificate provisioning
 
@@ -43,13 +42,14 @@ Uses Aberdeen's `proxy()` for reactive state. The global store (`api.store`) con
 - `groups`: Record of groups keyed by group ID
 - `permitJoin`: Boolean for pairing mode
 - `servers`: Array of saved server credentials
-- `activeServerIndex`: Index of currently connected server (-1 if none)
 - `connected`: Boolean connection status
-- `extensions`: Z2M extensions list
-- `users`: User management data (admin only)
-- `remoteAccessEnabled`: Current remote access toggle state (admin only)
+- `extensionHash`: Hash of installed lightlynx extension (for auto-upgrade)
+- `users`: User management data
+- `remoteAccessEnabled`: Remote access toggle state
+- `automationEnabled`: Automation toggle state (off by default)
 - `localIp`: The local server IP address used for connectivity
 - `externalIp`: The external server IP address (if remote access enabled)
+- `activeScenes`: Current active scene per group
 
 ### Multi-Server Management
 - Credentials stored in localStorage (`lightlynx-servers`)
@@ -95,9 +95,8 @@ The app communicates with Zigbee2MQTT via WebSocket:
 - Messages follow Z2M's topic-based format: `api.send(topic, ...path, payload)`
 - Light state changes use optimistic updates with debouncing
 
-## Z2M Extensions
 
-### lightlynx-api
+The single `lightlynx` extension provides:
 - Configuration stored in `lightlynx.json` within Z2M data directory
 - User authentication with client-side PBKDF2 hashing (no raw passwords transmitted or stored)
 - Automated SSL/DNS management using IP-encoded domains (`x<hex-ip>.lightlynx.eu`)
@@ -105,11 +104,11 @@ The app communicates with Zigbee2MQTT via WebSocket:
 - Permission checking (admin, allowedDevices, allowedGroups)
 - Remote access control toggle via admin-only MQTT API
 - User management API
+- **Optional automation features** (toggleable via admin UI, off by default):
+  - Scene triggers (tap patterns, motion, time-based)
+  - Lights-off timer for groups
 
-### lightlynx-automation
-- Scene triggers (tap patterns, motion, time-based)
-- Lights-off timer for groups
-
+The extension is deployed with a hash in its filename (`lightlynx-<hash>.js`) but installed on Z2M as `lightlynx.js`. The hash is prepended as a comment line (`// hash=<hash>`) for version tracking. The web app auto-upgrades the extension when the hash mismatches
 Version checking via first-line comments (`// lightlynx-<name> v<version>`). Auto-upgrade on version mismatch.
 
 ## Code Conventions

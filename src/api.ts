@@ -5,18 +5,18 @@ import { LightState, XYColor, HSColor, ColorValue, isHS, isXY, Store, LightCaps,
 const CREDENTIALS_LOCAL_STORAGE_ITEM_NAME = "lightlynx-servers";
 
 // Inlined by Vite from build.frontend/extensions/versions.json
-declare const __EXTENSION_VERSIONS__: Record<string, string>;
-let EXTENSION_VERSIONS: Record<string, string> = typeof __EXTENSION_VERSIONS__ !== 'undefined' ? __EXTENSION_VERSIONS__ : {};
+declare const __EXTENSION_HASH__: string;
+let EXTENSION_HASH: string = typeof __EXTENSION_HASH__ !== 'undefined' ? __EXTENSION_HASH__ : '';
 
-// In dev mode, fetch versions dynamically
+// In dev mode, fetch hash dynamically
 if (import.meta.env.DEV) {
-    fetch('/extensions/versions.json')
-        .then(r => r.json())
-        .then(versions => {
-            EXTENSION_VERSIONS = versions;
-            console.log('Extension versions loaded:', versions);
+    fetch('/extension.hash')
+        .then(r => r.text())
+        .then(hash => {
+            EXTENSION_HASH = hash || '';
+            console.log('Extension hash loaded:', EXTENSION_HASH);
         })
-        .catch(err => console.error('Failed to load extension versions:', err));
+        .catch(err => console.error('Failed to load extension hash:', err));
 }
 
 interface PromiseCallbacks {
@@ -137,7 +137,6 @@ class Api {
     private requests: Map<string, PromiseCallbacks> = new Map();
     private transactionNumber = 1;
     private transactionRndPrefix: string;
-    private extensionCheckPerformed = false;
     private nameToIeeeMap: Map<string, string> = new Map();
     private currentConnectionKey: string | null = null;
     private reconnectTimeout?: ReturnType<typeof setTimeout>;
@@ -151,10 +150,10 @@ class Api {
         servers: getLocalStorage(CREDENTIALS_LOCAL_STORAGE_ITEM_NAME) || [],
         connected: false,
         connectionState: 'idle',
-        extensions: [],
         users: {},
         activeScenes: {},
     });
+    groupDescriptionsCache: Record<string, string | undefined> = {};
     notifyHandlers: Array<(type: 'error' | 'info' | 'warning', msg: string) => void> = [];
     
     notify = (type: 'error' | 'info' | 'warning', msg: string): void => {
@@ -356,65 +355,40 @@ class Api {
         localStorage.removeItem('bridge/groups');
         copy(this.store.devices, {});
         copy(this.store.groups, {});
-        this.store.extensions = [];
         copy(this.store.users, {});
         this.nameToIeeeMap.clear();
-        this.extensionCheckPerformed = false;
     }
     
-    public extractHashFromExtension(extensionCode: string): string | undefined {
+    private extractHashFromExtension(extensionCode: string): string | undefined {
         // Extract hash from first line comment like "// hash=d1474d1c"
         const firstLine = extensionCode.split('\n')[0];
         const match = firstLine?.match(/^\/\/\s+hash=([a-f0-9]{8})/);
         return match ? match[1] : undefined;
     }
 
-    public async checkAndUpdateExtensions(): Promise<void> {
-        if (this.extensionCheckPerformed) return;
-        this.extensionCheckPerformed = true;
-
-        for (const [name, expectedHash] of Object.entries(EXTENSION_VERSIONS)) {
-            const fileName = `lightlynx-${name}.js`;
-            const ext = this.store.extensions.find(e => e.name === fileName);
-            
-            if (!ext) {
-                console.log(`Extension ${name} not found, skipping auto-upgrade`);
-                continue;
-            }
-            
-            const installedHash = this.extractHashFromExtension(ext.code);
-            
-            if (installedHash !== expectedHash) {
-                console.log(`Extension ${name} hash mismatch: installed=${installedHash}, expected=${expectedHash}`);
-                await this.installExtension(name);
-            }
+    public async checkAndUpgradeExtension(): Promise<void> {
+        if (!this.store.extensionHash) return; // No extension installed yet
+        if (EXTENSION_HASH && this.store.extensionHash !== EXTENSION_HASH) {
+            console.log(`Extension hash mismatch: installed=${this.store.extensionHash}, expected=${EXTENSION_HASH}`);
+            await this.upgradeExtension();
         }
     }
 
-    public async installExtension(name: string): Promise<void> {
-        const hash = EXTENSION_VERSIONS[name];
-        if (!hash) {
-            throw new Error(`No hash found for extension ${name}`);
-        }
-        
-        const hashedFileName = `lightlynx-${name}-${hash}.js`;
-        const targetFileName = `lightlynx-${name}.js`;
-
+    public async upgradeExtension(): Promise<void> {
         try {
-            const response = await fetch(`/extensions/${hashedFileName}`);
+            const response = await fetch(`/extension.js`);
             if (!response.ok) throw new Error(`HTTP ${response.status}`);
-            let code = await response.text();
+            const code = await response.text();
             
-            // Prepend hash comment
-            code = `// hash=${hash}\n${code}`;
+            // Code already has hash comment prepended by build
 
-            await this.send("bridge", "request", "extension", "save", { name: targetFileName, code });
-            console.log(`Extension ${name} installed successfully (${hash})`);
-            this.notify('info', `Extension ${name} installed successfully`);
+            await this.send("bridge", "request", "extension", "save", { name: 'lightlynx.js', code });
+            console.log(`Extension upgraded successfully (${EXTENSION_HASH})`);
+            this.notify('info', 'Extension upgraded successfully');
         } catch (error) {
             const message = error instanceof Error ? error.message : String(error);
-            console.error(`Failed to install extension ${name}:`, message);
-            this.notify('error', `Failed to install extension ${name}: ${message}`);
+            console.error('Failed to upgrade extension:', message);
+            this.notify('error', `Failed to upgrade extension: ${message}`);
         }
     }
     
@@ -626,6 +600,10 @@ class Api {
         return this.send('bridge/request/lightlynx/config/setRemoteAccess', { enabled });
     }
 
+    setAutomation(enabled: boolean): Promise<void> {
+        return this.send('bridge/request/lightlynx/config/setAutomation', { enabled });
+    }
+
     addUser(payload: any): Promise<void> {
         return this.send('bridge/request/lightlynx/config/addUser', payload);
     }
@@ -685,17 +663,33 @@ class Api {
             }
             else if (topic === "info") {
                 this.store.permitJoin = payload.permit_join;
+
+                // Unfortunately the 'description' field in groups is only updated on Z2M restart,
+                // so we'll have to rely on the "info" topic to set/update it.
+                for(const [id, info] of Object.entries(payload.config.groups as Record<string, {description: string | undefined}>)) {
+                    const group = this.store.groups[parseInt(id)];
+                    if (group) group.description = info.description;
+                    this.groupDescriptionsCache[id] = info.description;
+                }
             }  
             else if (topic === "extensions") {
-                this.store.extensions = payload || [];
-                console.log('api/received extensions', this.store.extensions.length);
-                this.checkAndUpdateExtensions();
+                // Extract hash from lightlynx.js extension
+                const lightlynxExt = (payload || []).find((e: any) => e.name === 'lightlynx.js');
+                if (lightlynxExt) {
+                    const hash = this.extractHashFromExtension(lightlynxExt.code);
+                    if (hash) {
+                        this.store.extensionHash = hash;
+                        console.log('Extension hash:', hash);
+                        this.checkAndUpgradeExtension();
+                    }
+                }
             }
             else if (topic === "lightlynx/users") {
                 copy(this.store.users, payload || {});
             }
             else if (topic === "lightlynx/config") {
                 this.store.remoteAccessEnabled = payload.remoteAccess;
+                this.store.automationEnabled = payload.automation;
                 this.store.externalAddress = payload.externalAddress;
                 
                 // Update server credentials with external address
@@ -766,7 +760,7 @@ class Api {
                     const oldGroup = this.store.groups[z2mGroup.id];
                     const newGroup: Group = {
                         name: z2mGroup.friendly_name,
-                        description: z2mGroup.description,
+                        description: this.groupDescriptionsCache[z2mGroup.id],
                         scenes: z2mGroup.scenes.map((obj: any) => {
                             // Scenes use parentheses suffix for metadata (triggers, etc)
                             let m = obj.name.match(/^(.*?)\s*\((.*)\)\s*$/)
@@ -783,6 +777,7 @@ class Api {
                         newGroupIds.push(id);
                     }
                 }
+                console.log(groups);
                 copy(this.store.groups, groups);
                 for(let groupId of newGroupIds) {
                     this.streamGroupState(groupId);

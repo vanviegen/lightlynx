@@ -83,12 +83,6 @@ export interface User {
     password?: string;
 }
 
-// Extension interface
-export interface Extension {
-    name: string;
-    code: string;
-}
-
 export type ServerStatus = 'enabled' | 'disabled' | 'try';
 
 export interface ServerCredentials {
@@ -111,11 +105,12 @@ export interface Store {
     connected: boolean;              // Connection status (legacy, derived from connectionState)
     connectionState: ConnectionState; // Explicit connection state
     lastConnectError?: string;       // Last connection error message
-    extensions: Extension[]; // Available Z2M extensions
-    users: Record<string, User>;    // Users from lightlynx-api
-    remoteAccessEnabled?: boolean;  // From lightlynx-api config
-    localAddress?: string;        // From lightlynx-api config
-    externalAddress?: string;      // From lightlynx-api config
+    extensionHash?: string; // Hash of installed lightlynx extension
+    users: Record<string, User>;    // Users from lightlynx extension
+    remoteAccessEnabled?: boolean;  // From lightlynx extension config
+    automationEnabled?: boolean;    // From lightlynx extension config
+    localAddress?: string;          // From lightlynx extension config
+    externalAddress?: string;       // From lightlynx extension config
     activeScenes: Record<string, number | undefined>; // Group name -> active scene ID
 }
 

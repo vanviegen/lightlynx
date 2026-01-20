@@ -6,16 +6,16 @@
   "scripts": {
     "build:app": "vite build --config vite.config.ts src/ --outDir ../build.frontend --assetsDir .",
     "build:debug": "vite build --config vite.config.ts src/ --outDir ../build.frontend --assetsDir . --mode development --sourcemap --minify false",
-    "build:extensions": "vite build --config vite.extensions.config.ts",
+    "build:extension": "vite build --config vite.extension.config.ts",
     "build:cert": "vite build --config vite.backend.config.ts",
-    "build": "rm -rf build.frontend/* build.backend/* && npm run build:extensions && npm run build:app && npm run build:cert",
-    "watch": "npm run build:extensions -- --watch & npm run build:app -- --watch",
-    "dev": "vite --config vite.config.ts src/ --host",
+    "build": "rm -rf build.frontend/* build.backend/* && npm run build:extension && npm run build:app && npm run build:cert",
+    "watch": "npm run build:extension -- --watch & npm run build:app -- --watch",
+    "dev": "vite --config vite.config.ts src/ --port 43599 --host",
     "purge-cache": "dotenv -- bash -c 'curl --request POST --url https://api.bunny.net/pullzone/$BUNNY_PZ_ID/purgeCache --header \"AccessKey: $BUNNY_ACCESS_KEY\" --header \"accept: application/json\" --header \"content-type: application/json\" --data \"{}\"'",
     "deploy:cert": "npm run build:cert && dotenv -- bash -c 'node scripts/deploy-bunny-script.cjs $BUNNY_SSL_SCRIPT_ID $BUNNY_ACCESS_KEY build.backend/cert.js'",
     "deploy": "npm run build && dotenv -- bash -c 'rclone sync build.frontend/ :sftp,host=$DEPLOY_HOST,user=$DEPLOY_USER,pass=$DEPLOY_PASS_OBSCURED,key_use_agent=false:/ --progress --inplace --sftp-shell-type=none' && npm run deploy:cert && npm run purge-cache",
     "test": "playwright test",
-    "mock-z2m": "npm run build:extensions && node --experimental-strip-types src/mock-z2m.ts"
+    "mock-z2m": "npm run build:extension && node --experimental-strip-types src/mock-z2m.ts"
   },
   "author": "Frank van Viegen",
   "license": "All rights reserved",
