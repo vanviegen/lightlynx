@@ -213,15 +213,42 @@ The development URLs use your machine's actual IP address, making them accessibl
 
 When tests fail, Playwright saves artifacts to `test-results/<test-name>/`:
 
-- `*.png`: Screenshots at each step
+- `*.png`: Screenshots at each step showing the visual state
+- `*.html`: Page HTML snapshots at each step (preserves DOM structure for element matching)
+- `error-state.html`: Final HTML state when test failed
 - `error-context.md`: Error details and context
 - `attachments/`: Additional files
 
-To diagnose:
-1. Look at `error-context.md` for the error message and stack trace
-2. Check screenshots to see the visual state at failure
-3. Review console logs in the error context
-4. Use `mcp_playwright_browser_snapshot()` to get the page structure in YAML format (easier for LLMs to analyze than screenshots)
+The test framework captures both a PNG screenshot and HTML snapshot at every test step. The HTML files contain the full DOM structure of the page, making it easy to identify elements and understand the page hierarchy.
+
+#### Diagnostic Workflow
+
+1. **Read the error**: Start with `error-context.md` for the error message and stack trace
+2. **Find the failure point**: Look at the step numbers to identify where the test failed
+3. **Analyze page state**: 
+   - For visual issues: Check the `.png` file at or just before the failure
+   - For element/structure issues: Check the `.html` file to see the full DOM
+   - For final state: Check `error-state.html` for the page state when the test failed
+4. **Review console logs**: Check the error context for browser console messages
+5. **Compare steps**: Look at previous steps' HTML/PNG files to understand state progression
+
+#### HTML Snapshot Format
+
+The HTML files contain the complete page markup including:
+- Full DOM structure with all elements and attributes
+- Inline styles and class names for element identification
+- Current values of form inputs
+- Dynamic content rendered by JavaScript
+
+This makes it easy to locate elements by their selectors, understand nesting, and debug element matching issues.
+
+#### Interactive Debugging
+
+For hands-on debugging, use the Playwright MCP:
+1. Start the test environment: `npm run start-mock`
+2. Navigate to the URL in the MCP browser
+3. Use `mcp_playwright_browser_snapshot()` to get live page structure
+4. Replicate test actions interactively to isolate the issue
 
 ### Manual Mock Server
 

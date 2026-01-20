@@ -136,20 +136,33 @@ function wrapLocator(locator: Locator, page: Page, takeScreenshot: (name: string
 export const test = base.extend({
     page: async ({ page }, use, testInfo) => {
         let stepCount = 0;
+        const actualPage = page; // Keep reference to the actual page object
 
         const takeScreenshot = async (actionName: string) => {
             stepCount++;
             const fileName = `${stepCount.toString().padStart(3, '0')}-${actionName}.png`;
             const filePath = path.join(testInfo.outputDir, fileName);
-            await page.screenshot({ path: filePath, fullPage: false });
-            await testInfo.attach(`Step ${stepCount}: ${actionName}`, { path: filePath, contentType: 'image/png' });
+            await actualPage.screenshot({ path: filePath, fullPage: false });
+            console.log(`Saved: ${fileName}`);
+            
+            // Also capture DOM snapshot as HTML for structure analysis
+            const htmlFileName = `${stepCount.toString().padStart(3, '0')}-${actionName}.html`;
+            const htmlFilePath = path.join(testInfo.outputDir, htmlFileName);
+            try {
+                await actualPage.evaluate(() => (window as any).__playwrightHide?.());
+                const domHtml = await actualPage.evaluate(() => document.body.outerHTML);
+                fs.writeFileSync(htmlFilePath, domHtml, 'utf-8');
+                console.log(`Saved: ${htmlFileName}`);
+            } catch (error) {
+                console.warn(`Could not generate HTML snapshot: ${error}`);
+            }
         };
 
-        currentPage = page;
+        currentPage = actualPage;
         currentTakeScreenshot = takeScreenshot;
 
         // Inject overlay scripts into the browser
-        await page.addInitScript(() => {
+        await actualPage.addInitScript(() => {
             // Wait for browser to actually repaint
             (window as any).__playwrightWaitForRepaint = () => {
                 return new Promise<void>(resolve => {
@@ -205,7 +218,7 @@ export const test = base.extend({
             (window as any).__playwrightHide = () => {
                 ['playwright-overlay-cursor', 'playwright-overlay-check', 'playwright-overlay-banner'].forEach(id => {
                     const el = document.getElementById(id);
-                    if (el) el.style.display = 'none';
+                    if (el) el.remove();
                 });
             };
 
@@ -262,7 +275,7 @@ export const test = base.extend({
         });
 
         // Proxy the Page object
-        const pageProxy = new Proxy(page, {
+        const pageProxy = new Proxy(actualPage, {
             get(target: Page, prop: string, receiver: any) {
                 if (prop === '__isProxy') return true;
                 if (prop === '__target') return target;
@@ -273,18 +286,18 @@ export const test = base.extend({
                     if (actionMethods.includes(prop)) {
                         return async (...args: any[]) => {
                             // Clear previous overlay
-                            await page.evaluate(() => (window as any).__playwrightHide?.());
+                            await actualPage.evaluate(() => (window as any).__playwrightHide?.());
 
                             // Find target element position for any action that takes a selector as first arg
                             const selector = args[0];
                             if (typeof selector === 'string' && prop !== 'goto') {
                                 try {
-                                    const handle = await page.$(selector);
+                                    const handle = await actualPage.$(selector);
                                     if (handle) {
                                         const box = await handle.boundingBox();
                                         if (box) {
                                             const label = (prop === 'fill' || prop === 'type' || prop === 'press') ? JSON.stringify(args[1]) : prop;
-                                            await page.evaluate(({x,y, label}) => (window as any).__playwrightShowClick?.(x,y, label), {x: box.x+box.width/2, y: box.y+box.height/2, label});
+                                            await actualPage.evaluate(({x,y, label}) => (window as any).__playwrightShowClick?.(x,y, label), {x: box.x+box.width/2, y: box.y+box.height/2, label});
                                         }
                                     }
                                 } catch {
@@ -294,7 +307,7 @@ export const test = base.extend({
                             
                             if (prop !== 'goto') {
                                     // Wait for browser to repaint, then take screenshot
-                                    await page.evaluate(() => (window as any).__playwrightWaitForRepaint?.());
+                                    await actualPage.evaluate(() => (window as any).__playwrightWaitForRepaint?.());
                                     await takeScreenshot(`before_${prop}`);
                             }
 
@@ -302,10 +315,10 @@ export const test = base.extend({
                             
                             if (prop === 'goto') {
                                 // For goto, we take screenshot after it loads
-                                await page.waitForLoadState('load').catch(() => {});
-                                await page.waitForTimeout(1000); // Wait longer for SPA to initialize
-                                const url = page.url();
-                                await page.evaluate((u) => {
+                                await actualPage.waitForLoadState('load').catch(() => {});
+                                await actualPage.waitForTimeout(1000); // Wait longer for SPA to initialize
+                                const url = actualPage.url();
+                                await actualPage.evaluate((u) => {
                                     if ((window as any).__playwrightShowBanner) {
                                         (window as any).__playwrightShowBanner(u, 'info');
                                     } else {
@@ -321,7 +334,7 @@ export const test = base.extend({
                                         banner.style.display = 'block';
                                     }
                                 }, url);
-                                await page.waitForTimeout(200);
+                                await actualPage.waitForTimeout(200);
                                 await takeScreenshot('after_goto');
                             }
                             
@@ -334,7 +347,7 @@ export const test = base.extend({
                     if (locatorReturning.includes(prop)) {
                         return (...args: any[]) => {
                             const loc = orig.apply(target, args);
-                            return wrapLocator(loc, page, takeScreenshot);
+                            return wrapLocator(loc, actualPage, takeScreenshot);
                         };
                     }
 
@@ -345,5 +358,25 @@ export const test = base.extend({
         });
 
         await use(pageProxy);
+        
+        // On test failure, capture final state
+        if (testInfo.status === 'failed' || testInfo.status === 'timedOut') {
+            try {
+                await actualPage.evaluate(() => (window as any).__playwrightHide?.());
+                
+                // Capture screenshot
+                const errorScreenshotPath = path.join(testInfo.outputDir, 'error-state.png');
+                await actualPage.screenshot({ path: errorScreenshotPath, fullPage: false });
+                console.log(`Saved: error-state.png`);
+                
+                // Capture HTML
+                const errorHtmlPath = path.join(testInfo.outputDir, 'error-state.html');
+                const domHtml = await actualPage.evaluate(() => document.body.outerHTML);
+                fs.writeFileSync(errorHtmlPath, domHtml, 'utf-8');
+                console.log(`Saved: error-state.html`);
+            } catch (error) {
+                console.warn(`Could not capture error state: ${error}`);
+            }
+        }
     }
 });
