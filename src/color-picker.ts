@@ -53,10 +53,10 @@ export function drawBulbCircle(target: Device | Group, targetId: string | number
             }
             bgs.sort();
             if (bgs.length === 1) {
-                knobColor = bgs[0];
+                knobColor = bgs[0] || knobColor;
             } else if (bgs.length > 1) {
                 knobBackground = `linear-gradient(135deg, ${bgs.join(', ')})`;
-                knobColor = bgs[0]; // Fallback for browsers that don't support gradients
+                knobColor = bgs[0] || knobColor; // Fallback for browsers that don't support gradients
             }
         } else if (isOn) {
             // Single device

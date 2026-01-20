@@ -11,7 +11,6 @@ if (!scriptId || !accessKey) {
 }
 
 const code = fs.readFileSync(filename, 'utf8');
-const data = JSON.stringify({ Code: code });
 
 (async () => {
     const getRes = await fetch(`https://api.bunny.net/compute/script/${scriptId}/code`, {
@@ -29,21 +28,36 @@ const data = JSON.stringify({ Code: code });
         }
     }
 
-    const res = await fetch(`https://api.bunny.net/compute/script/${scriptId}/code`, {
+    let res = await fetch(`https://api.bunny.net/compute/script/${scriptId}/code`, {
         method: 'POST',
         headers: {
             'AccessKey': accessKey,
             'Accept': 'application/json',
             'Content-Type': 'application/json'
         },
-        body: data
+        body: JSON.stringify({ Code: code })
     });
 
-    if (res.status == 204) {
-        console.log("Updated!");
-    } else {
-        console.log(`Status: ${res.status}`);
+    if (res.status != 204) {
+        console.log(`Code push failed: ${res.status}`);
         console.log(await res.text());
         process.exit(1);
     }
+
+    res = await fetch(`https://api.bunny.net/compute/script/${scriptId}/publish`, {
+        method: 'POST',
+        headers: {
+            'AccessKey': accessKey,
+            'Accept': 'application/json',
+            'Content-Type': 'application/json'
+        },
+    });
+
+    if (res.status != 204) {
+        console.log(`Publish code failed: ${res.status}`);
+        console.log(await res.text());
+        process.exit(1);
+    }
+
+    console.log("Done!");
 })();

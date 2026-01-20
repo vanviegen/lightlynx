@@ -196,10 +196,17 @@ function drawDump(): void {
 	dump(api.store);
 }
 
+function DEBUG_route_back(...args: any[]): void {
+	console.log('DEBUG_route_back', ...args, new Error().stack);
+	route.back(...args);
+	console.log('DEBUG_route_back done');
+}
+
+
 function drawPromptPage(): void {
 	const state = route.current.state;
 	const resolve = dialogResolvers[state.resolveId];
-	if (!resolve) return route.back('/');
+	if (!resolve) return DEBUG_route_back('/');
 	
 	const isConfirm = state.type === 'confirm';
 	routeState.title = state.title || (isConfirm ? 'Confirm' : 'Question');
@@ -215,7 +222,7 @@ function drawPromptPage(): void {
 					keydown: (e: KeyboardEvent) => {
 						if (e.key === 'Enter') {
 							resolve(value.value);
-							route.back();
+							DEBUG_route_back();
 						}
 					}
 				});
@@ -226,20 +233,20 @@ function drawPromptPage(): void {
 			if (isConfirm) {
 				$('button.secondary flex:1 #No', 'click=', () => {
 					resolve(false);
-					route.back();
+					DEBUG_route_back();
 				});
 				$('button.primary flex:1 #Yes', 'click=', () => {
 					resolve(true);
-					route.back();
+					DEBUG_route_back();
 				});
 			} else {
 				$('button.secondary flex:1 #Cancel', 'click=', () => {
 					resolve(undefined);
-					route.back();
+					DEBUG_route_back();
 				});
 				$('button.primary flex:1 #OK', 'click=', () => {
 					resolve(value.value);
-					route.back();
+					DEBUG_route_back();
 				});
 			}
 		});
@@ -325,7 +332,7 @@ function drawGroup(groupId: number): void {
 			function recall(): void {
 				api.send(group.name, "set", {scene_recall: scene.id});
 			}
-			const isActive = derive(() => api.store.activeScenes[group.name] == scene.id);
+			const isActive = derive(() => api.store.activeScenes[group.name] == scene.id && group.lightState?.on);
 			$('div.item.link click=', recall, {'.active-scene': isActive}, () => {
 				let icon = icons.scenes[scene.shortName.toLowerCase()] || icons.empty;
 				icon();
@@ -487,7 +494,7 @@ function drawMain(): void {
 						function onClick(): void {
 							api.send(group.name, "set", {scene_recall: scene.id});
 						}
-						const isActive = derive(() => api.store.activeScenes[group.name] == scene.id);
+						const isActive = derive(() => api.store.activeScenes[group.name] == scene.id && group.lightState?.on);
 						const icon = icons.scenes[scene.shortName.toLowerCase()];
 						if (icon) icon('.link click=', onClick, {'.active-scene': isActive});
 						else $('div.scene.link#', scene.shortName, {'.active-scene': isActive}, 'click=', onClick);
@@ -579,9 +586,10 @@ function drawLandingPage(): void {
 	});
 }
 
-const connectionPageState = proxy({ saved: false });
 
 function drawConnectionPage(): void {
+	console.log('Drawing connection page');
+	const saved = proxy(false);
 	
 	$(() => {
 		routeState.title = route.current.search.edit ? 'Edit connection' : 'New connection';
@@ -592,14 +600,15 @@ function drawConnectionPage(): void {
 	const formData = proxy({
 		localAddress: serverToEdit?.localAddress || '',
 		username: serverToEdit?.username || 'admin',
-		password: '', // Don't pre-fill password in UI if it's stored as secret
+		password: serverToEdit?.secret || '',
 	});
 
 	// Watch for connection success and navigate away
 	$(() => {
-		if (connectionPageState.saved && api.store.servers[0]?.status === 'enabled') {
-			connectionPageState.saved = false;
-			route.back('/');
+		console.log('Connection page back?', saved.value && api.store.servers[0]?.status);
+		if (saved.value && api.store.servers[0]?.status === 'enabled') {
+			saved.value = false;
+			DEBUG_route_back('/');
 		}
 	});
 
@@ -615,7 +624,7 @@ function drawConnectionPage(): void {
 		e.preventDefault();
 		
 		let secret = serverToEdit?.secret || '';
-		if (formData.password) {
+		if (formData.password !== secret) {
 			secret = await hashSecret(formData.username, formData.password);
 		}
 		let externalAddress = serverToEdit?.externalAddress;
@@ -632,7 +641,7 @@ function drawConnectionPage(): void {
 			status: 'try',  // Try once, becomes 'enabled' on success or 'disabled' on failure
 		};
 
-		connectionPageState.saved = true;
+		saved.value = true;
 
 		if (route.current.search.edit) {
 			// Update existing server credentials
@@ -647,7 +656,7 @@ function drawConnectionPage(): void {
 	async function handleDelete(): Promise<void> {
 		if (await askConfirm('Are you sure you want to remove these credentials?')) {
 			api.store.servers.shift();
-			route.back('/');
+			DEBUG_route_back('/');
 		}
 	}
 	
@@ -668,17 +677,16 @@ function drawConnectionPage(): void {
 				$('input type=password bind=', ref(formData, 'password'), 'placeholder=', route.current.search.edit ? 'Leave empty to keep current' : '');
 			});
 			
-			const busy = api.store.connectionState === 'connecting' || api.store.connectionState === 'authenticating';
-			
 			$('div.row margin-top:1em', () => {
 				if (route.current.search.edit) {
-					$('button.danger text=Delete click=', handleDelete);
+					$('button.danger type=button text=Delete click=', handleDelete);
 				}
-				$('button.secondary text=Cancel click=', () => {
-					route.back('/');
+				$('button.secondary type=button text=Cancel click=', () => {
+					DEBUG_route_back('/');
 				});
-				$('button.primary type=submit', {'.busy': busy}, () => {
-					$(busy ? '#Connecting...' : route.current.search.edit ? '#Save' : '#Create');
+				$('button.primary type=submit', () => {
+					const busy = api.store.connectionState === 'connecting' || api.store.connectionState === 'authenticating';			
+					$({'.busy': busy}, busy ? '#Connecting...' : route.current.search.edit ? '#Save' : '#Create');
 				});
 			});
 		});
@@ -704,7 +712,7 @@ $('div.root', () => {
 		$({'.landing-page': isEmpty(api.store.servers) && route.current.path === '/'});
 	});
 		$('header', () => {
-			$('img.logo src=', logoUrl, 'click=', () => route.back('/'));
+			$('img.logo src=', logoUrl, 'click=', () => DEBUG_route_back('/'));
 			$(() => {
 				if (route.current.path !== '/') {
 					icons.back('click=', route.up);
@@ -728,10 +736,15 @@ $('div.root', () => {
 				}
 			});
 			$(() => {
-				if (!isEmpty(api.store.servers) && api.store.connectionState !== 'connected') {
-					const spinning = api.store.connectionState === 'connecting' || api.store.connectionState === 'authenticating';
-					icons.reconnect({'.spinning=': spinning}, '.off click=', () => route.go({p: ['connect'], search: {edit: 'y'}}));
-				}
+				icons.reconnect(() => {
+					const state = api.store.connectionState;
+					$({
+						'.spinning': state !== 'connected' && state !== 'idle',
+						'.off': state === 'idle',
+						'.critical': !!api.store.lastConnectError,
+						'click': () => menuOpen.value = !menuOpen.value
+					});
+				});
 			});
 			$(() => {
 				if (api.store.permitJoin) {
@@ -756,10 +769,6 @@ $('div.root', () => {
 				});
 			});
 			$(() => {
-				if (isEmpty(api.store.servers)) return;
-				icons.lan('click=', () => menuOpen.value = !menuOpen.value);
-			});
-			$(() => {
 				const server = api.store.servers[0];
 				if (!server) return;
 				const user = api.store.users[server.username];
@@ -782,7 +791,18 @@ $('div.root', () => {
 		if (!menuOpen.value) return;
 		$('div.menu-overlay click=', () => menuOpen.value = false);
 		$('div.menu', {create: '.menu-fade', destroy: '.menu-fade'}, () => {
-			// Logout
+			// Show connection error if present
+			$(() => {
+				if (api.store.lastConnectError) {
+					$('div.menu-item.error', {create: grow, destroy: shrink}, () => {
+						icons.reconnect('.off');
+						$('span#', api.store.lastConnectError);
+					});
+					$('div.menu-divider');
+				}
+			});
+			
+			// Manage server settings
 			$('div.menu-item click=', async () => {
 				route.go({p: ['connect'], search: {edit: 'y'}})
 				menuOpen.value = false;
@@ -1272,7 +1292,7 @@ export function drawGroupConfigurationEditor(group: Group, groupId: number): voi
 		// Timer configuration (only show if checkbox is set)
 		$(() => {
 			if (!groupState.timeout) return;
-			$('label.item', () => {
+			$('label.item', {create: grow, destroy: shrink}, () => {
 				$('h2#Turn off lights after');
 				$('input type=number min=1 bind=', ref(groupState.timeout!, 'value'));
 				$('select bind=', ref(groupState.timeout!, 'unit'), () => {
@@ -1291,7 +1311,7 @@ export function drawGroupConfigurationEditor(group: Group, groupId: number): voi
 	$('div.item.link#Delete group', 'click=', async () => {
 		if (!await askConfirm(`Are you sure you want to delete group '${group.name}'?`)) return;
 		api.send("bridge", "request", "group", "remove", {id: group.name});
-		route.back('/');
+		DEBUG_route_back('/');
 	}, icons.remove);
 
     const newDescription = proxy('');

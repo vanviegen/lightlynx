@@ -17,6 +17,10 @@ interface UserConfig {
     allowRemote: boolean;
 }
 
+interface User extends UserConfig {
+    username: string;
+}
+
 interface SslConfig {
     expiresAt: number;
     nodeHttpsOptions: {
@@ -41,7 +45,7 @@ class LightLynxAPI {
     private eventBus: any;
     private logger: any;
     private mqttBaseTopic: string;
-    private clients: Map<any, any> = new Map();
+    private clients: Map<WebSocket, User> = new Map();
     private config: LightLynxConfig;
     private server?: http.Server | https.Server;
     private wss?: WebSocketServer;
@@ -74,7 +78,6 @@ class LightLynxAPI {
                 nodeHttpsOptions: { cert, key }
             };
         } else {
-            this.log('info', 'Requesting SSL certificate');
             await this.setupSSL();
             this.log('info', 'Starting HTTPS server on port ' + PORT);
         }
@@ -193,7 +196,7 @@ class LightLynxAPI {
         let changes = false;
 
         if ((externalIp || localIp) && (!cfg.ssl || localIp !== cfg.ssl.localIp  || externalIp !== cfg.ssl.externalIp || cfg.ssl.expiresAt - Date.now() < SSL_RENEW_THRESHOLD)) {
-            this.log('info', 'Requesting SSL certificate');
+            this.log('info', `Requesting SSL certificate localIp=${localIp} useExternalHost=${cfg.remoteAccess}`);
             try {
                 const res: any = await this.postJSON('https://cert.lightlynx.eu/create', { 
                     localIp,
@@ -433,6 +436,14 @@ class LightLynxAPI {
         return result;
     }
 
+    private sendConnectError(req: http.IncomingMessage, socket: any, head: Buffer, message: string) {
+        // Accept the upgrade, send the message, and close.
+        this.wss!.handleUpgrade(req, socket, head, (ws) => {
+            ws.send(JSON.stringify({ topic: 'bridge/lightlynx/connectError', payload: { message } }));
+            ws.close();
+        });
+    }
+
     private onUpgrade(req: http.IncomingMessage, socket: any, head: Buffer) {
         const url = new URL(req.url!, 'http://localhost');
         if (url.pathname !== '/api') {
@@ -441,15 +452,12 @@ class LightLynxAPI {
         }
 
         const username = url.searchParams.get('user');
+        if (!username) return this.sendConnectError(req, socket, head, 'No username provided.');
         const password = url.searchParams.get('secret') || '';
         const clientIp = this.getClientIp(req);
 
-        const user = username ? this.validateUser(username, password) : null;
-        if (!user) {
-            socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
-            socket.destroy();
-            return;
-        }
+        const user = this.validateUser(username, password);
+        if (!user) return this.sendConnectError(req, socket, head, 'Invalid user name or password.');
 
         const externalIp = this.config.ssl?.externalIp;
         if (!user.allowRemote && !this.isLocalIp(clientIp) && clientIp !== externalIp) {
@@ -466,7 +474,7 @@ class LightLynxAPI {
 
     private async onConnection(ws: WebSocket, _req: http.IncomingMessage) {
         const clientInfo = this.clients.get(ws);
-        this.log('info', `Client connected: ${clientInfo.username}`);
+        this.log('info', `Client connected: ${clientInfo?.username}`);
 
         ws.on('error', (err) => this.log('error', `WebSocket error: ${err.message}`));
         ws.on('close', () => this.clients.delete(ws));

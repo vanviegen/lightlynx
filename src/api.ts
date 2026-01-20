@@ -229,7 +229,6 @@ class Api {
         
         this.store.connectionState = 'idle';
         this.store.connected = false;
-        this.reconnectAttempts = 0;
     }
 
     private connect(creds: { localAddress: string; externalAddress?: string; username?: string; secret?: string }): void {
@@ -254,74 +253,60 @@ class Api {
         }
 
         for (const { hostname, port } of connections) {
-            try {
-                const url = new URL(`wss://${hostname}:${port}/api`);
-                url.searchParams.append("lightlynx", "1");
-                if (creds.username) {
-                    url.searchParams.append("user", creds.username);
-                    url.searchParams.append("secret", creds.secret || '');
+            const url = new URL(`wss://${hostname}:${port}/api`);
+            url.searchParams.append("lightlynx", "1");
+            if (creds.username) {
+                url.searchParams.append("user", creds.username);
+                url.searchParams.append("secret", creds.secret || '');
+            }
+            const socket = new WebSocket(url.toString(), ["lightlynx"]);
+            this.tryingSockets.push(socket);
+            
+            socket.addEventListener("error", (e) => {
+                console.error("WebSocket error", (e.target as WebSocket)?.url);
+            });
+            
+            socket.addEventListener("open", () => {
+                if (this.socket) {
+                    socket.close();  // Already have a winner
+                    return;
                 }
-                const socket = new WebSocket(url.toString(), ["lightlynx"]);
-                this.tryingSockets.push(socket);
+                console.log("api/onOpen", socket.url);
                 
-                socket.addEventListener("error", (e) => {
-                    console.error("WebSocket error", (e.target as WebSocket)?.url);
-                });
+                this.socket = socket;
+                for (const s of this.tryingSockets) {
+                    if (s !== socket) s.close();
+                }
+                this.tryingSockets = [];
+                this.store.connectionState = 'authenticating';
+                if (this.reconnectTimeout) {
+                    clearTimeout(this.reconnectTimeout);
+                    this.reconnectTimeout = undefined;
+                }
+            });
+            
+            socket.addEventListener("close", (e) => {
+                console.log("api/onClose", socket.url, e.code, e.reason);
                 
-                socket.addEventListener("open", () => {
-                    if (this.socket) {
-                        socket.close();  // Already have a winner
-                        return;
-                    }
-                    console.log("api/onOpen", socket.url);
-                    
-                    this.socket = socket;
-                    for (const s of this.tryingSockets) {
-                        if (s !== socket) s.close();
-                    }
-                    this.tryingSockets = [];
-                    this.store.connectionState = 'authenticating';
-                    this.reconnectAttempts = 0;
-                    if (this.reconnectTimeout) {
-                        clearTimeout(this.reconnectTimeout);
-                        this.reconnectTimeout = undefined;
-                    }
-                });
-                
-                socket.addEventListener("close", (e) => {
-                    console.log("api/onClose", socket.url, e.code, e.reason);
-                    
-                    if (this.socket === socket) {
-                        // Our active socket closed
-                        this.socket = undefined;
-                        if (e.code === 401) {
-                            this.handleConnectionFailure("Unauthorized, please check your credentials.");
-                        } else if (this.store.connectionState === 'connected') {
-                            this.handleConnectionFailure("Connection lost.");
-                        } else {
+                if (this.socket === socket) {
+                    // Our active socket closed
+                    this.socket = undefined;
+                    this.handleConnectionFailure("Connection lost.");
+                } else {
+                    // One of the racing sockets failed
+                    const index = this.tryingSockets.indexOf(socket);
+                    if (index !== -1) {
+                        this.tryingSockets.splice(index, 1);
+                        if (this.tryingSockets.length === 0 && !this.socket) {
                             this.handleConnectionFailure("Connection failed. Please check the server address.");
                         }
-                    } else {
-                        // One of the racing sockets failed
-                        const index = this.tryingSockets.indexOf(socket);
-                        if (index !== -1) {
-                            this.tryingSockets.splice(index, 1);
-                            if (this.tryingSockets.length === 0 && !this.socket) {
-                                this.handleConnectionFailure("Connection failed. Please check the server address.");
-                            }
-                        }
                     }
-                });
-                
-                socket.addEventListener("message", this.onMessage);
-            } catch (error) {
-                console.error(`Failed to initiate connection to ${hostname}:`, error);
-            }
+                }
+            });
+            
+            socket.addEventListener("message", this.onMessage);
         }
 
-        if (this.tryingSockets.length === 0) {
-            this.handleConnectionFailure("Failed to initiate any connection.");
-        }
     }
     
     private handleConnectionFailure(errorMessage: string): void {
@@ -657,8 +642,14 @@ class Api {
         const socket = event.target as WebSocket;
         if (socket && socket !== this.socket) return;
 
-        // First message confirms authentication succeeded
-        if (this.store.connectionState === 'authenticating') {
+        const message = JSON.parse(event.data);
+        let topic = message.topic;
+        let payload = message.payload;        
+
+        if (topic === 'bridge/lightlynx/connectError') {
+            this.handleConnectionFailure(payload.message);
+        } else if (this.store.connectionState === 'authenticating') {
+            // First message confirms authentication succeeded
             console.log("api/onMessage - Authentication confirmed");
             clearTimeout(this.connectTimeout);
             this.connectTimeout = undefined;
@@ -673,10 +664,6 @@ class Api {
             }
         }
         
-        const message = JSON.parse(event.data);
-        let topic = message.topic;
-        let payload = message.payload;
-
         if (!topic && message.transaction) {
             this.resolvePromises(message);
             return;
@@ -838,5 +825,6 @@ class Api {
 }
 
 const api = new Api();
+(window as any).api = api;
 
 export default api;

@@ -527,11 +527,6 @@ label.checkbox {
   color: #f4810e;
 }
 
-.group-scenes .scene.link.active-scene {
-  background: rgba(244, 129, 14, 0.15);
-  color: #f4810e;
-}
-
 
 .mainContainer {
   flex: 1;
@@ -628,6 +623,16 @@ label.checkbox {
   color: #f44;
 }
 
+.menu-item.error {
+  color: #f44;
+  cursor: default;
+  background-color: #3a1111;
+}
+
+.menu-item.error:hover {
+  background-color: #3a1111;
+}
+
 .menu-item .icon {
   width: 24px;
   height: 24px;
@@ -663,7 +668,7 @@ main {
 }
 
 main.fadeOut {
-  z-index: 1;
+  z-index: 3;
   opacity: 0;
   visibility: hidden;
   pointer-events: none;
