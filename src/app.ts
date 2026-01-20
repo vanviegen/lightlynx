@@ -630,6 +630,53 @@ function drawConnectionPage(): void {
 		username: oldData.username || 'admin',
 		password: oldData.secret || '',
 	});
+	
+	// Auto-connect if URL parameters are provided (host and username required)
+	$(() => {
+		const urlHost = route.current.search.host;
+		const urlUsername = route.current.search.username;
+		const urlSecret = route.current.search.secret;
+		
+		if (urlHost && urlUsername && !saved.value) {
+			console.log('Auto-connecting from URL parameters:', urlHost, urlUsername);
+			
+			// Check if this server already exists
+			const existingServer = api.store.servers.find(s => 
+				s.localAddress === urlHost && s.username === urlUsername
+			);
+			
+			if (existingServer) {
+				// Update the secret if provided
+				if (urlSecret) {
+					existingServer.secret = urlSecret;
+				}
+				existingServer.status = 'try';
+				
+				// Move to front
+				const index = api.store.servers.indexOf(existingServer);
+				if (index > 0) {
+					api.store.servers.splice(index, 1);
+					api.store.servers.unshift(existingServer);
+				}
+			} else {
+				// Create new server entry
+				const newServer: ServerCredentials = {
+					localAddress: urlHost,
+					username: urlUsername,
+					secret: urlSecret || '',
+					status: 'try',
+				};
+				api.store.servers.unshift(newServer);
+			}
+			
+			saved.value = true;
+			
+			// Clear URL parameters
+			delete route.current.search.host;
+			delete route.current.search.username;
+			delete route.current.search.secret;
+		}
+	});
 
 	// Watch for connection success and navigate away
 	$(() => {

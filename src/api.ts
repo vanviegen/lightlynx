@@ -252,7 +252,9 @@ class Api {
         }
 
         for (const { hostname, port } of connections) {
-            const url = new URL(`wss://${hostname}:${port}/api`);
+            // Use ws:// if page loaded over http://, otherwise wss://
+            const protocol = location.protocol === 'http:' ? 'ws' : 'wss';
+            const url = new URL(`${protocol}://${hostname}:${port}/api`);
             url.searchParams.append("lightlynx", "1");
             if (creds.username) {
                 url.searchParams.append("user", creds.username);

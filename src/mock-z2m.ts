@@ -9,9 +9,18 @@ const require = createRequire(import.meta.url);
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// Read configuration from environment
+const MOCK_Z2M_PORT = parseInt(process.env.MOCK_Z2M_PORT || '43598', 10);
+const MOCK_Z2M_INSECURE = process.env.MOCK_Z2M_INSECURE === 'true';
+
+// Get extension paths from command line arguments (everything after the script name)
+const extensionPaths = process.argv.slice(2);
+
+// Set up global for extension to read
 (globalThis as any).MOCK_Z2M = {
-    httpsPort: 43598,
-    certFile: path.join(__dirname, 'mock-certs.json')
+    httpsPort: MOCK_Z2M_PORT,
+    insecure: MOCK_Z2M_INSECURE,
+    certFile: MOCK_Z2M_INSECURE ? undefined : path.join(__dirname, 'mock-certs.json')
 };
 
 // --- Environment Setup ---
@@ -425,15 +434,24 @@ async function init() {
     mqtt.retainedMessages[`${base}/bridge/groups`] = { payload: JSON.stringify([...zigbee.groupsIterator()].map(g => g.toJSON())) } as any;
     mqtt.retainedMessages[`${base}/bridge/extensions`] = { payload: JSON.stringify([]) } as any;
 
-    // Load our extension
-    const extensionPath = path.join(__dirname, '..', 'build.frontend', 'extension.js');
-    if (!fs.existsSync(extensionPath)) {
-        throw new Error('Could not find extension. Run npm run build:extensions first.');
-    }
-    const code = fs.readFileSync(extensionPath, 'utf8');
+    // Load extensions from command line arguments, or default to lightlynx extension
+    const extensionsToLoad = process.argv.slice(2).length > 0 
+        ? process.argv.slice(2) 
+        : [path.join(__dirname, '..', 'build.frontend', 'extension.js')];
     
-    // Add with the name lightlynx.js so it matches what Z2M expects
-    extensionManager.addSilently('lightlynx.js', code);
+    for (const extensionPath of extensionsToLoad) {
+        if (!fs.existsSync(extensionPath)) {
+            console.error(`Extension not found: ${extensionPath}`);
+            continue;
+        }
+        const code = fs.readFileSync(extensionPath, 'utf8');
+        const extensionName = path.basename(extensionPath);
+        
+        // Add with the proper name
+        extensionManager.addSilently(extensionName, code);
+        console.log(`Loaded extension: ${extensionName}`);
+    }
+    
     await extensionManager.startAll();
 }
 

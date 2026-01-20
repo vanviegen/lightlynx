@@ -421,7 +421,19 @@ class LightLynx {
 
         const mock = (globalThis as any).MOCK_Z2M;
 
-        if (mock && mock.certFile) {
+        if (mock?.insecure) {
+            // Start without TLS
+            this.log('info', 'Starting insecure WebSocket server (no TLS)');
+            this.server = http.createServer((req, res) => {
+                if (req.method === 'GET' && (req.url === '/' || req.url === '')) {
+                    res.writeHead(200, { 'Content-Type': 'text/plain' });
+                    res.end('LightLynx API ready');
+                } else {
+                    res.writeHead(404);
+                    res.end();
+                }
+            });
+        } else if (mock?.certFile) {
             this.log('info', 'Starting using mock SSL certificate');
             const { cert, key } = JSON.parse(fs.readFileSync(mock.certFile, 'utf8'));
             
@@ -429,29 +441,33 @@ class LightLynx {
                 expiresAt: Date.now() + 1000000000,
                 nodeHttpsOptions: { cert, key }
             };
+            
+            this.server = https.createServer(this.config.ssl.nodeHttpsOptions);
         } else {
             await this.setupSSL();
             this.log('info', 'Starting HTTPS server on port ' + PORT);
+            
+            const ssl = this.config.ssl;
+            if (!ssl?.nodeHttpsOptions?.cert) {
+                this.log('error', 'Failed to setup SSL. Cannot start server.');
+                return;
+            }
+            
+            this.server = https.createServer(ssl.nodeHttpsOptions);
         }
-
-        const ssl = this.config.ssl;
-        if (!ssl?.nodeHttpsOptions?.cert) {
-            this.log('error', 'Failed to setup SSL. Cannot start server.');
-            return;
-        }
-
-        this.server = https.createServer(ssl.nodeHttpsOptions);
 
         this.server.on('upgrade', (req, socket, head) => this.onUpgrade(req, socket, head));
-        this.server.on('request', (req, res) => {
-            if (req.method === 'GET' && (req.url === '/' || req.url === '')) {
-                res.writeHead(200, { 'Content-Type': 'text/plain' });
-                res.end('LightLynx API ready');
-            } else {
-                res.writeHead(404);
-                res.end();
-            }
-        });
+        if (!mock?.insecure) {
+            this.server.on('request', (req, res) => {
+                if (req.method === 'GET' && (req.url === '/' || req.url === '')) {
+                    res.writeHead(200, { 'Content-Type': 'text/plain' });
+                    res.end('LightLynx API ready');
+                } else {
+                    res.writeHead(404);
+                    res.end();
+                }
+            });
+        }
 
         this.wss = new WebSocketServer({ 
             noServer: true, 

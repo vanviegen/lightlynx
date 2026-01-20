@@ -30,14 +30,32 @@ Once started, the extension will listen on HTTPS port 43597 and automatically pr
 
 ### Scripts
 
-- `npm run dev`: Start development server on port 5173.
+- `npm run dev`: Start Vite development server on port 43599 (watches for file changes).
+- `npm run start-mock`: Start complete development environment (mock Z2M + Vite dev server with auto-connection URL).
 - `npm run build`: Production build to `build.frontend/`.
 - `npm test`: Run Playwright integration tests with a mock Zigbee2MQTT backend.
-- `npm run mock-z2m`: Start the mock Zigbee2MQTT server independently. Use `-- --http-port PORT` to start with HTTP on the given PORT instead of the HTTPS on port 43597.
-- `npm run deploy`: Deploy to `build.frontend/` folder to Bunny.net CDN. You'll need `.env` set up.
+- `npm run mock-z2m`: Start the mock Zigbee2MQTT server independently (port 43598, insecure mode).
+- `npm run deploy`: Build and deploy to Bunny.net CDN. Requires `.env` configuration.
+
+### Development
+
+For development, use:
+
+```bash
+npm run start-mock
+```
+
+This starts both a mock Zigbee2MQTT server and Vite dev server on random ports, and outputs a direct connection URL. The servers listen on all network interfaces, making them accessible from other devices.
+
+The mock server runs without TLS (`MOCK_Z2M_INSECURE=true`), and the frontend automatically uses `ws://` instead of `wss://` when loaded over HTTP.
 
 ### Testing
 
-Integration tests use Playwright and a custom mock Zigbee2MQTT server ([src/mock-z2m.ts](src/mock-z2m.ts)). When running `npm test`, temporary servers are started:
-- Vite Dev Server: Port 5188
-- Mock Z2M: Port 8088
+Integration tests use Playwright and a custom mock Zigbee2MQTT server ([src/mock-z2m.ts](src/mock-z2m.ts)). The mock server simulates Zigbee2MQTT's behavior and runs the actual lightlynx extension.
+
+Run tests with:
+```bash
+npm test
+```
+
+Playwright automatically manages server lifecycle during testing.

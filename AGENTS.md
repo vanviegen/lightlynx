@@ -117,12 +117,118 @@ Version checking via first-line comments (`// lightlynx-<name> v<version>`). Aut
 - Icons are SVG functions from `icons.ts`
 - Admin mode toggled via `?admin=y` query parameter or three-dot menu, stored in `admin.value` observable
 
+## Development
+
+### Quick Start Development Environment
+
+The `start-mock` script provides a complete development environment:
+
+```bash
+npm run start-mock
+```
+
+This will start a mock-z2m and a Vite dev server and print the connection URL. If already running, it will just print the URL.
+
+Point the Playwright MCP at this URL to interact with the app.
+
+To stop the servers:
+```bash
+npm run stop-mock
+```
+
+
+
+
+### URL-Based Connection
+
+You can connect to a server directly via URL parameters:
+
+```
+http://localhost:5173/connect?host=192.168.1.94:41791&username=admin&secret=<optional-hash>
+```
+
+Parameters:
+- `host`: Server address with optional port (required)
+- `username`: Username (required)
+- `secret`: Pre-hashed password secret (optional)
+
+When these parameters are present, the app will:
+1. Check if a server with matching host/username exists in saved servers
+2. If found: Update secret (if provided) and attempt connection
+3. If not found: Create new server entry and attempt connection
+4. Clear URL parameters after processing
+
+This is useful for:
+- Development workflows
+- Sharing pre-configured connection links
+- Automated testing with Playwright MCP
+
+### Mock Server Configuration
+
+The mock server (`src/mock-z2m.ts`) accepts extensions as command-line arguments:
+
+```bash
+MOCK_Z2M_PORT=43598 MOCK_Z2M_INSECURE=true node --experimental-strip-types src/mock-z2m.ts [extension-path...]
+```
+
+Environment variables:
+- `MOCK_Z2M_PORT`: Port for WebSocket server (default: 43598)
+- `MOCK_Z2M_INSECURE`: If 'true', use HTTP/WS instead of HTTPS/WSS
+
+If no extension paths are provided, it loads `build.frontend/extension.js` by default. You can provide one or more extension paths as command-line arguments to load custom extensions.
+
 ## Testing
 
-Integration tests use Playwright and a mock Zigbee2MQTT server (`src/mock-z2m.ts`). The latter doesn't do any Zigbee nor MQTT nor web API, but runs our lightlynx-api extension (exposing a WebSocket API on port 43598) by default, and is capable of runnings lightlynx-automation as well.
+Integration tests use Playwright and a mock Zigbee2MQTT server (`src/mock-z2m.ts`). The mock server doesn't do any Zigbee, MQTT, or web API, but runs the lightlynx extension (exposing a WebSocket API) and can run automation features.
 
-- `npm test`: Runs the suite. Playwright orchestrates running mock-z2m.
-- `npm run mock-z2m`: Start mock-z2m manually. Supports `--http-port PORT` argument to run an HTTP server on PORT instead of HTTPS on 43598.
+### Running Tests
+
+```bash
+npm test  # Run all tests
+```
+
+Playwright automatically starts the mock server and Vite dev server on fixed ports during testing.
+
+### Interactive Testing with Playwright MCP
+
+You can use the Playwright MCP (Model Context Protocol) to interactively test the app:
+
+1. Start the development environment:
+   ```bash
+   npm run start-mock
+   ```
+
+2. Copy the output URL (e.g., `http://192.168.1.94:33229/connect?host=192.168.1.94:41791&username=admin`)
+
+3. Use Playwright MCP tools to navigate and interact:
+   ```
+   mcp_playwright_browser_navigate(url)
+   mcp_playwright_browser_snapshot()  # Get page structure
+   mcp_playwright_browser_click(element, ref)
+   ```
+
+The development URLs use your machine's actual IP address, making them accessible from Playwright MCP running in Docker or other network contexts.
+
+### Diagnosing Test Failures
+
+When tests fail, Playwright saves artifacts to `test-results/<test-name>/`:
+
+- `*.png`: Screenshots at each step
+- `error-context.md`: Error details and context
+- `attachments/`: Additional files
+
+To diagnose:
+1. Look at `error-context.md` for the error message and stack trace
+2. Check screenshots to see the visual state at failure
+3. Review console logs in the error context
+4. Use `mcp_playwright_browser_snapshot()` to get the page structure in YAML format (easier for LLMs to analyze than screenshots)
+
+### Manual Mock Server
+
+Start mock server independently:
+```bash
+npm run mock-z2m  # Uses MOCK_Z2M_PORT=43598 MOCK_Z2M_INSECURE=true
+```
 
 ## Service Worker
 

@@ -4,3 +4,4 @@ _webcentral_data
 tmp
 .env
 test-results
+.mock-lock.json
