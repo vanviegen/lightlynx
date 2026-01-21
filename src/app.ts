@@ -7,7 +7,6 @@ import * as icons from './icons';
 import * as colors from './colors';
 import { drawColorPicker, drawBulbCircle } from "./color-picker";
 import { Device, Group, ServerCredentials, User } from './types';
-import { hashSecret } from './hash';
 
 import logoUrl from './logo.webp';
 import swUrl from './sw.ts?worker&url';
@@ -616,78 +615,83 @@ function drawLandingPage(): void {
 
 
 function drawConnectionPage(): void {
-	console.log('Drawing connection page');
+	// Read initial state non-reactively to avoid re-renders
+	const isEdit = peek(() => route.current.state.edit);
+	const oldData: Partial<ServerCredentials> = isEdit ? peek(() => clone(api.store.servers[0] || {})) : {};
+	const initialHost = peek(() => route.current.search.host) || oldData.localAddress || '';
+	const initialUsername = peek(() => route.current.search.username) || oldData.username || 'admin';
+	const initialSecret = peek(() => route.current.search.secret);
+	
+	// Auto-connect if both host and username came from URL
+	const shouldAutoConnect = !isEdit && initialHost && initialUsername && peek(() => route.current.search.host) === initialHost;
+	
 	const saved = proxy(false);
+	const hostProxy = proxy(initialHost);
+	const usernameProxy = proxy(initialUsername);
+	const password = proxy('');
 	
 	$(() => {
-		routeState.title = route.current.search.edit ? 'Edit connection' : 'New connection';
+		routeState.title = isEdit ? 'Edit connection' : 'New connection';
 		routeState.subTitle = 'Z2M';
 	});
 	
-	const oldData: Partial<ServerCredentials> = peek(() => route.current.search.edit ? clone(api.store.servers[0] || {}) : {});
-	const formData = proxy({
-		localAddress: oldData.localAddress || '',
-		username: oldData.username || 'admin',
-		password: oldData.secret || '',
+	// Update URL as user types
+	$(() => { route.current.search.host = hostProxy.value; });
+	$(() => { route.current.search.username = usernameProxy.value; });
+	
+	// Hash password and update URL (debounced)
+	let hashTimeout: any;
+	$(() => {
+		const pw = password.value;
+		clearTimeout(hashTimeout);
+		if (!pw) {
+			delete route.current.search.secret;
+			return;
+		}
+		// Check if it's already a 64-char hex secret
+		if (/^[0-9a-f]{64}$/i.test(pw)) {
+			route.current.search.secret = pw.toLowerCase();
+			return;
+		}
+		// Hash the password
+		hashTimeout = setTimeout(async () => {
+			const secret = await hashSecret(pw);
+			if (password.value === pw) route.current.search.secret = secret;
+		}, 300);
 	});
 	
-	// Auto-connect if URL parameters are provided (host and username required)
-	$(() => {
-		const urlHost = route.current.search.host;
-		const urlUsername = route.current.search.username;
-		const urlSecret = route.current.search.secret;
-		
-		if (urlHost && urlUsername && !saved.value) {
-			console.log('Auto-connecting from URL parameters:', urlHost, urlUsername);
-			
-			// Check if this server already exists
-			const existingServer = api.store.servers.find(s => 
-				s.localAddress === urlHost && s.username === urlUsername
-			);
-			
-			if (existingServer) {
-				// Update the secret if provided
-				if (urlSecret) {
-					existingServer.secret = urlSecret;
-				}
-				existingServer.status = 'try';
-				
-				// Move to front
-				const index = api.store.servers.indexOf(existingServer);
-				if (index > 0) {
-					api.store.servers.splice(index, 1);
-					api.store.servers.unshift(existingServer);
-				}
-			} else {
-				// Create new server entry
-				const newServer: ServerCredentials = {
-					localAddress: urlHost,
-					username: urlUsername,
-					secret: urlSecret || '',
-					status: 'try',
-				};
-				api.store.servers.unshift(newServer);
+	// Auto-connect on initial load with URL params
+	if (shouldAutoConnect) {
+		console.log('Auto-connecting from URL parameters:', initialHost, initialUsername);
+		const existing = api.store.servers.find(s => s.localAddress === initialHost && s.username === initialUsername);
+		if (existing) {
+			if (initialSecret) existing.secret = initialSecret;
+			existing.status = 'try';
+			const index = api.store.servers.indexOf(existing);
+			if (index > 0) {
+				api.store.servers.splice(index, 1);
+				api.store.servers.unshift(existing);
 			}
-			
-			saved.value = true;
-			
-			// Clear URL parameters
-			delete route.current.search.host;
-			delete route.current.search.username;
-			delete route.current.search.secret;
+		} else {
+			api.store.servers.unshift({
+				localAddress: initialHost,
+				username: initialUsername,
+				secret: initialSecret || '',
+				status: 'try'
+			});
 		}
-	});
+		saved.value = true;
+	}
 
-	// Watch for connection success and navigate away
+	// Navigate away on successful connection
 	$(() => {
-		console.log('Connection page back?', saved.value && api.store.servers[0]?.status);
 		if (saved.value && api.store.servers[0]?.status === 'enabled') {
 			saved.value = false;
 			DEBUG_route_back('/');
 		}
 	});
 
-	// Watch for connection error and show toast
+	// Show connection errors
 	$(() => {
 		if (api.store.lastConnectError) {
 			notify('error', api.store.lastConnectError);
@@ -697,34 +701,19 @@ function drawConnectionPage(): void {
 
 	async function handleSubmit(e: Event): Promise<void> {
 		e.preventDefault();
-		
-		let secret = oldData.secret || '';
-		if (formData.password !== secret) {
-			secret = await hashSecret(formData.username, formData.password);
-		}
-		let externalAddress = oldData.externalAddress;
-		if (formData.localAddress !== oldData.localAddress) {
-			// Reset external address if local address has changed
-			externalAddress = undefined;
-		}
-
 		const server: ServerCredentials = {
-			localAddress: formData.localAddress,
-			username: formData.username,
-			secret,
-			externalAddress,
-			status: 'try',  // Try once, becomes 'enabled' on success or 'disabled' on failure
+			localAddress: hostProxy.value,
+			username: usernameProxy.value,
+			secret: peek(() => route.current.search.secret) || oldData.secret || '',
+			externalAddress: hostProxy.value !== oldData.localAddress ? undefined : oldData.externalAddress,
+			status: 'try'
 		};
-
 		saved.value = true;
-
-		if (route.current.search.edit) {
-			// Update existing server credentials
+		if (isEdit) {
 			copy(api.store.servers[0]!, server);
 		} else {
-			// Add new server
 			api.store.servers.unshift(server);
-			route.current.search.edit = 'y'; // Now we're editing this one
+			route.current.state.edit = 'y';
 		}
 	}
 
@@ -739,33 +728,44 @@ function drawConnectionPage(): void {
 		$('form submit=', handleSubmit, () => {
 			$('div.field', () => {
 				$('label#Server Address');
-				$('input placeholder=', 'e.g. 192.168.1.5[:port]', 'required=', true, 'bind=', ref(formData, 'localAddress'));
+				$('input placeholder=', 'e.g. 192.168.1.5[:port]', 'required=', true, 'bind=', hostProxy);
 			});
-			
 			$('div.field', () => {
 				$('label#Username');
-				$('input required=', true, 'bind=', ref(formData, 'username'));
+				$('input required=', true, 'bind=', usernameProxy);
 			});
-			
 			$('div.field', () => {
 				$('label#Password');
-				$('input type=password bind=', ref(formData, 'password'), 'placeholder=', route.current.search.edit ? 'Leave empty to keep current' : '');
+				$('input type=password bind=', password, 'placeholder=', isEdit ? 'Password or secret (empty to clear)' : '');
 			});
-			
 			$('div.row margin-top:1em', () => {
-				if (route.current.search.edit) {
-					$('button.danger type=button text=Delete click=', handleDelete);
-				}
-				$('button.secondary type=button text=Cancel click=', () => {
-					DEBUG_route_back('/');
-				});
+				if (isEdit) $('button.danger type=button text=Delete click=', handleDelete);
+				$('button.secondary type=button text=Cancel click=', () => DEBUG_route_back('/'));
 				$('button.primary type=submit', () => {
 					const busy = api.store.connectionState === 'connecting' || api.store.connectionState === 'authenticating';			
-					$({'.busy': busy}, busy ? '#Connecting...' : route.current.search.edit ? '#Save' : '#Create');
+					$({'.busy': busy}, busy ? '#Connecting...' : isEdit ? '#Save' : '#Create');
 				});
 			});
 		});
 	});
+}
+
+async function hashSecret(password: string): Promise<string> {
+    if (!password) return '';
+    const saltString = "LightLynx-Salt-v2";
+    const salt = new TextEncoder().encode(saltString);
+    const pw = new TextEncoder().encode(password);
+    
+    const keyMaterial = await window.crypto.subtle.importKey("raw", pw, "PBKDF2", false, ["deriveBits"]);
+    
+    const derivedBits = await window.crypto.subtle.deriveBits({
+        name: "PBKDF2",
+        salt: salt,
+        iterations: 100000,
+        hash: "SHA-256"
+        }, keyMaterial, 256);
+    
+    return Array.from(new Uint8Array(derivedBits)).map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
 async function createGroup(): Promise<void> {
@@ -880,7 +880,7 @@ $('div.root', () => {
 			
 			// Manage server settings
 			$('div.menu-item click=', async () => {
-				route.go({p: ['connect'], search: {edit: 'y'}})
+				route.go({p: ['connect'], state: {edit: 'y'}})
 				menuOpen.value = false;
 			}, () => {
 				icons.edit();
@@ -922,6 +922,7 @@ $('div.root', () => {
 	
 	$('div.mainContainer', () => {
 		const p = route.current.p;
+		
 		$('main', () => {
 			routeState.title = '';
 			routeState.subTitle = '';
@@ -1457,7 +1458,7 @@ function drawUserEditor(): void {
 
 	$('div.item', () => {
 		$('h2.form-label#Password');
-		$('input type=password', {bind: ref(user, 'password'), placeholder: isNew ? 'Required' : 'Leave empty to keep current'});
+		$('input type=password', {bind: ref(user, 'password'), placeholder: isNew ? 'Required' : 'Password or secret (empty to clear)'});
 	});
 
 	if (!isAdminUser) {
@@ -1533,7 +1534,12 @@ function drawUserEditor(): void {
 			const payload: any = unproxy(user);
 			
 			if (user.password) {
-				payload.secret = await hashSecret(finalUsername, user.password);
+				// Check if it's already a 64-char hex secret
+				if (/^[0-9a-f]{64}$/i.test(user.password)) {
+					payload.secret = user.password.toLowerCase();
+				} else {
+					payload.secret = await hashSecret(user.password);
+				}
 			}
 			delete payload.password;
 			

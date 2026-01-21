@@ -56,29 +56,11 @@ export const expect = ((actual: any, ...args: any[]) => {
 export type { Page };
 
 export async function connectToMockServer(page: Page) {
-    // 1. Go to the app in admin mode
-    await page.goto('/?admin=y');
-
-    // 2. Check if already connected (look for Management header)
-    const isConnected = await page.locator('h1', { hasText: 'Management' }).isVisible().catch(() => false);
+    // Use shareable URL to connect directly - much faster!
+    await page.goto('/connect?host=localhost:43598&username=admin&admin=y');
     
-    if (!isConnected) {
-        // Go to connect page
-        await page.click('text=Connect to a server');
-        
-        // 3. Fill connection details
-        // Using localhost which connects to our mock lightlynx-api extension on port 43598
-        await page.fill('input[placeholder="e.g. 192.168.1.5[:port]"]', 'localhost:43598');
-        
-        // Fill credentials (known from mock-z2m setup - empty password)
-        await page.fill('label:has-text("Username") + input', 'admin');
-        // Password field left empty (admin has no password by default)
-        
-        await page.click('button[type="submit"]');
-        
-        // Wait for redirection to main page
-        await expect(page.locator('h1', { hasText: 'Management' })).toBeVisible({ timeout: 10000 });
-    }
+    // Wait for connection to complete and redirect to main page
+    await expect(page.locator('h2', { hasText: 'Kitchen' })).toBeVisible({ timeout: 10000 });
 }
 
 function wrapLocator(locator: Locator, page: Page, takeScreenshot: (name: string) => Promise<void>): Locator {
