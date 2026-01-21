@@ -562,6 +562,15 @@ class MockMQTT {
                     delete statePayload.scene_remove;
                     if (Object.keys(statePayload).length > 0) {
                         state.set(entity, statePayload);
+                        
+                        // If this is a group, propagate state to all members
+                        if (entity.isGroup()) {
+                            for (const member of entity.members) {
+                                const memberState = state.get(member);
+                                state.set(member, { ...memberState, ...statePayload });
+                                eventBus.emitMQTTMessagePublished(`${base}/${member.name}`, JSON.stringify(state.get(member)));
+                            }
+                        }
                     }
                     // Echo back state
                     eventBus.emitMQTTMessagePublished(`${base}/${entityName}`, JSON.stringify(state.get(entity)));

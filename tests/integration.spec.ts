@@ -20,11 +20,11 @@ test.describe('Light Lynx Integration', () => {
     await page.fill('input[type="text"]', groupName);
     await page.click('button.primary:has-text("OK")');
 
-    // Verify group appears in the list
-    await expect(page.locator('h2', { hasText: groupName }).first()).toBeVisible();
+    // Verify group appears in the list (not in a fadeOut page)
+    await expect(page.locator('main:not(.fadeOut)').locator('h2', { hasText: groupName }).first()).toBeVisible();
 
     // 6. Navigate into the group
-    await page.click(`h2:has-text("${groupName}")`);
+    await page.click(`main:not(.fadeOut) h2:has-text("${groupName}")`);
     await expect(page.locator('span.subTitle', { hasText: 'group' })).toBeVisible();
 
     // 7. Add lights to the group

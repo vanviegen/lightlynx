@@ -32,7 +32,7 @@ export default defineConfig({
     {
       command: 'exec npm run mock-z2m',
       port: 43598,
-      reuseExistingServer: false,
+      reuseExistingServer: !process.env.CI,
       env: {
         MOCK_Z2M_PORT: '43598',
         MOCK_Z2M_INSECURE: 'true',
@@ -41,7 +41,7 @@ export default defineConfig({
     {
       command: 'exec npm run dev -- --port 25833',
       port: 25833,
-      reuseExistingServer: false,
+      reuseExistingServer: !process.env.CI,
     },
   ],
 });
