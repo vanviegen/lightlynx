@@ -189,58 +189,43 @@ npm test  # Run all tests
 
 Playwright automatically starts the mock server and Vite dev server on fixed ports during testing.
 
+### Diagnosing Test Failures
+
+Each test gets its own results directory named `tests-<status>/<test-file>-<line-number>` where `<status>` can be 'failed' or 'passed', `<test-file>` matches the base name of the .spec.ts file, and <line-number> points at the start of the test function in that file.
+
+**Files in a failed test directory:**
+- `NNNN.png` / `NNNN.html` - Screenshots and HTML snapshots at specific line numbers in the test file
+- `error.png` / `error.html` - Final page state when the test failed
+- `error.txt` - Complete error information (error message, stack trace, URL)
+
+Read the .html files to understand the DOM structure at steps that may be of interest. Use the .png files for layout work.
+
 ### Interactive Testing with Playwright MCP
 
 You can use the Playwright MCP (Model Context Protocol) to interactively test the app:
 
-1. Start the development environment:
-   ```bash
-   npm run start-mock
-   ```
+1. Run `npm run start-mock`. It outputs an URL.
+2. Use Playwright MCP to navigate to that URL.
 
-2. Copy the output URL (e.g., `http://192.168.1.94:33229/connect?host=192.168.1.94:41791&username=admin`)
+```
+mcp_playwright_browser_navigate(url)
+mcp_playwright_browser_snapshot()  # Get page structure
+mcp_playwright_browser_click(element, ref)
+```
 
-3. Use Playwright MCP tools to navigate and interact:
-   ```
-   mcp_playwright_browser_navigate(url)
-   mcp_playwright_browser_snapshot()  # Get page structure
-   mcp_playwright_browser_click(element, ref)
-   ```
+However, please *prefer* to use the automated tests and diagnostic artifacts for most debugging, as they provide a complete history of test step and provide future value.
 
-The development URLs use your machine's actual IP address, making them accessible from Playwright MCP running in Docker or other network contexts.
+#### Example: Debugging a Failed Test
 
-### Diagnosing Test Failures
+If a test fails at line 34 in integration.spec.ts:
 
-When tests fail, Playwright saves artifacts to `test-results/<test-name>/`:
+1. Terminal shows: `Output for failed test moved to: tests-failed/integration-0005/`
+2. Open `tests-failed/integration-0005/error.txt` - shows error occurred at line 34
+3. Look at `tests-failed/integration-0005/0034.png` - screenshot taken at that line
+4. Check earlier screenshots (0011.png, 0027.png, etc.) to see test progression
+5. If needed, examine HTML files to inspect element structure and selectors
 
-- `*.png`: Screenshots at each step showing the visual state
-- `*.html`: Page HTML snapshots at each step (preserves DOM structure for element matching)
-- `error-state.html`: Final HTML state when test failed
-- `error-context.md`: Error details and context
-- `attachments/`: Additional files
-
-The test framework captures both a PNG screenshot and HTML snapshot at every test step. The HTML files contain the full DOM structure of the page, making it easy to identify elements and understand the page hierarchy.
-
-#### Diagnostic Workflow
-
-1. **Read the error**: Start with `error-context.md` for the error message and stack trace
-2. **Find the failure point**: Look at the step numbers to identify where the test failed
-3. **Analyze page state**: 
-   - For visual issues: Check the `.png` file at or just before the failure
-   - For element/structure issues: Check the `.html` file to see the full DOM
-   - For final state: Check `error-state.html` for the page state when the test failed
-4. **Review console logs**: Check the error context for browser console messages
-5. **Compare steps**: Look at previous steps' HTML/PNG files to understand state progression
-
-#### HTML Snapshot Format
-
-The HTML files contain the complete page markup including:
-- Full DOM structure with all elements and attributes
-- Inline styles and class names for element identification
-- Current values of form inputs
-- Dynamic content rendered by JavaScript
-
-This makes it easy to locate elements by their selectors, understand nesting, and debug element matching issues.
+The line numbers in filenames directly correspond to lines in the test file, making it easy to correlate test code with captured state.
 
 #### Interactive Debugging
 

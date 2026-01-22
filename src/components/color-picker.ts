@@ -1,10 +1,92 @@
-import { $, clean, onEach } from "aberdeen"
-import * as icons from './icons'
-import * as colors from "./colors"
-import api from "./api"
-import { LightState, XYColor, HSColor, Device, Group, isHS, isXY } from './types'
+import { $, clean, onEach, insertCss } from "aberdeen"
+import * as icons from '../icons'
+import * as colors from "../colors"
+import api from "../api"
+import { LightState, XYColor, HSColor, Device, Group, isHS, isXY } from '../types'
 
 const CT_MIN = 100, CT_MAX = 550;
+
+// Circle toggle styles
+const circleStyle = insertCss({
+    w: '52px',
+    h: '28px',
+    borderRadius: '14px',
+    border: '1px solid $border',
+    bg: '#080808',
+    cursor: 'pointer',
+    flexShrink: 0,
+    position: 'relative',
+    overflow: 'visible',
+    transition: 'background-color 0.3s ease, border-color 0.3s ease',
+    
+    // Off-state circle (always dark)
+    '&::before': {
+        content: '""',
+        position: 'absolute',
+        w: '22px',
+        h: '22px',
+        borderRadius: '50%',
+        bg: '#555',
+        top: '2px',
+        left: '2px',
+        transition: 'transform 0.3s ease, opacity 0.3s ease',
+        opacity: 1,
+    },
+    
+    // On-state circle (with gradient)
+    '&::after': {
+        content: '""',
+        position: 'absolute',
+        w: '22px',
+        h: '22px',
+        borderRadius: '50%',
+        bg: 'var(--knob-background, var(--knob-color, #555))',
+        top: '2px',
+        left: '2px',
+        transition: 'transform 0.3s ease, opacity 0.3s ease, box-shadow 0.3s ease',
+        boxShadow: 'var(--knob-glow, none)',
+        opacity: 0,
+    },
+    
+    '&.on': {
+        borderColor: '#555',
+        '&::before': {
+            transform: 'translateX(24px)',
+            opacity: 0,
+        },
+        '&::after': {
+            transform: 'translateX(24px)',
+            opacity: 1,
+        },
+    },
+});
+
+// Color wheel container styles
+const wheelStyle = insertCss({
+    position: 'relative',
+});
+
+// Handle/marker styles
+const handleStyle = insertCss({
+    position: 'absolute',
+    transition: 'all 0.1s',
+    borderRadius: '50%',
+    border: '2px solid #fff',
+    boxShadow: '0 0 0 1px #000 inset',
+    touchAction: 'none',
+    userSelect: 'none',
+    WebkitTouchCallout: 'none',
+    WebkitTapHighlightColor: 'transparent',
+});
+
+// Scale container styles
+const scaleStyle = insertCss({
+    border: '1px solid $border',
+    position: 'relative',
+    h: '40px',
+    borderRadius: '3px',
+    overflow: 'hidden',
+});
 
 interface TrackingState {
     event: MouseEvent | TouchEvent;
@@ -34,7 +116,7 @@ export function drawBulbCircle(target: Device | Group, targetId: string | number
     
     const isGroup = !!(target as any).members;
     
-    $('div.circle click=', onClick, () => {
+    $('div.circle', circleStyle, 'click=', onClick, () => {
         // Reactive scope: only this inner function re-runs on state change
         const isOn = target.lightState?.on;
         
@@ -75,14 +157,14 @@ export function drawBulbCircle(target: Device | Group, targetId: string | number
 }
 
 function drawColorWheelMarker(state: LightState, size: number = 24): void {
-    $('div.handle', () => {
+    $('div', handleStyle, () => {
         let color = state.color;
 
         if (typeof color === 'number') {
             color = colors.miredsToHs(color);
         }
         else if (color == null) {
-            $({ $display: 'none' });
+            $('display:none');
             return;
         }
         else if (isXY(color)) {
@@ -90,7 +172,7 @@ function drawColorWheelMarker(state: LightState, size: number = 24): void {
         }
         
         if (!isHS(color)) {
-            $({ $display: 'none' });
+            $('display:none');
             return;
         }
 
@@ -99,15 +181,7 @@ function drawColorWheelMarker(state: LightState, size: number = 24): void {
         let left = Math.cos(hueRadians) * color.saturation * 50 + 50;
         let top = Math.sin(hueRadians) * color.saturation * 50 + 50;
 
-        $({
-            $display: 'block',
-            $height: lsize + 'px',
-            $width: lsize + 'px',
-            $marginTop: (-lsize / 2) + 'px',
-            $marginLeft: (-lsize / 2) + 'px',
-            $top: top + '%',
-            $left: left + '%',
-        });
+        $(`display:block h:${lsize}px w:${lsize}px mt:${-lsize/2}px ml:${-lsize/2}px top:${top}% left:${left}%`);
     });
 }
 
@@ -117,8 +191,11 @@ export function drawColorWheel(target: Device | Group, targetId: string | number
     
     let canvas: HTMLCanvasElement;
 
-    $('p.wheel position:relative', () => {
-        let canvasEl = $('canvas width=1 height=1 width:100% mousedown=', startTrack, 'touchstart=', startTrack) as HTMLCanvasElement;
+    $('div', wheelStyle, () => {
+        let canvasEl = $('canvas w:100% mousedown=', startTrack, 'touchstart=', startTrack, {
+            width: 1,
+            height: 1
+        }) as HTMLCanvasElement;
 
         canvas = canvasEl;
         setTimeout(paintColorWheelCanvas, 0);
@@ -188,7 +265,7 @@ export function drawColorWheel(target: Device | Group, targetId: string | number
 }
 
 function drawScaleMarker(state: LightState, colorTempRange?: [number, number], size: number = 24): void {
-    $('div.handle', () => {
+    $('div', handleStyle, () => {
         let lsize = size;
         let fraction: number;
         
@@ -202,7 +279,7 @@ function drawScaleMarker(state: LightState, colorTempRange?: [number, number], s
                 lsize = Math.min(lsize, 8);
             }
             if (colorTemp == null || typeof colorTemp !== 'number') {
-                $({ $display: 'none' });
+                $('display:none');
                 return;
             }
             fraction = (colorTemp - colorTempRange[0]) / (colorTempRange[1] - colorTempRange[0]);
@@ -215,15 +292,7 @@ function drawScaleMarker(state: LightState, colorTempRange?: [number, number], s
             lsize /= 4;
         }
         
-        $({
-            $display: 'block',
-            $height: lsize + 'px',
-            $width: lsize + 'px',
-            $marginTop: (-lsize / 2) + 'px',
-            $marginLeft: (-lsize / 2) + 'px',
-            $top: '50%',
-            $left: (fraction * 100) + '%',
-        });
+        $(`display:block h:${lsize}px w:${lsize}px mt:${-lsize/2}px ml:${-lsize/2}px top:50% left:${fraction*100}%`);
     });
 }
 
@@ -234,7 +303,7 @@ export function drawColorPicker(target: Device | Group, targetId: string | numbe
     const capabilities = target.lightCaps;
     if (!capabilities) return;
             
-    $('p display:flex gap:16px align-items:center', () => {
+    $('div display:flex gap:$3 align-items:center', () => {
         if ('members' in target) { // group
             drawBulbCircle(target as Device, targetId as string);
         }
@@ -256,11 +325,14 @@ export function drawColorPicker(target: Device | Group, targetId: string | numbe
 }
 
 function drawScale(target: Device | Group, targetId: string | number, colorTempRange?: [number, number]): void {
-    $('p border:', '1px solid #333', 'position:relative height:40px border-radius:3px', () => {
+    $('div', scaleStyle, () => {
 
         let state = target.lightState || {};
 
-        let canvasEl = $('canvas width=300 height=1 height:100% width:100%') as HTMLCanvasElement;
+        let canvasEl = $('canvas h:100% w:100%', {
+            width: 300,
+            height: 1
+        }) as HTMLCanvasElement;
 
         let ctx = canvasEl.getContext("2d")!;
         var imageData = ctx.getImageData(0, 0, canvasEl.width, canvasEl.height);

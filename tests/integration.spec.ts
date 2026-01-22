@@ -29,7 +29,9 @@ test.describe('Light Lynx Integration', () => {
 
     // 7. Add lights to the group
     // Click the "plus" icon in the Bulbs header
-    await page.locator('h1', { hasText: 'Bulbs' }).locator('svg.icon').first().click();
+    const bulbsIcon = page.locator('h1', { hasText: 'Bulbs' }).locator('svg.icon').first();
+    await bulbsIcon.scrollIntoViewIfNeeded();
+    await bulbsIcon.click();
     await expect(page.locator('span.subTitle', { hasText: 'add light' })).toBeVisible();
 
     // Add "Color Light"
@@ -41,7 +43,9 @@ test.describe('Light Lynx Integration', () => {
     await expect(page.locator('h2', { hasText: 'Color Light' }).first()).toBeVisible();
 
     // Add another "White Light"
-    await page.locator('h1', { hasText: 'Bulbs' }).locator('svg.icon').first().click();
+    const bulbsIcon2 = page.locator('h1', { hasText: 'Bulbs' }).locator('svg.icon').first();
+    await bulbsIcon2.scrollIntoViewIfNeeded();
+    await bulbsIcon2.click();
     await page.click('h2:has-text("White Light")');
     await expect(page.locator('span.subTitle', { hasText: 'add light' })).not.toBeVisible();
     await expect(page.locator('span.subTitle', { hasText: 'group' })).toBeVisible();

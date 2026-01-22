@@ -1,17 +1,117 @@
 /// <reference types="vite/client" />
-import {$, proxy, ref, onEach, isEmpty, copy, dump, unproxy, peek, partition, clone, derive} from 'aberdeen';
+import './global-style';
+import {$, proxy, ref, onEach, isEmpty, copy, dump, unproxy, peek, partition, clone, derive, insertCss} from 'aberdeen';
 import * as route from 'aberdeen/route';
 import { grow, shrink } from 'aberdeen/transitions';
 import api from './api';
 import * as icons from './icons';
 import * as colors from './colors';
-import { drawColorPicker, drawBulbCircle } from "./color-picker";
+import { drawColorPicker, drawBulbCircle } from "./components/color-picker";
+import { drawToasts, Toast } from './components/toasts';
+import { drawHeader } from './components/header';
+import { drawMenu } from './components/menu';
+import { drawLandingPage } from './pages/landing-page';
+import { drawDeviceItem as drawDeviceItemHelper } from './components/list-items';
+import { drawBulbPage } from './pages/bulb-page';
+import { drawGroupPage } from './pages/group-page';
+import { drawConnectionPage as drawConnectionPageComponent } from './pages/connection-page';
+import { drawUsersSection, drawUserEditor as drawUserEditorComponent } from './pages/users-page';
+import { drawRemoteInfoPage as drawRemoteInfoPageComponent, drawAutomationInfoPage as drawAutomationInfoPageComponent, drawBatteriesPage as drawBatteriesPageComponent, drawDumpPage as drawDumpPageComponent } from './pages/info-pages';
+import { drawPromptPage as drawPromptPageComponent } from './pages/prompt-page';
 import { Device, Group, ServerCredentials, User } from './types';
-
-import logoUrl from './logo.webp';
 import swUrl from './sw.ts?worker&url';
 
 const TIMEOUT_REGEXP = /^lightlynx-timeout (\d+(?:\.\d+)?)([smhd])$/m;
+
+// Root container styles
+const rootStyle = insertCss({
+    maxWidth: '500px',
+    m: '0 auto',
+    minHeight: '100%',
+    display: 'flex',
+    flexDirection: 'column',
+    transition: 'max-width 0.2s ease-in-out',
+    position: 'relative',
+    
+    '&.landing-page': {
+        maxWidth: '900px',
+    },
+    
+    '@media screen and (min-width: 501px)': {
+        boxShadow: '0 0 256px #f4810e20',
+    },
+});
+
+const mainContainerStyle = insertCss({
+    flex: 1,
+    position: 'relative',
+    overflow: 'hidden',
+});
+
+const mainStyle = insertCss({
+    overflow: 'auto',
+    overflowX: 'hidden',
+    position: 'absolute',
+    zIndex: 2,
+    transition: 'transform 0.2s ease-out, opacity 0.2s ease-out, visibility 0.2s ease-out',
+    left: 0,
+    top: 0,
+    right: 0,
+    bottom: 0,
+    bg: '$bg',
+    
+    // Hide scrollbar
+    scrollbarWidth: 'none',
+    msOverflowStyle: 'none',
+    '&::-webkit-scrollbar': {
+        display: 'none',
+    },
+    
+    '&.fadeOut': {
+        zIndex: 3,
+        opacity: 0,
+        visibility: 'hidden',
+        pointerEvents: 'none',
+        '*': {
+            transition: 'visibility 0.2s ease-out',
+            visibility: 'hidden',
+        },
+    },
+    
+    '&.forward, &.go': {
+        transform: 'translateX(100%)',
+    },
+    
+    '&.back': {
+        transform: 'translateX(-100%)',
+    },
+    
+    '&.load': {
+        opacity: 0,
+    },
+    
+    h1: {
+        overflow: 'hidden',
+        textAlign: 'center',
+        fontSize: '1.125rem',
+        textTransform: 'uppercase',
+        fontWeight: 'normal',
+        color: '$textMuted',
+        mt: '$3',
+        mb: '$2',
+        position: 'relative',
+        pointerEvents: 'none',
+        
+        '.icon': {
+            position: 'absolute',
+            right: '$2',
+            verticalAlign: 'middle',
+            cursor: 'pointer',
+            zIndex: 10,
+            pointerEvents: 'auto',
+        },
+    },
+});
 
 
 route.setLog(true);
@@ -40,11 +140,6 @@ const routeState = proxy({
 const admin = proxy(!!route.current.search.admin);
 const menuOpen = proxy(false);
 
-interface Toast {
-	id: number;
-	type: 'error' | 'info' | 'warning';
-	message: string;
-}
 const toasts = proxy([] as Toast[]);
 export function notify(type: 'error' | 'info' | 'warning', message: string) {
 	const id = Math.random();
@@ -97,77 +192,11 @@ function drawEmpty(text: string): void {
 }
 
 function drawBulb(ieee: string): void {
-	let device = api.store.devices[ieee];
-	if (!device) return drawEmpty("No such light")
-	
-	$(() => {
-		routeState.title = device.name;
-	});
-	routeState.subTitle = 'bulb';
-	$("div.item#", device.model);
-	
-	drawColorPicker(device, ieee);
-
-	if (!admin.value) return;
-
-	$('h1#Settings');
-	const name = proxy(unproxy(device).name);
-	$('div.item', () => {
-		$('h2#Name');
-		$('input', {bind: name});
-	});
-	lazySave(() => {
-		const newName = name.value;
-		return function() {
-			api.send("bridge", "request", "device", "rename", {from: device.name, to: newName, homeassistant_rename: true});
-			device.name = newName;
-		};
-	});
-
-
-	$('h1#Actions');
-	const removing = proxy(false);
-
-	$(() => {
-		if (!removing.value && deviceGroups[ieee]) onEach(deviceGroups[ieee], (groupId) => {
-			const busy = proxy(false);
-			const group = api.store.groups[groupId];
-			if (group) {
-				$(`div.item.link#Remove from "${group.name}"`, {".busy": busy}, icons.remove, {click: async function() {
-					busy.value = true;
-					try {
-						await api.send("bridge", "request", "group", "members", "remove", {group: group!.name, device: device!.name});
-					} finally {
-						busy.value = false;
-					}
-				}});
-			}
-		});
-
-		if (!removing.value) {
-			$('div.item.link#Delete', icons.eject, {click: async function() {
-				if (await askConfirm(`Are you sure you want to detach '${device.name}' from zigbee2mqtt?`)) {
-					removing.value = true;
-					try {
-						await api.send("bridge", "request", "device", "remove", {id: ieee});
-					} finally {
-						removing.value = false;
-					}
-				}
-			}});
-		} else {
-			$('div.item.link#Force delete', icons.eject, {click: async function() {
-				if (await askConfirm(`Are you sure you want to FORCE detach '${device.name}' from zigbee2mqtt?`)) {
-					api.send("bridge", "request", "device", "remove", {id: ieee, force: true});
-				}
-			}});
-		}
-	})
+	drawBulbPage(ieee, { routeState, admin, deviceGroups, askConfirm, lazySave });
 }
 
 function drawDump(): void {
-	routeState.title = 'State dump';
-	dump(api.store);
+	drawDumpPageComponent({ routeState });
 }
 
 function DEBUG_route_back(...args: any[]): void {
@@ -176,119 +205,16 @@ function DEBUG_route_back(...args: any[]): void {
 	console.log('DEBUG_route_back done');
 }
 
-
 function drawPromptPage(): void {
-	const state = route.current.state;
-	const resolve = dialogResolvers[state.resolveId];
-	if (!resolve) return DEBUG_route_back('/');
-	
-	const isConfirm = state.type === 'confirm';
-	routeState.title = state.title || (isConfirm ? 'Confirm' : 'Question');
-	const value = proxy(state.value || '');
-
-	$('div padding:8px display:flex flex-direction:column mt:@3 gap:@3', () => {
-		$('p font-size:1.2em #', state.message);
-		
-		$(() => {
-			if (!isConfirm) {
-				$('input type=text width:100%', {
-					bind: value,
-					keydown: (e: KeyboardEvent) => {
-						if (e.key === 'Enter') {
-							resolve(value.value);
-							DEBUG_route_back();
-						}
-					}
-				});
-			}
-		});
-
-		$('div.row gap:1em', () => {
-			if (isConfirm) {
-				$('button.secondary flex:1 #No', 'click=', () => {
-					resolve(false);
-					DEBUG_route_back();
-				});
-				$('button.primary flex:1 #Yes', 'click=', () => {
-					resolve(true);
-					DEBUG_route_back();
-				});
-			} else {
-				$('button.secondary flex:1 #Cancel', 'click=', () => {
-					resolve(undefined);
-					DEBUG_route_back();
-				});
-				$('button.primary flex:1 #OK', 'click=', () => {
-					resolve(value.value);
-					DEBUG_route_back();
-				});
-			}
-		});
-	});
+	drawPromptPageComponent({ routeState, dialogResolvers, DEBUG_route_back });
 }
 
 function drawRemoteInfoPage(): void {
-	routeState.title = 'Remote Access';
-	routeState.subTitle = 'Information';
-
-	$('div padding:8px line-height:1.6em', () => {
-		$('h1 margin-top:0 #How it works');
-		$('p#', 'Remote access allows you to control your lights from anywhere in the world. When enabled, your server becomes accessible via a secure, encrypted connection.');
-		
-		$('h1#Simplified Networking');
-		$('p#We use two technologies to make this "zero-config":');
-		$('ul', () => {
-			$('li', () => {
-				$('strong#UPnP: ');
-				$('#The server automatically asks your router to open a port (43597) so it can be reached from the internet.');
-			});
-			$('li', () => {
-				$('strong#Race-to-connect: ');
-				$('#The app is smart. It tries to connect to your server locally and remotely at the same time, and picks whichever responds first. This makes the transition between home Wi-Fi and mobile data instant and seamless.');
-			});
-		});
-
-		$('h1#Security');
-		$('p#Your security is our priority:');
-		$('ul', () => {
-			$('li#All communication is encrypted using SSL (HTTPS/WSS).');
-			$('li#Authentication is handled via PBKDF2 hashing. Your password is never sent or stored in plain text.');
-			$('li#You can restrict remote access on a per-user basis in the user management settings.');
-		});
-
-		$('button.primary margin-top:2em width:100% #Got it', 'click=', () => route.up());
-	});
+	drawRemoteInfoPageComponent({ routeState });
 }
 
 function drawAutomationInfoPage(): void {
-	routeState.title = 'Automation';
-	routeState.subTitle = 'Information';
-
-	$('div padding:8px line-height:1.6em', () => {
-		$('h1 margin-top:0 #What is Automation?');
-		$('p#', 'Automation allows your lights to respond automatically to events, making your smart home truly intelligent.');
-		
-		$('h1#Features');
-		$('ul', () => {
-			$('li', () => {
-				$('strong#Scene Triggers: ');
-				$('#Activate scenes with button presses, motion sensors, or other Zigbee devices.');
-			});
-			$('li', () => {
-				$('strong#Time-based Automation: ');
-				$('#Schedule scenes to activate at specific times of day.');
-			});
-			$('li', () => {
-				$('strong#Auto-off Timers: ');
-				$('#Automatically turn off lights after a period of inactivity.');
-			});
-		});
-
-		$('h1#Privacy');
-		$('p#All automation runs locally on your Zigbee2MQTT server. No cloud services or external servers are involved.');
-
-		$('button.primary margin-top:2em width:100% #Got it', 'click=', () => route.up());
-	});
+	drawAutomationInfoPageComponent({ routeState });
 }
 
 const deviceGroups: Record<string, number[]> = {};
@@ -303,133 +229,10 @@ $(() => {
 });
 
 function drawGroup(groupId: number): void {
-	const optGroup = api.store.groups[groupId];
-	if (!optGroup) return drawEmpty('No such group');
-	const group = optGroup;
-	
-	if (route.current.p[2] === 'addLight') return drawGroupAddLight(group, groupId);
-	if (route.current.p[2] === 'addInput') return drawGroupAddInput(group, groupId);
-	if (route.current.p[2] === 'scene') return drawSceneEditor(group, groupId);
-	
-	async function createScene(): Promise<void> {
-		const name = await askPrompt("What should the new scene be called?")
-		console.log('ready', name);
-		if (!name) return
-		
-		let freeId = 0;
-		while(group.scenes.find(s => s.id === freeId)) freeId++;
-		api.send(group.name, "set", {scene_store: {ID: freeId, name}});
-	}
-	
-	$(() => {
-		routeState.title = group.name;
-		routeState.subTitle = 'group';
-	})
-	
-	drawColorPicker(group, groupId);
-	
-	$("h1#Scenes", () => {
-		if (admin.value) icons.create('click=', createScene);
-	});
-	
-	$('div.list', () => {
-		onEach(group.scenes || [], (scene) => {
-			function recall(): void {
-				api.send(group.name, "set", {scene_recall: scene.id});
-			}
-			const isActive = derive(() => api.store.activeScenes[group.name] == scene.id && group.lightState?.on);
-			$('div.item.link click=', recall, {'.active-scene': isActive}, () => {
-				let icon = icons.scenes[scene.shortName.toLowerCase()] || icons.empty;
-				icon();
-				$('h2#', admin.value ? scene.name : scene.shortName);
-				if (admin.value) {
-					function configure(e: Event): void {
-						e.stopPropagation();
-						route.go(['group', groupId, 'scene', scene.id]);
-					}
-					icons.configure('click=', configure);
-				}
-			});
-		}, (scene) => `${scene.suffix || "x"}#${scene.shortName}`);
-		$(() => {
-			if (isEmpty(group.scenes)) drawEmpty("None yet");
-		});
-	});
-
-		$("h1#Bulbs", () => {
-		if (admin.value) icons.create('click=', () => route.go(['group', groupId, 'addLight']));
-	});
-	
-	$("div.list", () => {
-		const devices = api.store.devices;
-		onEach(group.members, (ieee) => { 
-			let device = devices[ieee]!;
-			drawDeviceItem(device, ieee);
-		}, (ieee) => devices[ieee]?.name);
-		
-		if (isEmpty(group.members)) {
-			drawEmpty("None yet");
-		}
-	});
-
-	// Group configuration section for admin users
-	$(() => {
-		if (admin.value) {
-			drawGroupConfigurationEditor(group, groupId);
-		}
-	});
-}
-
-function drawGroupAddLight(group: Group, groupId: number): void {
-	function addDevice(ieee: string): void {
-		api.send("bridge", "request", "group", "members", "add", {group: group.name, device: ieee});
-		route.up();
-	}
-	
-	routeState.title = group.name;
-	routeState.subTitle = 'add light';
-	
-	$("div.list", () => {
-		onEach(api.store.devices, (device, ieee) => { 
-			$("div.item", () => {
-				drawBulbCircle(device, ieee);
-				$('h2.link#', device.name, 'click=', () => addDevice(ieee));
-			});
-		}, (device, ieee) => {
-			if (!device.lightCaps) return; // Skip sensors
-			let inGroups = deviceGroups[ieee] || [];
-			if (inGroups.includes(groupId)) return; // Skip, already in this group
-			return [inGroups.length ? 1 : 0, device.name];
-		});
-	});
+	drawGroupPage(groupId, { routeState, admin, deviceGroups, groupInputs, askConfirm, askPrompt, lazySave, drawDeviceItem, drawSceneEditor, DEBUG_route_back });
 }
 
 
-function drawGroupAddInput(group: Group, groupId: number): void {
-	routeState.title = group.name;
-	routeState.subTitle = 'add input';
-
-	function addDevice(ieee: string): void {
-		let groupIds = getGroupIdsFromDescription(api.store.devices[ieee]?.description);
-		const description = buildDescriptionWithGroupIds(api.store.devices[ieee]?.description, groupIds.concat([groupId]));
-		api.send("bridge", "request", "device", "options", {id: ieee, options: {description}});
-		route.up();
-	}
-	
-	$("div.list", () => {
-		onEach(api.store.devices, (device, ieee) => { 
-			$("div.item", () => {
-				drawBulbCircle(device, ieee);
-				$('h2.link#', device.name, 'click=', () => addDevice(ieee));
-			});
-		}, (device, _ieee) => {
-			if (device.lightCaps) return; // Skip bulbs
-			let inGroups = getGroupIdsFromDescription(device.description);
-			if (inGroups.includes(groupId)) return; // Skip, already in this group
-			return [inGroups.length ? 1 : 0, device.name];
-		});
-	});
-}
 
 function drawDeviceItem(device: Device, ieee: string): void {
 	$("div.item", () => {
@@ -483,20 +286,7 @@ function drawManagementSection(): void {
 }
 
 function drawBatteries(): void {
-	routeState.title = 'Batteries';
-	$('div.list', () => {
-		onEach(api.store.devices, (device, ieee) => {
-			if (device.lightCaps) return;
-			const b = device.meta?.battery;
-			$('div.item.link', {click: () => route.go(['bulb', ieee])}, () => {
-				$('h2#', device.name);
-				$('p font-weight:bold flex:0 #', b !== undefined ? `${Math.round(b)}%` : 'Unknown', b==undefined ? '' : b <= 5 ? '.critical' : b <= 15 ? '.warning' : '');
-			});
-		}, (device) => {
-			if (device.lightCaps) return;
-			return [(device.meta?.battery ?? 101), device.name]; 
-		});
-	});
+	drawBatteriesPageComponent({ routeState });
 }
 
 function drawMain(): void {
@@ -582,172 +372,9 @@ function drawRemoteAccessToggle(): void {
 	});
 }
 
-function drawLandingPage(): void {
-	routeState.title = 'Light Lynx';
-	
-	$('div.landing', () => {
-		$('div.hero', () => {
-			$('h1#Control your lights, simply.');
-			$('p#Light Lynx is a modern, fast, and mobile-friendly interface for Zigbee2MQTT. No hubs, no clouds, just your home.');
-		});
-
-		$('button.primary#Connect to a server', {click: () => route.go(['connect'])});
-		
-		$('div.features', () => {
-			$('div.feature', () => {
-				icons.zap();
-				$('h3#Reactive UI');
-				$('p#Instant feedback with optimistic updates. No more waiting for your lights to catch up.');
-			});
-			$('div.feature', () => {
-				icons.palette();
-				$('h3#Full Control');
-				$('p#Manage groups, scenes, and automation triggers directly from your phone.');
-			});
-			$('div.feature', () => {
-				icons.cloudOff();
-				$('h3#Local First');
-				$('p#Works entirely on your local network. Your data stays your data.');
-			});
-		});
-	});
-}
-
 
 function drawConnectionPage(): void {
-	// Read initial state non-reactively to avoid re-renders
-	const isEdit = peek(() => route.current.state.edit);
-	const oldData: Partial<ServerCredentials> = isEdit ? peek(() => clone(api.store.servers[0] || {})) : {};
-	const initialHost = peek(() => route.current.search.host) || oldData.localAddress || '';
-	const initialUsername = peek(() => route.current.search.username) || oldData.username || 'admin';
-	const initialSecret = peek(() => route.current.search.secret);
-	
-	// Auto-connect if both host and username came from URL
-	const shouldAutoConnect = !isEdit && initialHost && initialUsername && peek(() => route.current.search.host) === initialHost;
-	
-	const saved = proxy(false);
-	const hostProxy = proxy(initialHost);
-	const usernameProxy = proxy(initialUsername);
-	const password = proxy('');
-	
-	$(() => {
-		routeState.title = isEdit ? 'Edit connection' : 'New connection';
-		routeState.subTitle = 'Z2M';
-	});
-	
-	// Update URL as user types
-	$(() => { route.current.search.host = hostProxy.value; });
-	$(() => { route.current.search.username = usernameProxy.value; });
-	
-	// Hash password and update URL (debounced)
-	let hashTimeout: any;
-	$(() => {
-		const pw = password.value;
-		clearTimeout(hashTimeout);
-		if (!pw) {
-			delete route.current.search.secret;
-			return;
-		}
-		// Check if it's already a 64-char hex secret
-		if (/^[0-9a-f]{64}$/i.test(pw)) {
-			route.current.search.secret = pw.toLowerCase();
-			return;
-		}
-		// Hash the password
-		hashTimeout = setTimeout(async () => {
-			const secret = await hashSecret(pw);
-			if (password.value === pw) route.current.search.secret = secret;
-		}, 300);
-	});
-	
-	// Auto-connect on initial load with URL params
-	if (shouldAutoConnect) {
-		console.log('Auto-connecting from URL parameters:', initialHost, initialUsername);
-		const existing = api.store.servers.find(s => s.localAddress === initialHost && s.username === initialUsername);
-		if (existing) {
-			if (initialSecret) existing.secret = initialSecret;
-			existing.status = 'try';
-			const index = api.store.servers.indexOf(existing);
-			if (index > 0) {
-				api.store.servers.splice(index, 1);
-				api.store.servers.unshift(existing);
-			}
-		} else {
-			api.store.servers.unshift({
-				localAddress: initialHost,
-				username: initialUsername,
-				secret: initialSecret || '',
-				status: 'try'
-			});
-		}
-		saved.value = true;
-	}
-
-	// Navigate away on successful connection
-	$(() => {
-		if (saved.value && api.store.servers[0]?.status === 'enabled') {
-			saved.value = false;
-			DEBUG_route_back('/');
-		}
-	});
-
-	// Show connection errors
-	$(() => {
-		if (api.store.lastConnectError) {
-			notify('error', api.store.lastConnectError);
-			api.store.lastConnectError = '';
-		}
-	});
-
-	async function handleSubmit(e: Event): Promise<void> {
-		e.preventDefault();
-		const server: ServerCredentials = {
-			localAddress: hostProxy.value,
-			username: usernameProxy.value,
-			secret: peek(() => route.current.search.secret) || oldData.secret || '',
-			externalAddress: hostProxy.value !== oldData.localAddress ? undefined : oldData.externalAddress,
-			status: 'try'
-		};
-		saved.value = true;
-		if (isEdit) {
-			copy(api.store.servers[0]!, server);
-		} else {
-			api.store.servers.unshift(server);
-			route.current.state.edit = 'y';
-		}
-	}
-
-	async function handleDelete(): Promise<void> {
-		if (await askConfirm('Are you sure you want to remove these credentials?')) {
-			api.store.servers.shift();
-			DEBUG_route_back('/');
-		}
-	}
-	
-	$('div.login-form', () => {
-		$('form submit=', handleSubmit, () => {
-			$('div.field', () => {
-				$('label#Server Address');
-				$('input placeholder=', 'e.g. 192.168.1.5[:port]', 'required=', true, 'bind=', hostProxy);
-			});
-			$('div.field', () => {
-				$('label#Username');
-				$('input required=', true, 'bind=', usernameProxy);
-			});
-			$('div.field', () => {
-				$('label#Password');
-				$('input type=password bind=', password, 'placeholder=', isEdit ? 'Password or secret (empty to clear)' : '');
-			});
-			$('div.row margin-top:1em', () => {
-				if (isEdit) $('button.danger type=button text=Delete click=', handleDelete);
-				$('button.secondary type=button text=Cancel click=', () => DEBUG_route_back('/'));
-				$('button.primary type=submit', () => {
-					const busy = api.store.connectionState === 'connecting' || api.store.connectionState === 'authenticating';			
-					$({'.busy': busy}, busy ? '#Connecting...' : isEdit ? '#Save' : '#Create');
-				});
-			});
-		});
-	});
+	drawConnectionPageComponent({ routeState, notify, askConfirm, DEBUG_route_back });
 }
 
 async function hashSecret(password: string): Promise<string> {
@@ -782,148 +409,18 @@ function disableJoin(): void {
 	api.send("bridge", "request", "permit_join", {time: 0});
 }
 
-$('div.root', () => {
+$('div', rootStyle, () => {
 	$(() => {
-		$({'.landing-page': isEmpty(api.store.servers) && route.current.path === '/'});
+		$('.landing-page:', isEmpty(api.store.servers) && route.current.path === '/');
 	});
 
-	$('header', () => {
-		$('img.logo src=', logoUrl, 'click=', () => DEBUG_route_back('/'));
-		$(() => {
-			if (route.current.path !== '/') {
-				icons.back('click=', route.up);
-			}
-			$("h1.title", () => {
-				let title = routeState.title || "Light Lynx";
-				$(`#`, title);
-				if (routeState.subTitle) {
-					$('span.subTitle#'+routeState.subTitle);
-				}
-			});
-		});
-		$(() => {
-			if (routeState.drawIcons) {
-				routeState.drawIcons();
-			}
-		});
-		$(() => {
-			if (updateAvailable.value) {
-				icons.reload('.update-available click=', () => window.location.reload());
-			}
-		});
-		$(() => {
-			icons.reconnect(() => {
-				const state = api.store.connectionState;
-				$({
-					'.spinning': state !== 'connected' && state !== 'idle',
-					'.off': state === 'idle',
-					'.critical': !!api.store.lastConnectError,
-					'click': () => menuOpen.value = !menuOpen.value
-				});
-			});
-		});
-		$(() => {
-			if (api.store.permitJoin) {
-				icons.create('.on.spinning click=', disableJoin);
-			}
-		});
-		$(() => {
-			if (isEmpty(api.store.servers)) return;
-			let lowest = 100;
-			for (const device of Object.values(api.store.devices)) {
-				const b = device.meta?.battery;
-				if (b !== undefined && b < lowest) lowest = b;
-			}
-			if (lowest > 15) return;
-			const critical = lowest <= 5;
-			const icon = critical ? icons.batteryEmpty : icons.batteryLow;
-			icon({
-				'.critical': critical,
-				'.warning': !critical,
-				'.pulse': critical,
-				click: () => route.go(['batteries'])
-			});
-		});
-		$(() => {
-			const server = api.store.servers[0];
-			if (!server) return;
-			const user = api.store.users[server.username];
-			if (!user?.isAdmin) return;
-			
-			let holdTimeout: any;
-			icons.admin({
-				'.on': admin.value,
-				'mousedown': () => { holdTimeout = setTimeout(() => route.go(['dump']), 1000); },
-				'mouseup': () => clearTimeout(holdTimeout),
-				'mouseleave': () => clearTimeout(holdTimeout),
-				'touchstart': () => { holdTimeout = setTimeout(() => route.go(['dump']), 1000); },
-				'touchend': () => clearTimeout(holdTimeout),
-				'click': () => admin.value = !admin.value,
-			});
-		});
-	});
-
-	$(() => {
-		if (!menuOpen.value) return;
-		$('div.menu-overlay click=', () => menuOpen.value = false);
-		$('div.menu', {create: '.menu-fade', destroy: '.menu-fade'}, () => {
-			// Show connection error if present
-			$(() => {
-				if (api.store.lastConnectError) {
-					$('div.menu-item.error', {create: grow, destroy: shrink}, () => {
-						icons.reconnect('.off');
-						$('span#', api.store.lastConnectError);
-					});
-					$('div.menu-divider');
-				}
-			});
-			
-			// Manage server settings
-			$('div.menu-item click=', async () => {
-				route.go({p: ['connect'], state: {edit: 'y'}})
-				menuOpen.value = false;
-			}, () => {
-				icons.edit();
-				$(`# Manage server settings`);
-			});
-
-			// Switch servers
-			onEach(api.store.servers, (server, index) => {
-				if (index === 0) return;
-				$('div.menu-item click=', () => {
-					menuOpen.value = false;
-					// Move selected server to front and enable it
-					const selectedServer = api.store.servers.splice(index, 1)[0];
-					if (selectedServer) {
-						selectedServer.status = 'enabled';
-						api.store.servers.unshift(selectedServer);
-					}
-					route.go(['/']);
-				}, () => {
-					icons.reconnect();
-					$(`# Switch to ${server.localAddress}`);
-				});
-			});
-
-			if (api.store.servers.length > 1) {
-				$('div.menu-divider');
-			}
-
-			// Connect to another
-			$('div.menu-item click=', () => {
-				menuOpen.value = false;
-				route.go(['connect']);
-			}, () => {
-				icons.create();
-				$(`#Add a server`);
-			});
-		});
-	});
+	drawHeader(routeState, admin, updateAvailable, menuOpen, disableJoin, DEBUG_route_back);
+	drawMenu(menuOpen);
 	
-	$('div.mainContainer', () => {
+	$('div', mainContainerStyle, () => {
 		const p = route.current.p;
 		
-		$('main', () => {
+		$('main', mainStyle, 'destroy=fadeOut create=', route.current.nav, () => {
 			routeState.title = '';
 			routeState.subTitle = '';
 			delete routeState.drawIcons;
@@ -932,7 +429,7 @@ $('div.root', () => {
 			if (p[0] === 'connect') {
 				drawConnectionPage();
 			} else if (isEmpty(api.store.servers)) {
-				drawLandingPage();
+				drawLandingPage(routeState);
 			} else if (p[0]==='group' && p[1]) {
 				drawGroup(parseInt(p[1]));
 			} else if (p[0] === 'bulb' && p[1]) {
@@ -954,15 +451,10 @@ $('div.root', () => {
 			}
 			route.persistScroll();
 		}, {destroy: 'fadeOut', create: route.current.nav});
-	});
+	}); // end mainContainer
 
-	// Toast container
-	$('div.toasts', () => {
-		onEach(toasts, (toast: Toast) => {
-			$(`div.toast.${toast.type}#`, toast.message);
-		});
-	});
-});
+	drawToasts(toasts);
+}); // end root
 
 export interface TriggerItem {
     type: '1' | '2' | '3' | '4' | '5' | 'motion' | 'time';
@@ -1404,170 +896,6 @@ export function drawGroupConfigurationEditor(group: Group, groupId: number): voi
     });
 }
 
-function drawUsersSection(): void {
-	$("h1#Users", () => {
-		icons.create('click=', () => route.go(['user', 'new']));
-	});
-
-	$('div.list', () => {
-		onEach(api.store.users, (user, username) => {
-			$('div.item.link', {click: () => route.go(['user', username])}, () => {
-				(user.isAdmin ? icons.shield : icons.user)();
-				$('h2#', username);
-				if (!user.hasPassword) $('span.badge.warning#No password');
-				else if (user.allowRemote) $('span.badge#Remote');
-			});
-		});
-	});
-}
-
 function drawUserEditor(): void {
-	const username = route.current.p[1]!;
-	const isNew = username === 'new';
-	const isAdminUser = username === 'admin';
-	
-	const storeUser = api.store.users[username];
-	const user = isNew ? proxy<User>({
-		isAdmin: false,
-		allowedDevices: [],
-		allowedGroups: [],
-		allowRemote: false, // Can't enable without password
-		password: ''
-	}) : proxy(clone(unproxy(storeUser || {
-		isAdmin: true,
-		allowedDevices: [],
-		allowedGroups: [],
-		allowRemote: false,
-		password: ''
-	})));
-	
-	const newUsername = proxy('');
-
-	$(() => {
-		routeState.title = isNew ? 'New User' : username;
-		routeState.subTitle = 'user';
-	});
-
-	$('h1#Settings');
-	if (isNew) {
-		$('div.item', () => {
-			$('h2.form-label#Username');
-			$('input', {bind: newUsername, placeholder: 'Username'});
-		});
-	}
-
-	$('div.item', () => {
-		$('h2.form-label#Password');
-		$('input type=password', {bind: ref(user, 'password'), placeholder: isNew ? 'Required' : 'Password or secret (empty to clear)'});
-	});
-
-	if (!isAdminUser) {
-		$('label.item', () => {
-			$('input type=checkbox bind=', ref(user, 'isAdmin'));
-			$('h2#Admin access');
-		});
-	}
-
-	$('label.item', () => {
-		// Can only enable remote access if user has password (either existing or being set)
-		const hasOrSettingPassword = () => user.password || storeUser?.hasPassword;
-		$('input type=checkbox bind=', ref(user, 'allowRemote'), {
-			'.disabled': () => !hasOrSettingPassword(),
-			title: () => hasOrSettingPassword() ? '' : 'Set a password first to enable remote access'
-		});
-		$('h2#Allow remote access');
-		$(() => {
-			if (!hasOrSettingPassword()) $('p.muted#Requires password');
-		});
-	});
-
-	$(() => {
-		if (user.isAdmin) return;
-
-		$('h1#Permissions');
-		$('h2#Allowed Groups');
-		$('div.list', () => {
-			onEach(api.store.groups, (group, groupId) => {
-				$('label.item', () => {
-					const gid = parseInt(groupId);
-					const checked = user.allowedGroups.includes(gid);
-					$('input type=checkbox', {
-						checked,
-						change: (e: any) => {
-							if (e.target.checked) user.allowedGroups.push(gid);
-							else user.allowedGroups = user.allowedGroups.filter((id: number) => id !== gid);
-						}
-					});
-					$('h2#', group.name);
-				});
-			});
-			$(() => { if (isEmpty(api.store.groups)) drawEmpty("No groups"); });
-		});
-
-		$('h2#Allowed Devices');
-		$('div.list', () => {
-			onEach(api.store.devices, (device, ieee) => {
-				if (!device.lightCaps) return;
-				$('label.item', () => {
-					const checked = user.allowedDevices.includes(ieee);
-					$('input type=checkbox', {
-						checked,
-						change: (e: any) => {
-							if (e.target.checked) user.allowedDevices.push(ieee);
-							else user.allowedDevices = user.allowedDevices.filter((id: string) => id !== ieee);
-						}
-					});
-					$('h2#', device.name);
-				});
-			});
-			$(() => { if (isEmpty(api.store.devices)) drawEmpty("No devices"); });
-		});
-	});
-
-	$('h1#Actions');
-	const busy = proxy(false);
-	$('div.item.link#Save', {'.busy': busy}, icons.save, 'click=', async () => {
-		busy.value = true;
-		try {
-			const finalUsername = isNew ? newUsername.value : username;
-			if (!finalUsername) throw new Error("Username required");
-			const payload: any = unproxy(user);
-			
-			if (user.password) {
-				// Check if it's already a 64-char hex secret
-				if (/^[0-9a-f]{64}$/i.test(user.password)) {
-					payload.secret = user.password.toLowerCase();
-				} else {
-					payload.secret = await hashSecret(user.password);
-				}
-			}
-			delete payload.password;
-			
-			const userPayload = {
-				username: finalUsername,
-				...payload
-			};
-			if (isNew) {
-				await api.addUser(userPayload);
-			} else {
-				await api.updateUser(userPayload);
-			}
-			route.up();
-		} catch (e: any) {
-			notify('error', e.message || "Failed to save user");
-		} finally {
-			busy.value = false;
-		}
-	});
-
-	if (!isNew && !isAdminUser) {
-		$('div.item.link.danger#Delete user', icons.remove, {
-			click: async () => {
-				if (await askConfirm(`Are you sure you want to delete user '${username}'?`)) {
-					await api.deleteUser(username);
-					route.up();
-				}
-			}
-		});
-	}
+	drawUserEditorComponent({ routeState, notify, askConfirm, hashSecret });
 }

@@ -4,8 +4,22 @@ import * as fs from 'fs';
 
 const originalExpect = playwrightExpect;
 
-let currentTakeScreenshot: ((name: string) => Promise<void>) | null = null;
+let currentTakeScreenshot: ((lineNumber: number) => Promise<void>) | null = null;
 let currentPage: Page | null = null;
+
+// Extract line number from test file (not base-test.ts) from stack trace
+function getTestFileLineNumber(): number {
+    const stack = new Error().stack || '';
+    const lines = stack.split('\n');
+    // Find the first line that references a .spec.ts file
+    for (const line of lines) {
+        const match = line.match(/\/([^/]+\.spec\.ts):(\d+):\d+/);
+        if (match) {
+            return parseInt(match[2], 10);
+        }
+    }
+    return 0;
+}
 
 export const expect = ((actual: any, ...args: any[]) => {
     const isLocator = actual && typeof actual === 'object' && actual.__isProxy;
@@ -20,7 +34,9 @@ export const expect = ((actual: any, ...args: any[]) => {
             get(targetMatchers, prop: string) {
                 const origMatcher = (targetMatchers as any)[prop];
                 if (typeof origMatcher === 'function') {
-                    return async (...matcherArgs: any[]) => {
+                    return async function(this: any, ...matcherArgs: any[]) {
+                        const lineNumber = getTestFileLineNumber();
+                        
                         // Hide previous overlays first
                         await page.evaluate(() => (window as any).__playwrightHide?.());
 
@@ -35,7 +51,7 @@ export const expect = ((actual: any, ...args: any[]) => {
                                     (window as any).__playwrightShowCheck?.(x, y, w, h, label);
                                 }, { x: box.x, y: box.y, w: box.width, h: box.height, label: prop });
                                 await page.evaluate(() => (window as any).__playwrightWaitForRepaint?.());
-                                await takeScreenshot(`check_${prop}`);
+                                await takeScreenshot(lineNumber);
                             }
                         } catch {
                             // Ignore overlay errors
@@ -63,7 +79,7 @@ export async function connectToMockServer(page: Page) {
     await expect(page.locator('h2', { hasText: 'Kitchen' })).toBeVisible({ timeout: 10000 });
 }
 
-function wrapLocator(locator: Locator, page: Page, takeScreenshot: (name: string) => Promise<void>): Locator {
+function wrapLocator(locator: Locator, page: Page, takeScreenshot: (lineNumber: number) => Promise<void>): Locator {
     return new Proxy(locator, {
         get(target: any, prop: string, receiver: any) {
             if (prop === '__isProxy') return true;
@@ -72,7 +88,9 @@ function wrapLocator(locator: Locator, page: Page, takeScreenshot: (name: string
             if (typeof orig === 'function') {
                 const actionMethods = ['click', 'fill', 'type', 'press', 'check', 'uncheck', 'selectOption', 'hover', 'dblclick', 'clear'];
                 if (actionMethods.includes(prop)) {
-                    return async (...args: any[]) => {
+                    return async function(this: any, ...args: any[]) {
+                        const lineNumber = getTestFileLineNumber();
+                        
                         try {
                             // Clear previous overlay
                             await page.evaluate(() => (window as any).__playwrightHide?.());
@@ -89,24 +107,34 @@ function wrapLocator(locator: Locator, page: Page, takeScreenshot: (name: string
                                 
                                 // Wait for browser to repaint, then take screenshot
                                 await page.evaluate(() => (window as any).__playwrightWaitForRepaint?.());
-                                await takeScreenshot(`before_${prop}`);
+                                await takeScreenshot(lineNumber);
                             }
                         } catch (e) {
                             // Ignore overlay errors
                         }
 
-                        const result = await orig.apply(target, args);
-                        return result;
+                        // Call the original method, but clean up stack traces on error
+                        try {
+                            return await orig.apply(target, args);
+                        } catch (error: any) {
+                            // Remove base-test.ts frames from the stack trace
+                            if (error.stack) {
+                                const lines = error.stack.split('\n');
+                                const filteredLines = lines.filter(line => 
+                                    !line.includes('/base-test.ts:') && !line.includes('Proxy.')
+                                );
+                                error.stack = filteredLines.join('\n');
+                            }
+                            throw error;
+                        }
                     };
                 }
                 
                 // Wrap methods that return new locators to maintain interception chain
                 const locatorReturning = ['locator', 'filter', 'nth', 'first', 'last', 'getByText', 'getByRole', 'getByPlaceholder', 'getByLabel', 'getByTestId', 'getByAltText', 'getByTitle'];
                 if (locatorReturning.includes(prop)) {
-                    return (...args: any[]) => {
-                        const nextLocator = orig.apply(target, args);
-                        return wrapLocator(nextLocator, page, takeScreenshot);
-                    };
+                    // Don't create a named wrapper - just return the wrapped locator directly
+                    return (...args: any[]) => wrapLocator(orig.apply(target, args), page, takeScreenshot);
                 }
                 return orig.bind(target);
             }
@@ -117,26 +145,59 @@ function wrapLocator(locator: Locator, page: Page, takeScreenshot: (name: string
 
 export const test = base.extend({
     page: async ({ page }, use, testInfo) => {
-        let stepCount = 0;
         const actualPage = page; // Keep reference to the actual page object
+        
+        // Extract test file line number from testInfo
+        const testFilePath = testInfo.file;
+        const testFileContent = fs.readFileSync(testFilePath, 'utf-8');
+        const testLines = testFileContent.split('\n');
+        
+        // Find the line where this test starts (look for test( or test.only( followed by the test title)
+        let testStartLine = 0;
+        const testTitle = testInfo.title;
+        for (let i = 0; i < testLines.length; i++) {
+            const line = testLines[i];
+            if ((line.includes('test(') || line.includes('test.only(')) && 
+                (line.includes(`'${testTitle}'`) || line.includes(`"${testTitle}"`))) {
+                testStartLine = i + 1; // Line numbers are 1-based
+                break;
+            }
+        }
+        
+        // Create output directory name (initially in tests-passed/)
+        const testFileName = path.basename(testFilePath, '.spec.ts');
+        const dirName = `${testFileName}-${testStartLine.toString().padStart(4, '0')}`;
+        const passedDir = path.join('tests-passed', dirName);
+        const failedDir = path.join('tests-failed', dirName);
+        
+        // Start with passed directory
+        let customOutputDir = passedDir;
+        
+        // Override the output directory
+        testInfo.outputPath = (name = '') => path.join(customOutputDir, name);
+        
+        // Ensure directory exists
+        if (!fs.existsSync(customOutputDir)) {
+            fs.mkdirSync(customOutputDir, { recursive: true });
+        }
 
-        const takeScreenshot = async (actionName: string) => {
-            stepCount++;
-            const fileName = `${stepCount.toString().padStart(3, '0')}-${actionName}.png`;
-            const filePath = path.join(testInfo.outputDir, fileName);
-            await actualPage.screenshot({ path: filePath, fullPage: false });
-            console.log(`Saved: ${fileName}`);
+        const takeScreenshot = async (lineNumber: number) => {
+            const fileName = `${lineNumber.toString().padStart(4, '0')}`;
+            const pngPath = path.join(customOutputDir, `${fileName}.png`);
+            const htmlPath = path.join(customOutputDir, `${fileName}.html`);
+            
+            // Output just the capture line number
+            process.stdout.write(`Capture ${fileName}\n`);
+            
+            await actualPage.screenshot({ path: pngPath, fullPage: false });
             
             // Also capture DOM snapshot as HTML for structure analysis
-            const htmlFileName = `${stepCount.toString().padStart(3, '0')}-${actionName}.html`;
-            const htmlFilePath = path.join(testInfo.outputDir, htmlFileName);
             try {
                 await actualPage.evaluate(() => (window as any).__playwrightHide?.());
                 const domHtml = await actualPage.evaluate(() => document.body.outerHTML);
-                fs.writeFileSync(htmlFilePath, domHtml, 'utf-8');
-                console.log(`Saved: ${htmlFileName}`);
+                fs.writeFileSync(htmlPath, domHtml, 'utf-8');
             } catch (error) {
-                console.warn(`Could not generate HTML snapshot: ${error}`);
+                // Ignore errors
             }
         };
 
@@ -266,7 +327,9 @@ export const test = base.extend({
                     // Actions that should trigger a screenshot
                     const actionMethods = ['goto', 'click', 'fill', 'type', 'press', 'check', 'uncheck', 'selectOption', 'hover', 'reload', 'goBack', 'goForward'];
                     if (actionMethods.includes(prop)) {
-                        return async (...args: any[]) => {
+                        return async function(this: any, ...args: any[]) {
+                            const lineNumber = getTestFileLineNumber();
+                            
                             // Clear previous overlay
                             await actualPage.evaluate(() => (window as any).__playwrightHide?.());
 
@@ -290,44 +353,56 @@ export const test = base.extend({
                             if (prop !== 'goto') {
                                     // Wait for browser to repaint, then take screenshot
                                     await actualPage.evaluate(() => (window as any).__playwrightWaitForRepaint?.());
-                                    await takeScreenshot(`before_${prop}`);
+                                    await takeScreenshot(lineNumber);
                             }
 
-                            const result = await orig.apply(target, args);
-                            
-                            if (prop === 'goto') {
-                                // For goto, we take screenshot after it loads
-                                await actualPage.waitForLoadState('load').catch(() => {});
-                                await actualPage.waitForTimeout(1000); // Wait longer for SPA to initialize
-                                const url = actualPage.url();
-                                await actualPage.evaluate((u) => {
-                                    if ((window as any).__playwrightShowBanner) {
-                                        (window as any).__playwrightShowBanner(u, 'info');
-                                    } else {
-                                        // Fallback create-and-show
-                                        let banner = document.getElementById('playwright-overlay-banner');
-                                        if (!banner) {
-                                            banner = document.createElement('div');
-                                            banner.id = 'playwright-overlay-banner';
-                                            banner.style.cssText = 'position:fixed;bottom:0;left:0;right:0;background:rgba(0,0,0,0.9);color:white;padding:10px;z-index:9999999;font-family:sans-serif;border-top:2px solid #007acc;';
-                                            document.body.appendChild(banner);
+                            try {
+                                const result = await orig.apply(target, args);
+                                
+                                if (prop === 'goto') {
+                                    // For goto, we take screenshot after it loads
+                                    await actualPage.waitForLoadState('load').catch(() => {});
+                                    await actualPage.waitForTimeout(1000); // Wait longer for SPA to initialize
+                                    const url = actualPage.url();
+                                    await actualPage.evaluate((u) => {
+                                        if ((window as any).__playwrightShowBanner) {
+                                            (window as any).__playwrightShowBanner(u, 'info');
+                                        } else {
+                                            // Fallback create-and-show
+                                            let banner = document.getElementById('playwright-overlay-banner');
+                                            if (!banner) {
+                                                banner = document.createElement('div');
+                                                banner.id = 'playwright-overlay-banner';
+                                                banner.style.cssText = 'position:fixed;bottom:0;left:0;right:0;background:rgba(0,0,0,0.9);color:white;padding:10px;z-index:9999999;font-family:sans-serif;border-top:2px solid #007acc;';
+                                                document.body.appendChild(banner);
+                                            }
+                                            banner.textContent = u;
+                                            banner.style.display = 'block';
                                         }
-                                        banner.textContent = u;
-                                        banner.style.display = 'block';
-                                    }
-                                }, url);
-                                await actualPage.waitForTimeout(200);
-                                await takeScreenshot('after_goto');
+                                    }, url);
+                                    await actualPage.waitForTimeout(200);
+                                    await takeScreenshot(lineNumber);
+                                }
+                                
+                                return result;
+                            } catch (error: any) {
+                                // Remove base-test.ts frames from the stack trace
+                                if (error.stack) {
+                                    const lines = error.stack.split('\n');
+                                    const filteredLines = lines.filter(line => 
+                                        !line.includes('/base-test.ts:') && !line.includes('Proxy.')
+                                    );
+                                    error.stack = filteredLines.join('\n');
+                                }
+                                throw error;
                             }
-                            
-                            return result;
                         };
                     }
                     
                     // Intercept locator creation
                     const locatorReturning = ['locator', 'getByText', 'getByRole', 'getByPlaceholder', 'getByLabel', 'getByTestId', 'getByAltText', 'getByTitle'];
                     if (locatorReturning.includes(prop)) {
-                        return (...args: any[]) => {
+                        return function(this: any, ...args: any[]) {
                             const loc = orig.apply(target, args);
                             return wrapLocator(loc, actualPage, takeScreenshot);
                         };
@@ -341,24 +416,71 @@ export const test = base.extend({
 
         await use(pageProxy);
         
-        // On test failure, capture final state
+        // On test failure, move to failed directory and capture final state
         if (testInfo.status === 'failed' || testInfo.status === 'timedOut') {
             try {
                 await actualPage.evaluate(() => (window as any).__playwrightHide?.());
                 
-                // Capture screenshot
-                const errorScreenshotPath = path.join(testInfo.outputDir, 'error-state.png');
+                // Capture final screenshot
+                const errorScreenshotPath = path.join(customOutputDir, 'error.png');
                 await actualPage.screenshot({ path: errorScreenshotPath, fullPage: false });
-                console.log(`Saved: error-state.png`);
                 
-                // Capture HTML
-                const errorHtmlPath = path.join(testInfo.outputDir, 'error-state.html');
+                // Capture final HTML
+                const errorHtmlPath = path.join(customOutputDir, 'error.html');
                 const domHtml = await actualPage.evaluate(() => document.body.outerHTML);
                 fs.writeFileSync(errorHtmlPath, domHtml, 'utf-8');
-                console.log(`Saved: error-state.html`);
+                
+                // Create error.txt with useful diagnostic info
+                const errorTxtPath = path.join(customOutputDir, 'error.txt');
+                let errorInfo = `Test: ${testInfo.title}\n`;
+                errorInfo += `Status: ${testInfo.status}\n`;
+                errorInfo += `Duration: ${testInfo.duration}ms\n\n`;
+                
+                if (testInfo.error) {
+                    // Only show the stack trace (which includes the message at the top)
+                    if (testInfo.error.stack) {
+                        errorInfo += `Error:\n${testInfo.error.stack}\n\n`;
+                    } else {
+                        errorInfo += `Error: ${testInfo.error.message}\n\n`;
+                    }
+                }
+                
+                // Get browser console logs
+                const consoleLogs = await actualPage.evaluate(() => {
+                    return (window as any).__consoleLogs || [];
+                });
+                if (consoleLogs.length > 0) {
+                    errorInfo += `Console Logs:\n${consoleLogs.join('\n')}\n\n`;
+                }
+                
+                // Get page URL
+                errorInfo += `Current URL: ${actualPage.url()}\n`;
+                
+                fs.writeFileSync(errorTxtPath, errorInfo, 'utf-8');
+                
+                // Move directory from tests-passed/ to tests-failed/
+                if (fs.existsSync(passedDir)) {
+                    // Ensure tests-failed directory exists
+                    const failedParent = path.dirname(failedDir);
+                    if (!fs.existsSync(failedParent)) {
+                        fs.mkdirSync(failedParent, { recursive: true });
+                    }
+                    // Remove failedDir if it exists (from previous run)
+                    if (fs.existsSync(failedDir)) {
+                        fs.rmSync(failedDir, { recursive: true, force: true });
+                    }
+                    fs.renameSync(passedDir, failedDir);
+                    customOutputDir = failedDir;
+                }
+                
+                // Output the test results directory path
+                process.stderr.write(`\n    Output for failed test moved to: ${failedDir}\n\n`);
             } catch (error) {
                 console.warn(`Could not capture error state: ${error}`);
             }
         }
+        
+        currentPage = null;
+        currentTakeScreenshot = null;
     }
 });
