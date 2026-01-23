@@ -83,11 +83,10 @@ export function drawHeader(
     admin: { value: boolean },
     updateAvailable: { value: boolean },
     menuOpen: { value: boolean },
-    disableJoin: () => void,
-    DEBUG_route_back: (...args: any[]) => void
+    disableJoin: () => void
 ): void {
     $('header', headerStyle, () => {
-        $('img.logo src=', logoUrl, 'click=', () => DEBUG_route_back('/'));
+        $('img.logo src=', logoUrl, 'click=', () => route.back('/'));
         
         $(() => {
             if (route.current.path !== '/') {

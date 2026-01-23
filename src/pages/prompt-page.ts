@@ -4,15 +4,14 @@ import * as route from 'aberdeen/route';
 interface PromptPageContext {
     routeState: { title: string };
     dialogResolvers: Record<number, (value: any) => void>;
-    DEBUG_route_back: (path?: string) => void;
 }
 
 export function drawPromptPage(context: PromptPageContext): void {
-    const { routeState, dialogResolvers, DEBUG_route_back } = context;
+    const { routeState, dialogResolvers } = context;
     
     const state = route.current.state;
     const resolve = dialogResolvers[state.resolveId];
-    if (!resolve) return DEBUG_route_back('/');
+    if (!resolve) return route.back('/');
     
     const isConfirm = state.type === 'confirm';
     routeState.title = state.title || (isConfirm ? 'Confirm' : 'Question');
@@ -26,7 +25,7 @@ export function drawPromptPage(context: PromptPageContext): void {
                 $('input type=text width:100% bind=', value, 'keydown=', (e: KeyboardEvent) => {
                     if (e.key === 'Enter') {
                         resolve(value.value);
-                        DEBUG_route_back();
+                        route.back();
                     }
                 });
             }
@@ -36,20 +35,20 @@ export function drawPromptPage(context: PromptPageContext): void {
             if (isConfirm) {
                 $('button.secondary flex:1 #No', 'click=', () => {
                     resolve(false);
-                    DEBUG_route_back();
+                    route.back();
                 });
                 $('button.primary flex:1 #Yes', 'click=', () => {
                     resolve(true);
-                    DEBUG_route_back();
+                    route.back();
                 });
             } else {
                 $('button.secondary flex:1 #Cancel', 'click=', () => {
                     resolve(undefined);
-                    DEBUG_route_back();
+                    route.back();
                 });
                 $('button.primary flex:1 #OK', 'click=', () => {
                     resolve(value.value);
-                    DEBUG_route_back();
+                    route.back();
                 });
             }
         });

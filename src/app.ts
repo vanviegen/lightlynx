@@ -68,13 +68,13 @@ const mainStyle = insertCss({
     },
     
     '&.fadeOut': {
-        zIndex: 3,
+        zIndex: 1,
         opacity: 0,
         visibility: 'hidden',
         pointerEvents: 'none',
         '*': {
-            transition: 'visibility 0.2s ease-out',
             visibility: 'hidden',
+            pointerEvents: 'none',
         },
     },
     
@@ -109,6 +109,8 @@ const mainStyle = insertCss({
             cursor: 'pointer',
             zIndex: 10,
             pointerEvents: 'auto',
+            w: '24px',
+            h: '24px',
         },
     },
 });
@@ -199,14 +201,8 @@ function drawDump(): void {
 	drawDumpPageComponent({ routeState });
 }
 
-function DEBUG_route_back(...args: any[]): void {
-	console.log('DEBUG_route_back', ...args, new Error().stack);
-	route.back(...args);
-	console.log('DEBUG_route_back done');
-}
-
 function drawPromptPage(): void {
-	drawPromptPageComponent({ routeState, dialogResolvers, DEBUG_route_back });
+	drawPromptPageComponent({ routeState, dialogResolvers });
 }
 
 function drawRemoteInfoPage(): void {
@@ -229,7 +225,7 @@ $(() => {
 });
 
 function drawGroup(groupId: number): void {
-	drawGroupPage(groupId, { routeState, admin, deviceGroups, groupInputs, askConfirm, askPrompt, lazySave, drawDeviceItem, drawSceneEditor, DEBUG_route_back });
+	drawGroupPage(groupId, { routeState, admin, deviceGroups, groupInputs, askConfirm, askPrompt, lazySave, drawDeviceItem, drawSceneEditor });
 }
 
 
@@ -374,7 +370,7 @@ function drawRemoteAccessToggle(): void {
 
 
 function drawConnectionPage(): void {
-	drawConnectionPageComponent({ routeState, notify, askConfirm, DEBUG_route_back });
+	drawConnectionPageComponent({ routeState, notify, askConfirm });
 }
 
 async function hashSecret(password: string): Promise<string> {
@@ -414,7 +410,7 @@ $('div', rootStyle, () => {
 		$('.landing-page:', isEmpty(api.store.servers) && route.current.path === '/');
 	});
 
-	drawHeader(routeState, admin, updateAvailable, menuOpen, disableJoin, DEBUG_route_back);
+	drawHeader(routeState, admin, updateAvailable, menuOpen, disableJoin);
 	drawMenu(menuOpen);
 	
 	$('div', mainContainerStyle, () => {
@@ -878,7 +874,7 @@ export function drawGroupConfigurationEditor(group: Group, groupId: number): voi
 	$('div.item.link#Delete group', 'click=', async () => {
 		if (!await askConfirm(`Are you sure you want to delete group '${group.name}'?`)) return;
 		api.send("bridge", "request", "group", "remove", {id: group.name});
-		DEBUG_route_back('/');
+		route.back('/');
 	}, icons.remove);
 
     const newDescription = proxy('');

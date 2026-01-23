@@ -7,7 +7,6 @@ interface ConnectionPageContext {
     routeState: { title: string; subTitle?: string };
     notify: (type: 'error' | 'info' | 'warning', message: string) => void;
     askConfirm: (message: string, title?: string) => Promise<boolean>;
-    DEBUG_route_back: (path?: string) => void;
 }
 
 async function hashSecret(password: string): Promise<string> {
@@ -29,7 +28,7 @@ async function hashSecret(password: string): Promise<string> {
 }
 
 export function drawConnectionPage(context: ConnectionPageContext): void {
-    const { routeState, notify, askConfirm, DEBUG_route_back } = context;
+    const { routeState, notify, askConfirm } = context;
     
     // Read initial state non-reactively to avoid re-renders
     const isEdit = peek(() => route.current.state.edit);
@@ -103,7 +102,7 @@ export function drawConnectionPage(context: ConnectionPageContext): void {
     $(() => {
         if (saved.value && api.store.servers[0]?.status === 'enabled') {
             saved.value = false;
-            DEBUG_route_back('/');
+            route.back('/');
         }
     });
 
@@ -136,7 +135,7 @@ export function drawConnectionPage(context: ConnectionPageContext): void {
     async function handleDelete(): Promise<void> {
         if (await askConfirm('Are you sure you want to remove these credentials?')) {
             api.store.servers.shift();
-            DEBUG_route_back('/');
+            route.back('/');
         }
     }
     
@@ -156,7 +155,7 @@ export function drawConnectionPage(context: ConnectionPageContext): void {
             });
             $('div.row margin-top:1em', () => {
                 if (isEdit) $('button.danger type=button text=Delete click=', handleDelete);
-                $('button.secondary type=button text=Cancel click=', () => DEBUG_route_back('/'));
+                $('button.secondary type=button text=Cancel click=', () => route.back('/'));
                 $('button.primary type=submit', () => {
                     const busy = api.store.connectionState === 'connecting' || api.store.connectionState === 'authenticating';			
                     $('.busy=', busy, busy ? '#Connecting...' : isEdit ? '#Save' : '#Create');

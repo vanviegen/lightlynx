@@ -24,7 +24,6 @@ interface GroupPageContext {
     lazySave: (getState: () => void | (() => void), delay?: number) => void;
     drawDeviceItem: (device: Device, ieee: string) => void;
     drawSceneEditor: (group: Group, groupId: number) => void;
-    DEBUG_route_back: (path?: string) => void;
 }
 
 function getGroupIdsFromDescription(description: string | undefined): number[] {
@@ -81,7 +80,7 @@ export function drawGroupPage(groupId: number, context: GroupPageContext): void 
     }
     const group = optGroup;
     
-    const { routeState, admin, deviceGroups, groupInputs, askConfirm, askPrompt, lazySave, drawDeviceItem, drawSceneEditor, DEBUG_route_back } = context;
+    const { routeState, admin, deviceGroups, groupInputs, askConfirm, askPrompt, lazySave, drawDeviceItem, drawSceneEditor } = context;
     
     if (route.current.p[2] === 'addLight') return drawGroupAddLight(group, groupId, { routeState, deviceGroups, drawBulbCircle });
     if (route.current.p[2] === 'addInput') return drawGroupAddInput(group, groupId, { routeState, drawBulbCircle });
@@ -150,7 +149,7 @@ export function drawGroupPage(groupId: number, context: GroupPageContext): void 
     // Group configuration section for admin users
     $(() => {
         if (admin.value) {
-            drawGroupConfigurationEditor(group, groupId, { groupInputs, drawBulbCircle, askConfirm, lazySave, DEBUG_route_back });
+            drawGroupConfigurationEditor(group, groupId, { groupInputs, drawBulbCircle, askConfirm, lazySave });
         }
     });
 }
@@ -225,10 +224,9 @@ function drawGroupConfigurationEditor(
         drawBulbCircle: typeof drawBulbCircle;
         askConfirm: (message: string, title?: string) => Promise<boolean>;
         lazySave: (getState: () => void | (() => void), delay?: number) => void;
-        DEBUG_route_back: (path?: string) => void;
     }
 ): void {
-    const { groupInputs, drawBulbCircle, askConfirm, lazySave, DEBUG_route_back } = context;
+    const { groupInputs, drawBulbCircle, askConfirm, lazySave } = context;
     
     const groupState = proxy(peek(() => {
         return {
@@ -303,7 +301,7 @@ function drawGroupConfigurationEditor(
     $('div.item.link#Delete group', 'click=', async () => {
         if (!await askConfirm(`Are you sure you want to delete group '${group.name}'?`)) return;
         api.send("bridge", "request", "group", "remove", {id: group.name});
-        DEBUG_route_back('/');
+        route.back('/');
     }, icons.remove);
 
     const newDescription = proxy('');

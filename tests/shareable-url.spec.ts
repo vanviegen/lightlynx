@@ -14,10 +14,10 @@ test.describe('Shareable Connection URL', () => {
     // The app should auto-connect and redirect to main page
     // Wait for the connection to complete and redirect to happen
     // Check for a group or device that exists in mock-z2m
-    await expect(page.locator('h2', { hasText: 'Kitchen' })).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('h2', { hasText: 'Kitchen' }).filter({ visible: true })).toBeVisible({ timeout: 10000 });
 
     // Verify we're on the main page (not the connect page)
-    await expect(page.locator('span.subTitle', { hasText: 'Z2M' })).not.toBeVisible();
+    await expect(page.locator('span.subTitle', { hasText: 'Z2M' }).filter({ visible: true })).not.toBeVisible();
     
     console.log('Successfully connected via shareable URL!');
   });
@@ -47,7 +47,7 @@ test.describe('Shareable Connection URL', () => {
     await page.click('button[type="submit"]');
     
     // Wait for connection
-    await expect(page.locator('h2', { hasText: 'Kitchen' })).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('h2', { hasText: 'Kitchen' }).filter({ visible: true })).toBeVisible({ timeout: 10000 });
     
     // Now navigate to a different page
     await page.goto('/');
@@ -57,7 +57,7 @@ test.describe('Shareable Connection URL', () => {
     await page.goto(shareableUrl);
     
     // Should auto-connect
-    await expect(page.locator('h2', { hasText: 'Kitchen' })).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('h2', { hasText: 'Kitchen' }).filter({ visible: true })).toBeVisible({ timeout: 10000 });
     
     console.log('Successfully reconnected via shareable URL with pre-hashed secret!');
   });
@@ -115,7 +115,7 @@ test.describe('Shareable Connection URL', () => {
   test('should handle shareable URL with existing server', async ({ page }) => {
     // First connection to establish a server
     await page.goto('/connect?host=localhost:43598&username=admin');
-    await expect(page.locator('h2', { hasText: 'Kitchen' })).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('h2', { hasText: 'Kitchen' }).filter({ visible: true })).toBeVisible({ timeout: 10000 });
     
     // Disconnect by navigating away
     await page.goto('/');
@@ -124,7 +124,7 @@ test.describe('Shareable Connection URL', () => {
     await page.goto('/connect?host=localhost:43598&username=admin');
     
     // Should reconnect to the existing server
-    await expect(page.locator('h2', { hasText: 'Kitchen' })).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('h2', { hasText: 'Kitchen' }).filter({ visible: true })).toBeVisible({ timeout: 10000 });
     
     console.log('Successfully reconnected to existing server via shareable URL!');
   });

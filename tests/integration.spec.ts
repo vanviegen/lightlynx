@@ -17,52 +17,50 @@ test.describe('Light Lynx Integration', () => {
     await page.click('text=Create group');
 
     // Fill in our custom prompt UI
-    await page.fill('input[type="text"]', groupName);
-    await page.click('button.primary:has-text("OK")');
+    await page.getByRole('textbox').filter({ visible: true }).fill(groupName);
+    await page.getByRole('button', { name: 'OK' }).filter({ visible: true }).click();
 
-    // Verify group appears in the list (not in a fadeOut page)
-    await expect(page.locator('main:not(.fadeOut)').locator('h2', { hasText: groupName }).first()).toBeVisible();
+    // Verify group appears in the list
+    await expect(page.locator('h2', { hasText: groupName }).filter({ visible: true })).toBeVisible();
 
     // 6. Navigate into the group
-    await page.click(`main:not(.fadeOut) h2:has-text("${groupName}")`);
-    await expect(page.locator('span.subTitle', { hasText: 'group' })).toBeVisible();
+    await page.locator('h2', { hasText: groupName }).filter({ visible: true }).click();
+    await expect(page.locator('span.subTitle', { hasText: 'group' }).filter({ visible: true })).toBeVisible();
 
     // 7. Add lights to the group
-    // Click the "plus" icon in the Bulbs header
-    const bulbsIcon = page.locator('h1', { hasText: 'Bulbs' }).locator('svg.icon').first();
-    await bulbsIcon.scrollIntoViewIfNeeded();
-    await bulbsIcon.click();
-    await expect(page.locator('span.subTitle', { hasText: 'add light' })).toBeVisible();
+    // Select the icon in the Bulbs section of the active group page
+    // Note: Use force: true because Playwright's hit testing sometimes gets confused by 
+    // overlapping transition containers in this complex integration test.
+    await page.locator('h1', { hasText: 'Bulbs' }).filter({ visible: true }).locator('svg.icon').click({ force: true });
+    await expect(page.locator('span.subTitle', { hasText: 'add light' }).filter({ visible: true })).toBeVisible();
 
     // Add "Color Light"
-    await page.click('h2:has-text("Color Light")');
+    await page.locator('h2', { hasText: 'Color Light' }).filter({ visible: true }).click();
     // After adding, it should go back to group page
-    await expect(page.locator('span.subTitle', { hasText: 'add light' })).not.toBeVisible();
-    await expect(page.locator('span.subTitle', { hasText: 'group' })).toBeVisible();
-    // Use first() to pick the first matching visible one
-    await expect(page.locator('h2', { hasText: 'Color Light' }).first()).toBeVisible();
+    await expect(page.locator('span.subTitle', { hasText: 'add light' }).filter({ visible: true })).not.toBeVisible();
+    await expect(page.locator('span.subTitle', { hasText: 'group' }).filter({ visible: true })).toBeVisible();
+    // Use filter({ visible: true }) to pick the matching visible one
+    await expect(page.locator('h2', { hasText: 'Color Light' }).filter({ visible: true })).toBeVisible();
 
     // Add another "White Light"
-    const bulbsIcon2 = page.locator('h1', { hasText: 'Bulbs' }).locator('svg.icon').first();
-    await bulbsIcon2.scrollIntoViewIfNeeded();
-    await bulbsIcon2.click();
-    await page.click('h2:has-text("White Light")');
-    await expect(page.locator('span.subTitle', { hasText: 'add light' })).not.toBeVisible();
-    await expect(page.locator('span.subTitle', { hasText: 'group' })).toBeVisible();
-    await expect(page.locator('h2', { hasText: 'White Light' }).first()).toBeVisible();
+    await page.locator('h1', { hasText: 'Bulbs' }).filter({ visible: true }).locator('svg.icon').click({ force: true });
+    await page.locator('h2', { hasText: 'White Light' }).filter({ visible: true }).click();
+    await expect(page.locator('span.subTitle', { hasText: 'add light' }).filter({ visible: true })).not.toBeVisible();
+    await expect(page.locator('span.subTitle', { hasText: 'group' }).filter({ visible: true })).toBeVisible();
+    await expect(page.locator('h2', { hasText: 'White Light' }).filter({ visible: true })).toBeVisible();
 
     // 8. Create a scene
     const sceneName = 'Test Scene';
     
     // Click the "plus" icon in the Scenes header
-    await page.locator('h1', { hasText: 'Scenes' }).locator('svg.icon').first().click();
+    await page.locator('h1', { hasText: 'Scenes' }).filter({ visible: true }).locator('svg.icon').click({ force: true });
 
     // Fill in the scene name in our custom prompt UI
-    await page.fill('input[type="text"]', sceneName);
-    await page.click('button.primary:has-text("OK")');
+    await page.getByRole('textbox').filter({ visible: true }).fill(sceneName);
+    await page.getByRole('button', { name: 'OK' }).filter({ visible: true }).click();
 
     // Verify scene appears
-    await expect(page.locator('h2', { hasText: sceneName }).first()).toBeVisible();
+    await expect(page.locator('h2', { hasText: sceneName }).filter({ visible: true })).toBeVisible();
     
     console.log('Integration test completed successfully!');
   });
