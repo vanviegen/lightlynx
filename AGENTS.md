@@ -7,7 +7,7 @@
 ## Tech Stack
 
 - **Language**: TypeScript
-- **UI Framework**: [Aberdeen](https://github.com/vanviegen/aberdeen) - a reactive UI library with proxy-based state management (use the provided Skill to learn how to use it)
+- **UI Framework**: [Aberdeen](https://github.com/vanviegen/aberdeen) - a reactive UI library with proxy-based state management (use the provided Aberdeen Skill to learn how to use it)
 - **Build Tool**: Vite 6.x
 - **Backend**: Connects to Zigbee2MQTT via WebSocket
 - **PWA**: Service Worker for offline caching and stale-while-revalidate strategy
@@ -215,15 +215,17 @@ mcp_playwright_browser_click(element, ref)
 
 However, please *prefer* to use the automated tests and diagnostic artifacts for most debugging, as they provide a complete history of test step and provide future value.
 
+If the playwright MCP is not available or not working correctly, ask the user for it.
+
+
 #### Example: Debugging a Failed Test
 
 If a test fails at line 34 in integration.spec.ts:
 
 1. Terminal shows: `Output for failed test moved to: tests-failed/integration-0005/`
 2. Open `tests-failed/integration-0005/error.txt` - shows error occurred at line 34
-3. Look at `tests-failed/integration-0005/0034.png` - screenshot taken at that line
-4. Check earlier screenshots (0011.png, 0027.png, etc.) to see test progression
-5. If needed, examine HTML files to inspect element structure and selectors
+3. You can review the output of previous steps by looking at files like `tests-failed/integration-0005/0034.html` (for the start after line 34)
+4. If you need to look at the visual output, as the user for a specific screenshot like `tests-failed/integration-0005/0034.png` - he/she will be able to provide it in a way that you can view it
 
 The line numbers in filenames directly correspond to lines in the test file, making it easy to correlate test code with captured state.
 

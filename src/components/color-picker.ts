@@ -8,85 +8,26 @@ const CT_MIN = 100, CT_MAX = 550;
 
 // Circle toggle styles
 const circleStyle = insertCss({
-    w: '52px',
-    h: '28px',
-    borderRadius: '14px',
-    border: '1px solid $border',
-    bg: '#080808',
-    cursor: 'pointer',
-    flexShrink: 0,
-    position: 'relative',
-    overflow: 'visible',
-    transition: 'background-color 0.3s ease, border-color 0.3s ease',
-    
-    // Off-state circle (always dark)
-    '&::before': {
-        content: '""',
-        position: 'absolute',
-        w: '22px',
-        h: '22px',
-        borderRadius: '50%',
-        bg: '#555',
-        top: '2px',
-        left: '2px',
-        transition: 'transform 0.3s ease, opacity 0.3s ease',
-        opacity: 1,
-    },
-    
-    // On-state circle (with gradient)
-    '&::after': {
-        content: '""',
-        position: 'absolute',
-        w: '22px',
-        h: '22px',
-        borderRadius: '50%',
-        bg: 'var(--knob-background, var(--knob-color, #555))',
-        top: '2px',
-        left: '2px',
-        transition: 'transform 0.3s ease, opacity 0.3s ease, box-shadow 0.3s ease',
-        boxShadow: 'var(--knob-glow, none)',
-        opacity: 0,
-    },
-    
-    '&.on': {
-        borderColor: '#555',
-        '&::before': {
-            transform: 'translateX(24px)',
-            opacity: 0,
-        },
-        '&::after': {
-            transform: 'translateX(24px)',
-            opacity: 1,
-        },
-    },
+	'&': 'w:52px h:28px r:14px border: 1px solid $border; bg:#080808 cursor:pointer flex-shrink:0 position:relative overflow:visible transition: background-color 0.3s ease, border-color 0.3s ease;',
+	// Off-state circle (always dark)
+	'&::before': 'content:""; position:absolute w:22px h:22px r:50% bg:#555 top:2px left:2px transition: transform 0.3s ease, opacity 0.3s ease; opacity:1',
+	// On-state circle (with gradient)
+	'&::after': 'content:""; position:absolute w:22px h:22px r:50% bg: var(--knob-background, var(--knob-color, #555)); top:2px left:2px transition: transform 0.3s ease, opacity 0.3s ease, box-shadow 0.3s ease; box-shadow: var(--knob-glow, none); opacity:0',
+	'&.on': {
+		'&': 'border-color:#555',
+		'&::before': 'transform:translateX(24px) opacity:0',
+		'&::after': 'transform:translateX(24px) opacity:1'
+	}
 });
 
 // Color wheel container styles
-const wheelStyle = insertCss({
-    position: 'relative',
-});
+const wheelStyle = insertCss('position:relative');
 
 // Handle/marker styles
-const handleStyle = insertCss({
-    position: 'absolute',
-    transition: 'all 0.1s',
-    borderRadius: '50%',
-    border: '2px solid #fff',
-    boxShadow: '0 0 0 1px #000 inset',
-    touchAction: 'none',
-    userSelect: 'none',
-    WebkitTouchCallout: 'none',
-    WebkitTapHighlightColor: 'transparent',
-});
+const handleStyle = insertCss('position:absolute transition:all 0.1s; r:50% border: 2px solid #fff; box-shadow: 0 0 0 1px #000 inset; touch-action:none user-select:none -webkit-touch-callout:none -webkit-tap-highlight-color:transparent');
 
 // Scale container styles
-const scaleStyle = insertCss({
-    border: '1px solid $border',
-    position: 'relative',
-    h: '40px',
-    borderRadius: '3px',
-    overflow: 'hidden',
-});
+const scaleStyle = insertCss('border: 1px solid $border; position:relative h:40px r:3px overflow:hidden');
 
 interface TrackingState {
     event: MouseEvent | TouchEvent;

@@ -12,8 +12,8 @@ export function drawRemoteInfoPage(context: InfoPageContext): void {
     routeState.title = 'Remote Access';
     routeState.subTitle = 'Information';
 
-    $('div padding:8px line-height:1.6em', () => {
-        $('h1 margin-top:0 #How it works');
+    $('div p:8px line-height:1.6em', () => {
+        $('h1 mt:0 #How it works');
         $('p#', 'Remote access allows you to control your lights from anywhere in the world. When enabled, your server becomes accessible via a secure, encrypted connection.');
         
         $('h1#Simplified Networking');
@@ -37,7 +37,7 @@ export function drawRemoteInfoPage(context: InfoPageContext): void {
             $('li#You can restrict remote access on a per-user basis in the user management settings.');
         });
 
-        $('button.primary margin-top:2em width:100% #Got it', 'click=', () => route.up());
+        $('button.primary mt:2em w:100% #Got it', 'click=', () => route.up());
     });
 }
 
@@ -47,8 +47,8 @@ export function drawAutomationInfoPage(context: InfoPageContext): void {
     routeState.title = 'Automation';
     routeState.subTitle = 'Information';
 
-    $('div padding:8px line-height:1.6em', () => {
-        $('h1 margin-top:0 #What is Automation?');
+    $('div p:8px line-height:1.6em', () => {
+        $('h1 mt:0 #What is Automation?');
         $('p#', 'Automation allows your lights to respond automatically to events, making your smart home truly intelligent.');
         
         $('h1#Features');
@@ -70,7 +70,7 @@ export function drawAutomationInfoPage(context: InfoPageContext): void {
         $('h1#Privacy');
         $('p#All automation runs locally on your Zigbee2MQTT server. No cloud services or external servers are involved.');
 
-        $('button.primary margin-top:2em width:100% #Got it', 'click=', () => route.up());
+        $('button.primary mt:2em w:100% #Got it', 'click=', () => route.up());
     });
 }
 

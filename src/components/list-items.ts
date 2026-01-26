@@ -5,90 +5,28 @@ import * as route from 'aberdeen/route';
 
 // Export style classes for flexible use
 export const itemStyle = insertCss({
-    display: 'flex',
-    alignItems: 'center',
-    gap: '$3',
-    p: '$2 $3',
-    mv: '$1',
-    bg: '$surfaceLight',
-    borderTop: '1px solid $borderLight',
-    borderBottom: '1px solid rgba(0,0,0,0.3)',
-    borderRadius: '4px',
-    whiteSpace: 'nowrap',
-    
-    '&.link': {
-        cursor: 'pointer',
-        transition: 'background-color 0.15s',
-        '&:hover': {
-            bg: '$surfaceHover',
-        },
-        '&:active': {
-            transform: 'scale(0.99)',
-        },
-    },
-    
-    '&.active-scene': {
-        bg: '#f4810e30',
-        borderLeft: '4px solid $primary',
-        pl: '$2',
-    },
-    
-    h2: {
-        fontSize: '1.125rem',
-        fontWeight: 500,
-        flex: '1 0 auto',
-    },
-    
-    '.icon:first-child': {
-        flex: 'none',
-        w: '32px',
-        h: '32px',
-    },
-    
-    '.icon:last-child': {
-        ml: 'auto',
-        w: '24px',
-    },
-    
-    'input[type="checkbox"]:first-child': {
-        flex: 'none',
-        w: '32px',
-        h: '32px',
-        m: 0,
-    },
-    
-    button: {
-        w: 'auto',
-    },
+	'&': 'display:flex align-items:center gap:$3 p: $2 $3; m: $1 0; bg:$surfaceLight border-top: 1px solid $borderLight; border-bottom: 1px solid rgba(0,0,0,0.3); r:4px white-space:nowrap',
+	'&.link': {
+		'&': 'cursor:pointer transition:background-color 0.15s',
+		'&:hover': 'bg:$surfaceHover',
+		'&:active': 'transform:scale(0.99)'
+	},
+	'&.active-scene': 'bg:#f4810e30 border-left: 4px solid $primary; pl:$2',
+	h2: 'font-size:1.125rem font-weight:500 flex: 1 0 auto;',
+	'.icon:first-child': 'flex:none w:32px h:32px',
+	'.icon:last-child': 'ml:auto w:24px',
+	'input[type="checkbox"]:first-child': 'flex:none w:32px h:32px m:0',
+	button: 'w:auto'
 });
 
-export const listStyle = insertCss({
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '$1',
-});
+export const listStyle = insertCss('display:flex flex-direction:column gap:$1');
 
-export const emptyStyle = insertCss({
-    p: '$3',
-    textAlign: 'center',
-    fontStyle: 'italic',
-    color: '$textMuted',
-});
+export const emptyStyle = insertCss('p:$3 text-align:center font-style:italic color:$textMuted');
 
 export const badgeStyle = insertCss({
-    p: '$1 $2',
-    borderRadius: '4px',
-    fontSize: '0.75rem',
-    fontWeight: 500,
-    bg: '#333',
-    color: '#aaa',
-    ml: 'auto',
-    alignSelf: 'center',
+    '&': 'p:$1 $2; r:4px font-size:0.75rem font-weight:500 bg:#333 color:#aaa ml:auto align-self:center',
     
-    '&.warning': {
-        bg: '#f4810e30',
-        color: '$warning',
-    },
+    '&.warning': 'bg:#f4810e30 color:$warning'
 });
 
 // Helper function for common pattern: device item with bulb circle and name

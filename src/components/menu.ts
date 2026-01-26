@@ -5,79 +5,29 @@ import * as icons from '../icons';
 import api from '../api';
 import { ServerCredentials } from '../types';
 
-const overlayStyle = insertCss({
-    position: 'fixed',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    zIndex: 100,
-});
+const overlayStyle = insertCss('position:fixed top:0 left:0 right:0 bottom:0 z-index:100');
 
 const menuStyle = insertCss({
-    position: 'absolute',
-    top: '48px',
-    right: '$2',
-    bg: '#222',
-    border: '1px solid #444',
-    borderRadius: '8px',
-    p: '$2 0',
-    zIndex: 101,
-    minWidth: '200px',
-    boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
-    transition: 'opacity 0.2s ease-out, transform 0.2s ease-out',
-    
-    '&.menu-fade': {
-        opacity: 0,
-        transform: 'translateY(-10px)',
-    },
+	'&': 'position:absolute top:48px right:$2 bg:#222 border: 1px solid #444; r:8px p: $2 0; z-index:101 min-width:200px box-shadow: 0 4px 12px rgba(0,0,0,0.5); transition: opacity 0.2s ease-out, transform 0.2s ease-out;',
+	'&.menu-fade': 'opacity:0 transform:translateY(-10px)'
 });
 
 const menuItemStyle = insertCss({
-    p: '$3 $4',
-    cursor: 'pointer',
-    display: 'flex',
-    alignItems: 'center',
-    gap: '$3',
-    fontSize: '1rem',
-    
-    '&:hover': {
-        bg: '#333',
-    },
-    
-    '&.danger': {
-        color: '$danger',
-    },
-    
-    '&.error': {
-        color: '$danger',
-        cursor: 'default',
-        bg: '#3a1111',
-        '&:hover': {
-            bg: '#3a1111',
-        },
-    },
-    
-    '.icon': {
-        w: '24px',
-        h: '24px',
-        '&.on': {
-            color: '#0d8',
-        },
-    },
-    
-    '&.busy .icon': {
-        animation: 'header-spin 2s linear infinite',
-        opacity: 0.5,
-        pointerEvents: 'none',
-    },
+	'&': 'p: $3 $4; cursor:pointer display:flex align-items:center gap:$3 font-size:1rem',
+	'&:hover': 'bg:#333',
+	'&.danger': 'fg:$danger',
+	'&.error': {
+		'&': 'fg:$danger cursor:default bg:#3a1111',
+		'&:hover': 'bg:#3a1111'
+	},
+	'.icon': {
+		'&': 'w:24px h:24px',
+		'&.on': 'fg:#0d8'
+	},
+	'&.busy .icon': 'animation: header-spin 2s linear infinite; opacity:0.5 pointer-events:none'
 });
 
-const menuDividerStyle = insertCss({
-    h: '1px',
-    bg: '#444',
-    mv: '$1',
-});
+const menuDividerStyle = insertCss('h:1px bg:#444 mv:$1');
 
 export function drawMenu(menuOpen: { value: boolean }): void {
     $(() => {

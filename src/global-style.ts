@@ -27,247 +27,97 @@ cssVars.warning = '#ffaa00';
 cssVars.success = '#00dd88';
 cssVars.info = '#4a9eff';
 
-// Minimal global CSS - foundational styles only
 insertGlobalCss({
     // CSS Reset (Josh Comeau's minimal reset)
-    '*': {
-        boxSizing: 'border-box',
-    },
-    'html, body': {
-        h: '100%',
-        m: 0,
-        p: 0,
-    },
-    body: {
-        lineHeight: 1.5,
-        WebkitFontSmoothing: 'antialiased',
-        MozOsxFontSmoothing: 'grayscale',
-        userSelect: 'none',
-        WebkitUserSelect: 'none',
-        WebkitTouchCallout: 'none',
-        WebkitTapHighlightColor: 'transparent',
-        
-        // Base colors
-        bg: '$bg',
-        color: '$text',
-        fontFamily: 'system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
-        fontSize: '16px',
-    },
+    '*': 'box-sizing:border-box',
+    'html, body': 'h:100% m:0 p:0',
+    body: 'line-height:1.5 -webkit-font-smoothing:antialiased -moz-osx-font-smoothing:grayscale user-select:none -webkit-user-select:none -webkit-touch-callout:none -webkit-tap-highlight-color:transparent bg:$bg fg:$text font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size:16px',
     
     // Typography
-    'h1, h2, h3, h4, h5, h6, p': {
-        m: 0,
-        overflowWrap: 'break-word',
-    },
-    h1: {
-        fontSize: '1.5rem',
-        fontWeight: 600,
-        lineHeight: 1.2,
-    },
-    h2: {
-        fontSize: '1.25rem',
-        fontWeight: 500,
-        lineHeight: 1.3,
-    },
-    h3: {
-        fontSize: '1.125rem',
-        fontWeight: 500,
-    },
+    'h1, h2, h3, h4, h5, h6, p': 'm:0 overflow-wrap:break-word',
+    
+    h1: 'font-size:1.5rem font-weight:600 line-height:1.2',
+    h2: 'font-size:1.25rem font-weight:500 line-height:1.3',
+    h3: 'font-size:1.125rem font-weight:500',
     
     // Links
     a: {
-        color: '$primary',
-        textDecoration: 'none',
-        cursor: 'pointer',
-        '&:hover': {
-            color: '$primaryHover',
-            textDecoration: 'underline',
-        },
-        '&:visited': {
-            color: '$primaryDark',
-        },
-    },
-    
+        '&': 'fg:$primary text-decoration:none cursor:pointer',
+        '&:hover': 'fg:$primaryHover text-decoration:underline',
+        '&:visited': 'fg:$primaryDark'
+    }
+});
+
+insertGlobalCss({
     // Media defaults
-    'img, picture, video, canvas': {
-        display: 'block',
-        maxWidth: '100%',
-    },
+    'img, picture, video, canvas': 'display:block max-width:100%',
     
     // Form elements baseline
-    'input, textarea, button, select': {
-        font: 'inherit',
-        color: 'inherit',
-        m: 0,
-    },
+    'input, textarea, button, select': 'font:inherit fg:inherit m:0',
     
     'input, textarea, select': {
-        p: '$2',
-        borderRadius: '4px',
-        border: '2px solid $border',
-        bg: '$surface',
-        color: '$text',
-        outline: 'none',
-        transition: 'border-color 0.2s',
-        '&:focus': {
-            borderColor: '$primary',
-        },
-        '&:disabled': {
-            opacity: 0.5,
-            cursor: 'not-allowed',
-        },
+        '&': 'p:$2 r:4px border: 2px solid $border; bg:$surface fg:$text outline:none transition:border-color',
+        '&:focus': 'border-color:$primary',
+        '&:disabled': 'opacity:0.5 cursor:not-allowed'
     },
     
     // Standard buttons
     button: {
-        p: '$2 $3',
-        borderRadius: '4px',
-        border: 'none',
-        bg: '$primary',
-        color: '#000000',
-        fontWeight: 600,
-        cursor: 'pointer',
-        transition: 'background-color 0.2s, transform 0.1s',
-        '&:hover': {
-            bg: '$primaryHover',
-        },
-        '&:active': {
-            transform: 'scale(0.98)',
-        },
-        '&:disabled': {
-            opacity: 0.5,
-            cursor: 'not-allowed',
-            pointerEvents: 'none',
-        },
+        '&': 'p: $2 $3; r:4px border:none bg:$primary fg:#000 font-weight:600 cursor:pointer transition: background-color 0.2s, transform 0.1s;',
+        '&:hover': 'bg:$primaryHover',
+        '&:active': 'transform:scale(0.98)',
+        '&:disabled': 'opacity:0.5 cursor:not-allowed pointer-events:none'
     },
     
     // Checkbox styling
     'input[type="checkbox"]': {
-        appearance: 'none',
-        w: '20px',
-        h: '20px',
-        minWidth: '20px',
-        border: '2px solid $primary',
-        borderRadius: '3px',
-        bg: 'transparent',
-        cursor: 'pointer',
-        position: 'relative',
-        transition: 'background-color 0.2s',
+        '&': 'appearance:none w:20px h:20px min-width:20px border: 2px solid $primary; r:3px bg:transparent cursor:pointer position:relative transition:background-color',
         '&:checked': {
-            bg: '$primary',
-            '&::after': {
-                content: '""',
-                position: 'absolute',
-                left: '4px',
-                top: '1px',
-                w: '4px',
-                h: '8px',
-                border: 'solid #000',
-                borderWidth: '0 2px 2px 0',
-                transform: 'rotate(45deg)',
-            },
-        },
+            '&': 'bg:$primary',
+            '&::after': 'content:""; position:absolute left:4px top:1px w:4px h:8px border: solid #000; border-width: 0 2px 2px 0; transform:rotate(45deg)'
+        }
     },
     
     // Labels
-    label: {
-        cursor: 'pointer',
-        userSelect: 'none',
-    },
+    label: 'cursor:pointer user-select:none',
     
     // Utility classes for common states
-    '.busy': {
-        pointerEvents: 'none',
-        opacity: 0.5,
-        filter: 'grayscale(0.5)',
-    },
-    
-    '.disabled': {
-        opacity: 0.5,
-        pointerEvents: 'none',
-    },
-    
-    '.muted': {
-        color: '$textMuted',
-        fontSize: '0.875rem',
-    },
-    
-    '.warning': {
-        color: '$warning',
-    },
-    
-    '.danger, .critical': {
-        color: '$danger',
-    },
-    
-    '.success': {
-        color: '$success',
-    },
+    '.busy': 'pointer-events:none opacity:0.5 filter:grayscale(0.5)',
+    '.disabled': 'opacity:0.5 pointer-events:none',
+    '.muted': 'fg:$textMuted font-size:0.875rem',
+    '.warning': 'fg:$warning',
+    '.danger, .critical': 'fg:$danger',
+    '.success': 'fg:$success',
     
     // Scrollbar hiding (for specific containers)
     '.hide-scrollbar': {
-        scrollbarWidth: 'none',
-        msOverflowStyle: 'none',
-        '&::-webkit-scrollbar': {
-            display: 'none',
-        },
-    },
-    
+        '&': 'scrollbar-width:none -ms-overflow-style:none',
+        '&::-webkit-scrollbar': 'display:none'
+    }
+});
+
+insertGlobalCss({
     // List and item styles
-    '.list': {
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '$2',
-    },
+    '.list': 'display:flex flex-direction:column gap:$2',
     
     '.item': {
-        display: 'flex',
-        alignItems: 'center',
-        gap: '$3',
-        p: '$3',
-        bg: '$surface',
-        border: '1px solid $border',
-        borderRadius: '8px',
-        minHeight: '3rem',
+        '&': 'display:flex align-items:center gap:$3 p:$3 bg:$surface border: 1px solid $border; r:8px min-height:3rem',
         
         '&.link': {
-            cursor: 'pointer',
-            transition: 'background-color 0.2s, transform 0.1s',
-            '&:hover': {
-                bg: '$surfaceHover',
-            },
-            '&:active': {
-                transform: 'scale(0.99)',
-            },
-        },
-        
-        '&.active-scene': {
-            bg: 'rgba(244, 129, 14, 0.15)',
-            borderLeft: '4px solid $primary',
-            pl: 'calc($3 - 4px)',
-        },
-        
-        'h2': {
-            fontSize: '1rem',
-            fontWeight: 500,
-            flex: '1 0 auto',
-            m: 0,
-        },
-        
-        '.icon': {
-            flex: 'none',
-            w: '24px',
-            h: '24px',
-            
-            '&:first-child': {
-                w: '28px',
-                h: '28px',
-            },
-        },
-        
-        'input[type="checkbox"]': {
-            flex: 'none',
-            m: 0,
-        },
-    },
+            '&': 'cursor:pointer transition: background-color 0.2s, transform 0.1s;',
+            '&:hover': 'bg:$surfaceHover',
+            '&:active': 'transform:scale(0.99)'
+		},
+		
+		'&.active-scene': 'bg: rgba(244, 129, 14, 0.15); border-left: 4px solid $primary; pl:$2',
+		
+		h2: 'font-size:1rem font-weight:500 flex: 1 0 auto; m:0',
+		
+		'.icon': {
+			'&': 'flex:none w:24px h:24px',
+			'&:first-child': 'w:28px h:28px'
+		},
+		
+		'input[type="checkbox"]': 'flex:none m:0'
+	}
 });

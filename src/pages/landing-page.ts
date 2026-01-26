@@ -2,84 +2,26 @@ import { $, insertCss } from 'aberdeen';
 import * as route from 'aberdeen/route';
 import * as icons from '../icons';
 
-const landingStyle = insertCss({
-    p: '$4 $3',
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '$5',
-});
+const landingStyle = insertCss('p: $4 $3; display:flex flex-direction:column gap:$5');
 
 const heroStyle = insertCss({
-    textAlign: 'center',
-    p: '$4 0',
-    
-    h1: {
-        fontSize: '2.5rem',
-        mb: '$3',
-        lineHeight: 1.1,
-        background: 'linear-gradient(45deg, #f4810e, #fb3403)',
-        backgroundClip: 'text',
-        WebkitBackgroundClip: 'text',
-        WebkitTextFillColor: 'transparent',
-        fontWeight: 800,
-    },
-    
-    p: {
-        fontSize: '1.125rem',
-        color: '$textMuted',
-        maxWidth: '600px',
-        m: '0 auto',
-    },
+	'&': 'text-align:center p: $4 0;',
+	h1: 'font-size:2.5rem mb:$3 line-height:1.1 bg: linear-gradient(45deg, #f4810e, #fb3403); background-clip:text -webkit-background-clip:text -webkit-text-fill-color:transparent font-weight:800;',
+	p: 'font-size:1.125rem fg:$textMuted max-width:600px m: 0 auto;'
 });
 
-const featuresStyle = insertCss({
-    display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-    gap: '$4',
-});
+const featuresStyle = insertCss('display:grid grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:$4');
 
 const featureStyle = insertCss({
-    textAlign: 'center',
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    gap: '$3',
-    padding: '$4',
-    bg: '#ffffff05',
-    borderRadius: '12px',
-    border: '1px solid #ffffff08',
-    
-    '.icon': {
-        color: '$primary',
-        w: '48px',
-        h: '48px',
-    },
-    
-    h3: {
-        fontSize: '1.125rem',
-        color: '$primary',
-    },
-    
-    p: {
-        fontSize: '0.875rem',
-        color: '$textMuted',
-    },
+	'&': 'text-align:center display:flex flex-direction:column align-items:center gap:$3 p:$4 bg:#ffffff05 r:12px border: 1px solid #ffffff08;',
+	'.icon': 'fg:$primary w:48px h:48px',
+	h3: 'font-size:1.125rem fg:$primary',
+	p: 'font-size:0.875rem fg:$textMuted'
 });
 
 const primaryButtonStyle = insertCss({
-    alignSelf: 'center',
-    w: 'auto !important',
-    minWidth: '280px',
-    p: '$3 $4 !important',
-    fontSize: '1.125rem',
-    borderRadius: '50px',
-    boxShadow: '0 4px 15px #f4810e40',
-    transition: 'transform 0.2s, box-shadow 0.2s',
-    
-    '&:hover': {
-        transform: 'translateY(-2px)',
-        boxShadow: '0 6px 20px #f4810e60',
-    },
+	'&': 'align-self:center w:auto !important; min-width:280px p: $3 $4 !important; font-size:1.125rem r:50px box-shadow: 0 4px 15px #f4810e40; transition: transform 0.2s, box-shadow 0.2s;',
+	'&:hover': 'transform:translateY(-2px) box-shadow: 0 6px 20px #f4810e60;'
 });
 
 export function drawLandingPage(routeState: { title: string }): void {

@@ -17,12 +17,12 @@ export function drawPromptPage(context: PromptPageContext): void {
     routeState.title = state.title || (isConfirm ? 'Confirm' : 'Question');
     const value = proxy(state.value || '');
 
-    $('div padding:8px display:flex flex-direction:column mt:@3 gap:@3', () => {
+    $('div p:8px display:flex flex-direction:column mt:$3 gap:$3', () => {
         $('p font-size:1.2em #', state.message);
         
         $(() => {
             if (!isConfirm) {
-                $('input type=text width:100% bind=', value, 'keydown=', (e: KeyboardEvent) => {
+                $('input type=text w:100% bind=', value, 'keydown=', (e: KeyboardEvent) => {
                     if (e.key === 'Enter') {
                         resolve(value.value);
                         route.back();

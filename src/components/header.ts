@@ -5,71 +5,26 @@ import api from '../api';
 import logoUrl from '../logo.webp';
 
 const headerStyle = insertCss({
-    bg: '$surface',
-    display: 'flex',
-    gap: '$2',
-    alignItems: 'center',
-    pr: '$2',
-    
-    '& > .logo': {
-        maxHeight: '40px',
-        cursor: 'pointer',
-    },
-    
-    '& > h1': {
-        fontSize: '1.5rem',
-        lineHeight: 0.9,
-        p: '0.1em 0 0.25em',
-    },
-    
-    '& > .title': {
-        flex: 1,
-    },
-    
-    '& .subTitle': {
-        ml: '$3',
-        color: '$textMuted',
-        fontWeight: 'normal',
-    },
-    
-    '& .icon': {
-        w: '32px',
-        h: '32px',
-        cursor: 'pointer',
-        color: '$textMuted',
-    },
-    
-    '& .off, & .critical': {
-        color: '$danger',
-    },
-    
-    '& .warning': {
-        color: '$warning',
-    },
-    
-    '& .spinning': {
-        animation: 'header-spin 2s linear infinite',
-    },
-    
-    '& .pulse': {
-        animation: 'pulse-opacity 1.5s ease-in-out infinite',
-    },
-    
-    '& .update-available': {
-        color: '$success',
-        animation: 'pulse-opacity 1.5s ease-in-out infinite',
-    },
-    
-    '@keyframes pulse-opacity': {
-        '0%': { opacity: 1 },
-        '50%': { opacity: 0.3 },
-        '100%': { opacity: 1 },
-    },
-    
-    '@keyframes header-spin': {
-        from: { transform: 'rotate(0deg)' },
-        to: { transform: 'rotate(-360deg)' },
-    },
+	'&': 'bg:$surface display:flex gap:$2 align-items:center pr:$2',
+	'.logo': 'max-height:40px cursor:pointer',
+	h1: 'font-size:1.5rem line-height:0.9 p: 0.1em 0 0.25em;',
+	'.title': 'flex:1',
+	'.subTitle': 'ml:$3 fg:$textMuted font-weight:normal',
+	'.icon': 'w:32px h:32px cursor:pointer fg:$textMuted',
+	'.off, .critical': 'fg:$danger',
+	'.warning': 'fg:$warning',
+	'.spinning': 'animation: header-spin 2s linear infinite;',
+	'.pulse': 'animation: pulse-opacity 1.5s ease-in-out infinite;',
+	'.update-available': 'fg:$success animation: pulse-opacity 1.5s ease-in-out infinite;',
+	'@keyframes pulse-opacity': {
+		'0%': 'opacity:1',
+		'50%': 'opacity:0.3',
+		'100%': 'opacity:1'
+	},
+	'@keyframes header-spin': {
+		from: 'transform:rotate(0deg)',
+		to: 'transform:rotate(-360deg)'
+	}
 });
 
 export interface RouteState {

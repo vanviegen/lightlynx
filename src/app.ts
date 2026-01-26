@@ -25,98 +25,39 @@ const TIMEOUT_REGEXP = /^lightlynx-timeout (\d+(?:\.\d+)?)([smhd])$/m;
 
 // Root container styles
 const rootStyle = insertCss({
-    maxWidth: '500px',
-    m: '0 auto',
-    minHeight: '100%',
-    display: 'flex',
-    flexDirection: 'column',
-    transition: 'max-width 0.2s ease-in-out',
-    position: 'relative',
-    
-    '&.landing-page': {
-        maxWidth: '900px',
-    },
-    
-    '@media screen and (min-width: 501px)': {
-        boxShadow: '0 0 256px #f4810e20',
-    },
+	'&': 'max-width:500px m: 0 auto; min-height:100% display:flex flex-direction:column transition: max-width 0.2s ease-in-out; position:relative',
+	'&.landing-page': 'max-width:900px',
+	'@media screen and (min-width: 501px)': 'box-shadow: 0 0 256px #f4810e20;'
 });
 
-const mainContainerStyle = insertCss({
-    flex: 1,
-    position: 'relative',
-    overflow: 'hidden',
-});
+const mainContainerStyle = insertCss('flex:1 position:relative overflow:hidden');
 
 const mainStyle = insertCss({
-    overflow: 'auto',
-    overflowX: 'hidden',
-    position: 'absolute',
-    zIndex: 2,
-    transition: 'transform 0.2s ease-out, opacity 0.2s ease-out, visibility 0.2s ease-out',
-    left: 0,
-    top: 0,
-    right: 0,
-    bottom: 0,
-    bg: '$bg',
+    '&': 'overflow:auto overflow-x:hidden position:absolute z-index:2 transition: transform 0.2s ease-out, opacity 0.2s ease-out, visibility 0.2s ease-out; left:0 top:0 right:0 bottom:0 bg:$bg scrollbar-width:none -ms-overflow-style:none',
     
-    // Hide scrollbar
-    scrollbarWidth: 'none',
-    msOverflowStyle: 'none',
-    '&::-webkit-scrollbar': {
-        display: 'none',
-    },
+    '&::-webkit-scrollbar': 'display:none',
     
     '&.fadeOut': {
-        zIndex: 1,
-        opacity: 0,
-        visibility: 'hidden',
-        pointerEvents: 'none',
-        '*': {
-            visibility: 'hidden',
-            pointerEvents: 'none',
-        },
+        '&': 'z-index:1 opacity:0 visibility:hidden pointer-events:none',
+        '*': 'visibility:hidden pointer-events:none'
     },
     
-    '&.forward, &.go': {
-        transform: 'translateX(100%)',
-    },
+    '&.forward, &.go': 'transform:translateX(100%)',
     
-    '&.back': {
-        transform: 'translateX(-100%)',
-    },
+    '&.back': 'transform:translateX(-100%)',
     
-    '&.load': {
-        opacity: 0,
-    },
+    '&.load': 'opacity:0',
     
     h1: {
-        overflow: 'hidden',
-        textAlign: 'center',
-        fontSize: '1.125rem',
-        textTransform: 'uppercase',
-        fontWeight: 'normal',
-        color: '$textMuted',
-        mt: '$3',
-        mb: '$2',
-        position: 'relative',
-        pointerEvents: 'none',
+        '&': 'overflow:hidden text-align:center font-size:1.125rem text-transform:uppercase font-weight:normal fg:$textMuted mt:$3 mb:$2 position:relative pointer-events:none',
         
-        '.icon': {
-            position: 'absolute',
-            right: '$2',
-            verticalAlign: 'middle',
-            cursor: 'pointer',
-            zIndex: 10,
-            pointerEvents: 'auto',
-            w: '24px',
-            h: '24px',
-        },
-    },
+        '.icon': 'position:absolute right:$2 vertical-align:middle cursor:pointer z-index:10 pointer-events:auto w:24px h:24px'
+    }
 });
 
 
 route.setLog(true);
+route.interceptLinks();
 
 const updateAvailable = proxy(false);
 
