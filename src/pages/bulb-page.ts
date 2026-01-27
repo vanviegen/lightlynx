@@ -2,24 +2,15 @@ import { $, proxy, unproxy, onEach } from 'aberdeen';
 import api from '../api';
 import * as icons from '../icons';
 import { drawColorPicker } from '../components/color-picker';
-import { Device } from '../types';
+import { routeState, admin, askConfirm, lazySave } from '../ui';
+import { deviceGroups } from '../app';
 
-interface BulbPageContext {
-    routeState: { title: string; subTitle?: string };
-    admin: { value: boolean };
-    deviceGroups: Record<string, number[]>;
-    askConfirm: (message: string, title?: string) => Promise<boolean>;
-    lazySave: (getState: () => void | (() => void), delay?: number) => void;
-}
-
-export function drawBulbPage(ieee: string, context: BulbPageContext): void {
+export function drawBulbPage(ieee: string): void {
     let device = api.store.devices[ieee];
     if (!device) {
         $('div.empty#No such light');
         return;
     }
-    
-    const { routeState, admin, deviceGroups, askConfirm, lazySave } = context;
     
     $(() => {
         routeState.title = device.name;

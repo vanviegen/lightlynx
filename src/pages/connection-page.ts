@@ -2,33 +2,9 @@ import { $, proxy, peek, copy } from 'aberdeen';
 import * as route from 'aberdeen/route';
 import api from '../api';
 import { ServerCredentials } from '../types';
+import { routeState, notify, askConfirm, hashSecret } from '../ui';
 
-interface ConnectionPageContext {
-    routeState: { title: string; subTitle?: string };
-    notify: (type: 'error' | 'info' | 'warning', message: string) => void;
-    askConfirm: (message: string, title?: string) => Promise<boolean>;
-}
-
-async function hashSecret(password: string): Promise<string> {
-    if (!password) return '';
-    const saltString = "LightLynx-Salt-v2";
-    const salt = new TextEncoder().encode(saltString);
-    const pw = new TextEncoder().encode(password);
-    
-    const keyMaterial = await window.crypto.subtle.importKey("raw", pw, "PBKDF2", false, ["deriveBits"]);
-    
-    const derivedBits = await window.crypto.subtle.deriveBits({
-        name: "PBKDF2",
-        salt: salt,
-        iterations: 100000,
-        hash: "SHA-256"
-    }, keyMaterial, 256);
-    
-    return Array.from(new Uint8Array(derivedBits)).map(b => b.toString(16).padStart(2, '0')).join('');
-}
-
-export function drawConnectionPage(context: ConnectionPageContext): void {
-    const { routeState, notify, askConfirm } = context;
+export function drawConnectionPage(): void {
     
     // Read initial state non-reactively to avoid re-renders
     const isEdit = peek(() => route.current.state.edit);

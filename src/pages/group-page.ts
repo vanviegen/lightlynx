@@ -1,78 +1,23 @@
-import { $, proxy, ref, onEach, isEmpty, derive, peek, insertCss } from 'aberdeen';
+import { $, proxy, ref, onEach, isEmpty, derive, peek } from 'aberdeen';
 import { grow, shrink } from 'aberdeen/transitions';
 import * as route from 'aberdeen/route';
 import api from '../api';
 import * as icons from '../icons';
 import { drawColorPicker, drawBulbCircle } from '../components/color-picker';
-import { Group, Device } from '../types';
+import { Group } from '../types';
+import { routeState, admin, askConfirm, askPrompt, lazySave, drawEmpty } from '../ui';
+import { 
+    deviceGroups, 
+    groupInputs, 
+    drawDeviceItem, 
+    drawSceneEditor, 
+    getGroupIdsFromDescription, 
+    buildDescriptionWithGroupIds,
+    getGroupTimeoutFromDescription,
+    buildDescriptionWithGroupTimeout
+} from '../app';
 
-const GROUPS_REGEXP = /^lightlynx-groups (\d+(,\d+)*)$/m;
-const TIMEOUT_REGEXP = /^lightlynx-timeout (\d+(?:\.\d+)?)([smhd])$/m;
-
-interface GroupTimeout {
-    value: number;
-    unit: 's' | 'm' | 'h' | 'd';
-}
-
-interface GroupPageContext {
-    routeState: { title: string; subTitle?: string };
-    admin: { value: boolean };
-    deviceGroups: Record<string, number[]>;
-    groupInputs: Record<number, Record<string, Device>>;
-    askConfirm: (message: string, title?: string) => Promise<boolean>;
-    askPrompt: (message: string, defaultValue?: string, title?: string) => Promise<string | undefined>;
-    lazySave: (getState: () => void | (() => void), delay?: number) => void;
-    drawDeviceItem: (device: Device, ieee: string) => void;
-    drawSceneEditor: (group: Group, groupId: number) => void;
-}
-
-function getGroupIdsFromDescription(description: string | undefined): number[] {
-    if (!description) return [];
-    const m = description.match(GROUPS_REGEXP);
-    return m ? m[1]!.split(',').map(id => parseInt(id)) : [];
-}
-
-function buildDescriptionWithGroupIds(description: string | undefined, groupIds: number[]): string {
-    let groupStr = groupIds.length ? `lightlynx-groups ${groupIds.join(',')}` : '';
-    let replaced = false;
-    description = (description || '').replace(GROUPS_REGEXP, () => {
-        replaced = true;
-        return groupStr;
-    }).trim();
-    if (!replaced && groupStr) {
-        return description.length ? description + "\n" + groupStr : groupStr;
-    }
-    return description;
-}
-
-function getGroupTimeoutFromDescription(description: string | undefined): GroupTimeout | null {
-    if (!description) return null;
-    const m = description.match(TIMEOUT_REGEXP);
-    if (!m) return null;
-    return {
-        value: parseFloat(m[1]!),
-        unit: m[2] as 's' | 'm' | 'h' | 'd'
-    };
-}
-
-function buildDescriptionWithGroupTimeout(description: string | undefined, timeout: GroupTimeout | null): string {
-    let timeoutStr = timeout ? `lightlynx-timeout ${timeout.value}${timeout.unit}` : '';
-    let replaced = false;
-    description = (description || '').replace(TIMEOUT_REGEXP, () => {
-        replaced = true;
-        return timeoutStr;
-    }).trim();
-    if (!replaced && timeoutStr) {
-        return description.length ? description + "\n" + timeoutStr : timeoutStr;
-    }
-    return description;
-}
-
-function drawEmpty(text: string): void {
-    $('div.empty#', text);
-}
-
-export function drawGroupPage(groupId: number, context: GroupPageContext): void {
+export function drawGroupPage(groupId: number): void {
     const optGroup = api.store.groups[groupId];
     if (!optGroup) {
         drawEmpty('No such group');
@@ -80,10 +25,8 @@ export function drawGroupPage(groupId: number, context: GroupPageContext): void 
     }
     const group = optGroup;
     
-    const { routeState, admin, deviceGroups, groupInputs, askConfirm, askPrompt, lazySave, drawDeviceItem, drawSceneEditor } = context;
-    
-    if (route.current.p[2] === 'addLight') return drawGroupAddLight(group, groupId, { routeState, deviceGroups, drawBulbCircle });
-    if (route.current.p[2] === 'addInput') return drawGroupAddInput(group, groupId, { routeState, drawBulbCircle });
+    if (route.current.p[2] === 'addLight') return drawGroupAddLight(group, groupId);
+    if (route.current.p[2] === 'addInput') return drawGroupAddInput(group, groupId);
     if (route.current.p[2] === 'scene') return drawSceneEditor(group, groupId);
     
     async function createScene(): Promise<void> {
@@ -149,17 +92,15 @@ export function drawGroupPage(groupId: number, context: GroupPageContext): void 
     // Group configuration section for admin users
     $(() => {
         if (admin.value) {
-            drawGroupConfigurationEditor(group, groupId, { groupInputs, drawBulbCircle, askConfirm, lazySave });
+            drawGroupConfigurationEditor(group, groupId);
         }
     });
 }
 
 function drawGroupAddLight(
     group: Group, 
-    groupId: number,
-    context: { routeState: { title: string; subTitle?: string }; deviceGroups: Record<string, number[]>; drawBulbCircle: typeof drawBulbCircle }
+    groupId: number
 ): void {
-    const { routeState, deviceGroups, drawBulbCircle } = context;
     
     function addDevice(ieee: string): void {
         api.send("bridge", "request", "group", "members", "add", {group: group.name, device: ieee});
@@ -186,10 +127,8 @@ function drawGroupAddLight(
 
 function drawGroupAddInput(
     group: Group, 
-    groupId: number,
-    context: { routeState: { title: string; subTitle?: string }; drawBulbCircle: typeof drawBulbCircle }
+    groupId: number
 ): void {
-    const { routeState, drawBulbCircle } = context;
     
     routeState.title = group.name;
     routeState.subTitle = 'add input';
@@ -218,15 +157,8 @@ function drawGroupAddInput(
 
 function drawGroupConfigurationEditor(
     group: Group,
-    groupId: number,
-    context: {
-        groupInputs: Record<number, Record<string, Device>>;
-        drawBulbCircle: typeof drawBulbCircle;
-        askConfirm: (message: string, title?: string) => Promise<boolean>;
-        lazySave: (getState: () => void | (() => void), delay?: number) => void;
-    }
+    groupId: number
 ): void {
-    const { groupInputs, drawBulbCircle, askConfirm, lazySave } = context;
     
     const groupState = proxy(peek(() => {
         return {

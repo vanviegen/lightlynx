@@ -1,8 +1,9 @@
-import { $, insertCss, isEmpty, proxy } from 'aberdeen';
+import { $, insertCss, isEmpty } from 'aberdeen';
 import * as route from 'aberdeen/route';
 import * as icons from '../icons';
 import api from '../api';
 import logoUrl from '../logo.webp';
+import { routeState, admin, notify } from '../ui';
 
 const headerStyle = insertCss({
 	'&': 'bg:$surface display:flex gap:$2 align-items:center pr:$2',
@@ -27,19 +28,10 @@ const headerStyle = insertCss({
 	}
 });
 
-export interface RouteState {
-    title: string;
-    subTitle: string;
-    drawIcons?: () => void;
-}
-
 export function drawHeader(
-    routeState: RouteState,
-    admin: { value: boolean },
     updateAvailable: { value: boolean },
     menuOpen: { value: boolean },
-    disableJoin: () => void,
-    notify: (type: 'error' | 'info' | 'warning', message: string) => void
+    disableJoin: () => void
 ): void {
     $('header', headerStyle, () => {
         $('img.logo src=', logoUrl, 'click=', () => route.back('/'));

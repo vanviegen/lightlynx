@@ -1,13 +1,9 @@
 import { $, onEach, dump } from 'aberdeen';
 import * as route from 'aberdeen/route';
 import api from '../api';
+import { routeState } from '../ui';
 
-interface InfoPageContext {
-    routeState: { title: string; subTitle?: string };
-}
-
-export function drawRemoteInfoPage(context: InfoPageContext): void {
-    const { routeState } = context;
+export function drawRemoteInfoPage(): void {
     
     routeState.title = 'Remote Access';
     routeState.subTitle = 'Information';
@@ -41,8 +37,7 @@ export function drawRemoteInfoPage(context: InfoPageContext): void {
     });
 }
 
-export function drawAutomationInfoPage(context: InfoPageContext): void {
-    const { routeState } = context;
+export function drawAutomationInfoPage(): void {
     
     routeState.title = 'Automation';
     routeState.subTitle = 'Information';
@@ -74,8 +69,7 @@ export function drawAutomationInfoPage(context: InfoPageContext): void {
     });
 }
 
-export function drawBatteriesPage(context: InfoPageContext): void {
-    const { routeState } = context;
+export function drawBatteriesPage(): void {
     
     routeState.title = 'Batteries';
     $('div.list', () => {
@@ -93,8 +87,7 @@ export function drawBatteriesPage(context: InfoPageContext): void {
     });
 }
 
-export function drawDumpPage(context: InfoPageContext): void {
-    const { routeState } = context;
+export function drawDumpPage(): void {
     
     routeState.title = 'State dump';
     dump(api.store);

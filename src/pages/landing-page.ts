@@ -1,6 +1,7 @@
 import { $, insertCss } from 'aberdeen';
 import * as route from 'aberdeen/route';
 import * as icons from '../icons';
+import { routeState } from '../ui';
 
 const landingStyle = insertCss('p: $4 $3; display:flex flex-direction:column gap:$5');
 
@@ -24,7 +25,7 @@ const primaryButtonStyle = insertCss({
 	'&:hover': 'transform:translateY(-2px) box-shadow: 0 6px 20px #f4810e60;'
 });
 
-export function drawLandingPage(routeState: { title: string }): void {
+export function drawLandingPage(): void {
     routeState.title = 'Light Lynx';
     
     $('div', landingStyle, () => {

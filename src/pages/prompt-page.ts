@@ -1,13 +1,8 @@
 import { $, proxy } from 'aberdeen';
 import * as route from 'aberdeen/route';
+import { routeState, dialogResolvers } from '../ui';
 
-interface PromptPageContext {
-    routeState: { title: string };
-    dialogResolvers: Record<number, (value: any) => void>;
-}
-
-export function drawPromptPage(context: PromptPageContext): void {
-    const { routeState, dialogResolvers } = context;
+export function drawPromptPage(): void {
     
     const state = route.current.state;
     const resolve = dialogResolvers[state.resolveId];

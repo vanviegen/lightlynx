@@ -1,24 +1,24 @@
 /// <reference types="vite/client" />
 import './global-style';
-import {$, proxy, ref, onEach, isEmpty, copy, dump, unproxy, peek, partition, clone, derive, insertCss} from 'aberdeen';
+import {$, proxy, ref, onEach, isEmpty, copy, unproxy, peek, partition, derive, insertCss} from 'aberdeen';
 import * as route from 'aberdeen/route';
 import { grow, shrink } from 'aberdeen/transitions';
 import api from './api';
 import * as icons from './icons';
 import * as colors from './colors';
-import { drawColorPicker, drawBulbCircle } from "./components/color-picker";
-import { drawToasts, Toast } from './components/toasts';
+import { drawBulbCircle } from "./components/color-picker";
+import { drawToasts } from './components/toasts';
 import { drawHeader } from './components/header';
 import { drawMenu } from './components/menu';
 import { drawLandingPage } from './pages/landing-page';
-import { drawDeviceItem as drawDeviceItemHelper } from './components/list-items';
 import { drawBulbPage } from './pages/bulb-page';
 import { drawGroupPage } from './pages/group-page';
-import { drawConnectionPage as drawConnectionPageComponent } from './pages/connection-page';
-import { drawUsersSection, drawUserEditor as drawUserEditorComponent } from './pages/users-page';
-import { drawRemoteInfoPage as drawRemoteInfoPageComponent, drawAutomationInfoPage as drawAutomationInfoPageComponent, drawBatteriesPage as drawBatteriesPageComponent, drawDumpPage as drawDumpPageComponent } from './pages/info-pages';
-import { drawPromptPage as drawPromptPageComponent } from './pages/prompt-page';
-import { Device, Group, ServerCredentials, User } from './types';
+import { drawConnectionPage } from './pages/connection-page';
+import { drawUsersSection, drawUserEditor } from './pages/users-page';
+import { drawRemoteInfoPage, drawAutomationInfoPage, drawBatteriesPage, drawDumpPage } from './pages/info-pages';
+import { drawPromptPage } from './pages/prompt-page';
+import { Device, Group } from './types';
+import { routeState, admin, toasts, notify, askConfirm, askPrompt, drawEmpty, lazySave } from './ui';
 import swUrl from './sw.ts?worker&url';
 
 const TIMEOUT_REGEXP = /^lightlynx-timeout (\d+(?:\.\d+)?)([smhd])$/m;
@@ -74,54 +74,10 @@ if (!import.meta.env.DEV && 'serviceWorker' in navigator) {
 	});
 }
 
-const routeState = proxy({
-	title: '',
-	subTitle: '',
-	drawIcons: undefined as (() => void) | undefined
-});
-
-const admin = proxy(!!route.current.search.admin);
 const menuOpen = proxy(false);
-
-const toasts = proxy([] as Toast[]);
-export function notify(type: 'error' | 'info' | 'warning', message: string) {
-	const id = Math.random();
-	toasts.push({ id, type, message });
-	setTimeout(() => {
-		const index = toasts.findIndex(t => t.id === id);
-		if (index !== -1) toasts.splice(index, 1);
-	}, 10000);
-}
 
 // Register notify handler to show API messages as toasts
 api.notifyHandlers.push(notify);
-
-
-const dialogResolvers: Record<number, (value: any) => void> = {};
-
-function askDialog(type: 'confirm' | 'prompt', message: string, options: {defaultValue?: string, title?: string} = {}): Promise<any> {
-	const resolveId = 0 | (Math.random() * 1000000);
-	const result = new Promise(resolve => {
-		dialogResolvers[resolveId] = resolve;
-		route.go({p: ['prompt'], state: {type, message, resolveId, value: options.defaultValue || '', title: options.title}});
-	});
-	delete dialogResolvers[resolveId];
-	return result as any;
-}
-
-async function askConfirm(message: string, title?: string): Promise<boolean> {
-	return askDialog('confirm', message, {title});
-}
-
-async function askPrompt(message: string, defaultValue = '', title?: string): Promise<string | undefined> {
-	return askDialog('prompt', message, {defaultValue, title});
-}
-
-$(() => {
-	route.current.search.admin; // subscribe to this, so we'll force-update it when it changes
-	if (admin.value) route.current.search.admin = 'y';
-	else delete route.current.search.admin;
-})
 
 // All non-light devices, partitioned group id (-1 for). {suffix: {ieee: Device}}
 const GROUPS_REGEXP = /^lightlynx-groups (\d+(,\d+)*)$/m;
@@ -130,31 +86,7 @@ const groupInputs = partition(api.store.devices, (device: Device, _ieee: string)
 	return getGroupIdsFromDescription(device.description);
 });
 
-function drawEmpty(text: string): void {
-	$('div.empty#', text);
-}
-
-function drawBulb(ieee: string): void {
-	drawBulbPage(ieee, { routeState, admin, deviceGroups, askConfirm, lazySave });
-}
-
-function drawDump(): void {
-	drawDumpPageComponent({ routeState });
-}
-
-function drawPromptPage(): void {
-	drawPromptPageComponent({ routeState, dialogResolvers });
-}
-
-function drawRemoteInfoPage(): void {
-	drawRemoteInfoPageComponent({ routeState });
-}
-
-function drawAutomationInfoPage(): void {
-	drawAutomationInfoPageComponent({ routeState });
-}
-
-const deviceGroups: Record<string, number[]> = {};
+export const deviceGroups: Record<string, number[]> = {};
 $(() => {
 	let result: Record<string, number[]> = {};
 	for (const [groupId, group] of Object.entries(api.store.groups)) {
@@ -165,13 +97,11 @@ $(() => {
 	copy(deviceGroups, result);
 });
 
-function drawGroup(groupId: number): void {
-	drawGroupPage(groupId, { routeState, admin, deviceGroups, groupInputs, askConfirm, askPrompt, lazySave, drawDeviceItem, drawSceneEditor });
-}
+export { groupInputs };
 
 
 
-function drawDeviceItem(device: Device, ieee: string): void {
+export function drawDeviceItem(device: Device, ieee: string): void {
 	$("div.item", () => {
 		drawBulbCircle(device, ieee);
 		$('h2.link#', device.name, 'click=', () => route.go(['bulb', ieee]));
@@ -220,10 +150,6 @@ function drawManagementSection(): void {
 			});
 		});
 	});
-}
-
-function drawBatteries(): void {
-	drawBatteriesPageComponent({ routeState });
 }
 
 const groupListClass = insertCss({
@@ -321,29 +247,6 @@ function drawRemoteAccessToggle(): void {
 	});
 }
 
-
-function drawConnectionPage(): void {
-	drawConnectionPageComponent({ routeState, notify, askConfirm });
-}
-
-async function hashSecret(password: string): Promise<string> {
-    if (!password) return '';
-    const saltString = "LightLynx-Salt-v2";
-    const salt = new TextEncoder().encode(saltString);
-    const pw = new TextEncoder().encode(password);
-    
-    const keyMaterial = await window.crypto.subtle.importKey("raw", pw, "PBKDF2", false, ["deriveBits"]);
-    
-    const derivedBits = await window.crypto.subtle.deriveBits({
-        name: "PBKDF2",
-        salt: salt,
-        iterations: 100000,
-        hash: "SHA-256"
-        }, keyMaterial, 256);
-    
-    return Array.from(new Uint8Array(derivedBits)).map(b => b.toString(16).padStart(2, '0')).join('');
-}
-
 async function createGroup(): Promise<void> {
 	const name = await askPrompt("What should the group be called?");
 	if (!name) return;
@@ -363,7 +266,7 @@ $('div', rootStyle, () => {
 		$('.landing-page:', isEmpty(api.store.servers) && route.current.path === '/');
 	});
 
-	drawHeader(routeState, admin, updateAvailable, menuOpen, disableJoin, notify);
+	drawHeader(updateAvailable, menuOpen, disableJoin);
 	drawMenu(menuOpen);
 	
 	$('div', mainContainerStyle, () => {
@@ -378,17 +281,17 @@ $('div', rootStyle, () => {
 			if (p[0] === 'connect') {
 				drawConnectionPage();
 			} else if (isEmpty(api.store.servers)) {
-				drawLandingPage(routeState);
+				drawLandingPage();
 			} else if (p[0]==='group' && p[1]) {
-				drawGroup(parseInt(p[1]));
+				drawGroupPage(parseInt(p[1]));
 			} else if (p[0] === 'bulb' && p[1]) {
-				drawBulb(p[1]);
+				drawBulbPage(p[1]);
 			} else if (p[0] === 'batteries') {
-				drawBatteries();
+				drawBatteriesPage();
 			} else if (p[0] === 'user' && p[1]) {
 				drawUserEditor();
 			} else if (p[0] === 'dump') {
-				drawDump();
+				drawDumpPage();
 			} else if (p[0] === 'prompt') {
 				drawPromptPage();
 			} else if (p[0] === 'remote-info') {
@@ -505,17 +408,6 @@ export function parseGroupTimeout(suffix: string): GroupTimeout | null {
 export function buildGroupTimeoutSuffix(timeout: GroupTimeout | null): string {
     if (!timeout) return '';
     return `${timeout.value}${timeout.unit}`;
-}
-
-function lazySave(getState: () => void | (() => void), delay: number = 1000): void {
-    let timeoutId: any;
-    let firstRun = true;
-    $(() => {
-        clearTimeout(timeoutId);
-        let saveFunc = getState();
-        if (firstRun) firstRun = false;
-        else if (saveFunc) timeoutId = setTimeout(saveFunc, delay);
-    });
 }
 
 // Enhanced scene automation editor
@@ -697,13 +589,13 @@ function drawTimeEditor(range: Time): void {
 	});
 }
 
-function getGroupIdsFromDescription(description: string | undefined): number[] {
+export function getGroupIdsFromDescription(description: string | undefined): number[] {
 	if (!description) return [];
 	const m = description.match(GROUPS_REGEXP);
 	return m ? m[1]!.split(',').map(id => parseInt(id)) : [];
 }
 
-function buildDescriptionWithGroupIds(description: string | undefined, groupIds: number[]): string {
+export function buildDescriptionWithGroupIds(description: string | undefined, groupIds: number[]): string {
 	let groupStr = groupIds.length ? `lightlynx-groups ${groupIds.join(',')}` : '';
 	let replaced = false;
 	description = (description || '').replace(GROUPS_REGEXP, () => {
@@ -717,7 +609,7 @@ function buildDescriptionWithGroupIds(description: string | undefined, groupIds:
 }
 
 // Parse group timeout from description (lightlynx- metadata)
-function getGroupTimeoutFromDescription(description: string | undefined): GroupTimeout | null {
+export function getGroupTimeoutFromDescription(description: string | undefined): GroupTimeout | null {
 	console.log('Parsing timeout from description:', description);
 	if (!description) return null;
 	const m = description.match(TIMEOUT_REGEXP);
@@ -730,7 +622,7 @@ function getGroupTimeoutFromDescription(description: string | undefined): GroupT
 }
 
 // Build description with group timeout metadata
-function buildDescriptionWithGroupTimeout(description: string | undefined, timeout: GroupTimeout | null): string {
+export function buildDescriptionWithGroupTimeout(description: string | undefined, timeout: GroupTimeout | null): string {
 	let timeoutStr = timeout ? `lightlynx-timeout ${timeout.value}${timeout.unit}` : '';
 	let replaced = false;
 	description = (description || '').replace(TIMEOUT_REGEXP, () => {
@@ -741,8 +633,4 @@ function buildDescriptionWithGroupTimeout(description: string | undefined, timeo
 		return description.length ? description + "\n" + timeoutStr : timeoutStr;
 	}
 	return description;
-}
-
-function drawUserEditor(): void {
-	drawUserEditorComponent({ routeState, notify, askConfirm, hashSecret });
 }

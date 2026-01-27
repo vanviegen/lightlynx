@@ -3,17 +3,7 @@ import * as route from 'aberdeen/route';
 import api from '../api';
 import * as icons from '../icons';
 import { User } from '../types';
-
-interface UsersPageContext {
-    routeState: { title: string; subTitle?: string };
-    notify: (type: 'error' | 'info' | 'warning', message: string) => void;
-    askConfirm: (message: string, title?: string) => Promise<boolean>;
-    hashSecret: (password: string) => Promise<string>;
-}
-
-function drawEmpty(text: string): void {
-    $('div.empty#', text);
-}
+import { routeState, notify, askConfirm, hashSecret, drawEmpty } from '../ui';
 
 export function drawUsersSection(): void {
     $("h1#Users", () => {
@@ -32,8 +22,7 @@ export function drawUsersSection(): void {
     });
 }
 
-export function drawUserEditor(context: UsersPageContext): void {
-    const { routeState, notify, askConfirm, hashSecret } = context;
+export function drawUserEditor(): void {
     
     const username = route.current.p[1]!;
     const isNew = username === 'new';
