@@ -1,21 +1,23 @@
-import { $, proxy, ref, onEach, isEmpty, derive, peek } from 'aberdeen';
+import { $, proxy, ref, onEach, isEmpty, derive, partition, peek } from 'aberdeen';
 import { grow, shrink } from 'aberdeen/transitions';
 import * as route from 'aberdeen/route';
 import api from '../api';
 import * as icons from '../icons';
 import { drawColorPicker, drawBulbCircle } from '../components/color-picker';
-import { Group } from '../types';
+import { Device, Group } from '../types';
 import { routeState, admin, askConfirm, askPrompt, lazySave, drawEmpty } from '../ui';
-import { 
-    deviceGroups, 
-    groupInputs, 
-    drawDeviceItem, 
-    drawSceneEditor, 
-    getGroupIdsFromDescription, 
-    buildDescriptionWithGroupIds,
-    getGroupTimeoutFromDescription,
-    buildDescriptionWithGroupTimeout
-} from '../app';
+import { deviceGroups, drawDeviceItem } from '../app';
+import { drawSceneEditor } from './scene-editor';
+
+const GROUPS_REGEXP = /^lightlynx-groups (\d+(,\d+)*)$/m;
+const TIMEOUT_REGEXP = /^lightlynx-timeout (\d+(?:\.\d+)?)([smhd])$/m;
+
+
+// All non-light devices, partitioned group id (-1 for). {suffix: {ieee: Device}}
+const groupInputs = partition(api.store.devices, (device: Device, _ieee: string): number[] | undefined => {
+	if (device.lightCaps) return; // Ignore lights
+	return getGroupIdsFromDescription(device.description);
+});
 
 export function drawGroupPage(groupId: number): void {
     const optGroup = api.store.groups[groupId];
@@ -252,3 +254,51 @@ function drawGroupConfigurationEditor(
 
 }
 
+export interface GroupTimeout {
+    value: number;
+    unit: 's' | 'm' | 'h' | 'd';
+}
+
+export function getGroupIdsFromDescription(description: string | undefined): number[] {
+    if (!description) return [];
+    const m = description.match(GROUPS_REGEXP);
+    return m ? m[1]!.split(',').map(id => parseInt(id)) : [];
+}
+
+export function buildDescriptionWithGroupIds(description: string | undefined, groupIds: number[]): string {
+    let groupStr = groupIds.length ? `lightlynx-groups ${groupIds.join(',')}` : '';
+    let replaced = false;
+    description = (description || '').replace(GROUPS_REGEXP, () => {
+        replaced = true;
+        return groupStr;
+    }).trim();
+    if (!replaced && groupStr) {
+        return description.length ? description + "\n" + groupStr : groupStr;
+    }
+    return description;
+}
+
+export function getGroupTimeoutFromDescription(description: string | undefined): GroupTimeout | null {
+    console.log('Parsing timeout from description:', description);
+    if (!description) return null;
+    const m = description.match(TIMEOUT_REGEXP);
+    console.log(m);
+    if (!m) return null;
+    return {
+        value: parseFloat(m[1]!),
+        unit: m[2] as 's' | 'm' | 'h' | 'd'
+    };
+}
+
+export function buildDescriptionWithGroupTimeout(description: string | undefined, timeout: GroupTimeout | null): string {
+    let timeoutStr = timeout ? `lightlynx-timeout ${timeout.value}${timeout.unit}` : '';
+    let replaced = false;
+    description = (description || '').replace(TIMEOUT_REGEXP, () => {
+        replaced = true;
+        return timeoutStr;
+    }).trim();
+    if (!replaced && timeoutStr) {
+        return description.length ? description + "\n" + timeoutStr : timeoutStr;
+    }
+    return description;
+}
