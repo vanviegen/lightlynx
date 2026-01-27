@@ -236,7 +236,7 @@ const groupListClass = insertCss({
 	}
 });
 
-function dawTopPage(): void {
+function drawTopPage(): void {
 	routeState.title = '';
 	routeState.subTitle = '';
 
@@ -363,7 +363,7 @@ $('div', rootStyle, () => {
 		$('.landing-page:', isEmpty(api.store.servers) && route.current.path === '/');
 	});
 
-	drawHeader(routeState, admin, updateAvailable, menuOpen, disableJoin);
+	drawHeader(routeState, admin, updateAvailable, menuOpen, disableJoin, notify);
 	drawMenu(menuOpen);
 	
 	$('div', mainContainerStyle, () => {
@@ -396,7 +396,7 @@ $('div', rootStyle, () => {
 			} else if (p[0] === 'automation-info') {
 				drawAutomationInfoPage();
 			} else {
-				dawTopPage();
+				drawTopPage();
 			}
 			route.persistScroll();
 		}, {destroy: 'fadeOut', create: route.current.nav});

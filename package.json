@@ -16,8 +16,7 @@
     "deploy": "npm run build && dotenv -- bash -c 'rclone sync build.frontend/ :sftp,host=$DEPLOY_HOST,user=$DEPLOY_USER,pass=$DEPLOY_PASS_OBSCURED,key_use_agent=false:/ --progress --inplace --sftp-shell-type=none' && npm run deploy:cert && npm run deploy:purge-cdn",
     "test": "playwright test",
     "mock-z2m": "MOCK_Z2M_PORT=43598 MOCK_Z2M_INSECURE=true npm run build:extension && node --experimental-strip-types src/mock-z2m.ts",
-    "start-mock": "node scripts/start-mock.mjs",
-    "stop-mock": "node scripts/stop-mock.mjs"
+    "mock": "node scripts/mock.mjs"
   },
   "author": "Frank van Viegen",
   "license": "All rights reserved",
@@ -32,6 +31,7 @@
     "@types/ws": "^8.18.1",
     "dotenv-cli": "^11.0.0",
     "ts-node": "^10.9.2",
-    "vite": "^7.3.1"
+    "vite": "^7.3.1",
+    "ws": "^8.19.0"
   }
 }

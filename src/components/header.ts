@@ -38,7 +38,8 @@ export function drawHeader(
     admin: { value: boolean },
     updateAvailable: { value: boolean },
     menuOpen: { value: boolean },
-    disableJoin: () => void
+    disableJoin: () => void,
+    notify: (type: 'error' | 'info' | 'warning', message: string) => void
 ): void {
     $('header', headerStyle, () => {
         $('img.logo src=', logoUrl, 'click=', () => route.back('/'));
@@ -118,7 +119,10 @@ export function drawHeader(
                 'mouseleave': () => clearTimeout(holdTimeout),
                 'touchstart': () => { holdTimeout = setTimeout(() => route.go(['dump']), 1000); },
                 'touchend': () => clearTimeout(holdTimeout),
-                'click': () => admin.value = !admin.value,
+                'click': () => {
+                    admin.value = !admin.value;
+                    notify('info', admin.value ? 'Entered admin mode' : 'Left admin mode');
+                },
             });
         });
     });

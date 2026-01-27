@@ -139,27 +139,25 @@ export function drawConnectionPage(context: ConnectionPageContext): void {
         }
     }
     
-    $('div.login-form', () => {
-        $('form submit=', handleSubmit, () => {
-            $('div.field', () => {
-                $('label#Server Address');
-                $('input placeholder="e.g. 192.168.1.5[:port]" required=', true, 'bind=', hostProxy);
-            });
-            $('div.field', () => {
-                $('label#Username');
-                $('input required=', true, 'bind=', usernameProxy);
-            });
-            $('div.field', () => {
-                $('label#Password');
-                $('input type=password bind=', password, 'placeholder=', isEdit ? 'Password or secret (empty to clear)' : '');
-            });
-            $('div.row margin-top:1em', () => {
-                if (isEdit) $('button.danger type=button text=Delete click=', handleDelete);
-                $('button.secondary type=button text=Cancel click=', () => route.back('/'));
-                $('button.primary type=submit', () => {
-                    const busy = api.store.connectionState === 'connecting' || api.store.connectionState === 'authenticating';			
-                    $('.busy=', busy, busy ? '#Connecting...' : isEdit ? '#Save' : '#Create');
-                });
+    $('form submit=', handleSubmit, () => {
+        $('div.field', () => {
+            $('label#Server Address');
+            $('input placeholder="e.g. 192.168.1.5[:port]" required=', true, 'bind=', hostProxy);
+        });
+        $('div.field', () => {
+            $('label#Username');
+            $('input required=', true, 'bind=', usernameProxy);
+        });
+        $('div.field', () => {
+            $('label#Password');
+            $('input type=password bind=', password, 'placeholder=', isEdit ? 'Password or secret (empty to clear)' : '');
+        });
+        $('div.row', () => {
+            if (isEdit) $('button.danger type=button text=Delete click=', handleDelete);
+            $('button.secondary type=button text=Cancel click=', () => route.back('/'));
+            $('button.primary type=submit', () => {
+                const busy = api.store.connectionState === 'connecting' || api.store.connectionState === 'authenticating';			
+                $('.busy=', busy, busy ? '#Connecting...' : isEdit ? '#Save' : '#Create');
             });
         });
     });

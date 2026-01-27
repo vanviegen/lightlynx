@@ -123,5 +123,32 @@ insertGlobalCss({
 		},
 		'& > input': 'flex:2 min-width:2rem',
 		'& > input[type="checkbox"]': 'flex:none m:0 min-width:initial'
+	},
+	
+	// Form styling
+	form: {
+		'&': 'display:flex flex-direction:column gap:$4 p:$4',
+		'.field': {
+			'&': 'display:flex flex-direction:column gap:$1',
+			'label': 'fg:$textLight font-weight:500 font-size:0.875rem',
+			'input, textarea, select': 'w:100%'
+		},
+		'.row': 'display:flex gap:$2 justify-content:flex-end'
+	},
+	
+	'button.primary': {
+		'&': 'bg:$primary fg:#000 font-weight:600',
+		'&:hover': 'bg:$primaryHover',
+		'&.busy': 'opacity:0.7 pointer-events:none'
+	},
+	
+	'button.secondary': {
+		'&': 'bg:transparent fg:$text border: 2px solid $border; font-weight:600',
+		'&:hover': 'bg:$surfaceHover border-color:$textMuted'
+	},
+	
+	'button.danger': {
+		'&': 'bg:transparent fg:$danger border: 2px solid $danger; font-weight:600',
+		'&:hover': 'bg: rgba(255, 68, 68, 0.1);'
 	}
 });

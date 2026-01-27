@@ -121,10 +121,10 @@ Version checking via first-line comments (`// lightlynx-<name> v<version>`). Aut
 
 ### Quick Start Development Environment
 
-The `start-mock` script provides a complete development environment:
+The `mock` script provides a complete development environment:
 
 ```bash
-npm run start-mock
+npm run mock start
 ```
 
 This will start a mock-z2m and a Vite dev server and print the connection URL. If already running, it will just print the URL.
@@ -133,7 +133,7 @@ Point the Playwright MCP at this URL to interact with the app.
 
 To stop the servers:
 ```bash
-npm run stop-mock
+npm run mock stop
 ```
 
 
@@ -204,7 +204,7 @@ Read the .html files to understand the DOM structure at steps that may be of int
 
 You can use the Playwright MCP (Model Context Protocol) to interactively test the app:
 
-1. Run `npm run start-mock`. It outputs an URL.
+1. Run `npm run mock start`. It outputs an URL.
 2. Use Playwright MCP to navigate to that URL.
 
 ```
@@ -232,7 +232,7 @@ The line numbers in filenames directly correspond to lines in the test file, mak
 #### Interactive Debugging
 
 For hands-on debugging, use the Playwright MCP:
-1. Start the test environment: `npm run start-mock`
+1. Start the test environment: `npm run mock start`
 2. Navigate to the URL in the MCP browser
 3. Use `mcp_playwright_browser_snapshot()` to get live page structure
 4. Replicate test actions interactively to isolate the issue
