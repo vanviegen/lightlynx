@@ -298,23 +298,25 @@ function drawGroupConfigurationEditor(
     }
 
     $('h1#Actions');
-    $('div.item.link#Delete group', 'click=', async () => {
+    $('div.item.link', icons.remove, '#Delete group', 'click=', async () => {
         if (!await askConfirm(`Are you sure you want to delete group '${group.name}'?`)) return;
         api.send("bridge", "request", "group", "remove", {id: group.name});
         route.back('/');
-    }, icons.remove);
+    });
 
-    const newDescription = proxy('');
     lazySave(() => {
         // Update description with timeout metadata
-        newDescription.value = buildDescriptionWithGroupTimeout(groupState.description, groupState.timeout);
+        const description = buildDescriptionWithGroupTimeout(groupState.description, groupState.timeout);
         
         return function() {
             // Update description with timeout metadata
-            if (groupState.description !== newDescription.value) {
-                api.send("bridge", "request", "group", "options", {id: groupId, options: {description: newDescription.value}});
-                groupState.description = newDescription.value;
+            if (groupState.description !== description) {
+                api.send("bridge", "request", "group", "options", {id: groupId, options: {description}});
+                groupState.description = description;
             }
         }
     });
+
+
 }
+

@@ -7,9 +7,9 @@ import logoUrl from '../logo.webp';
 const headerStyle = insertCss({
 	'&': 'bg:$surface display:flex gap:$2 align-items:center pr:$2',
 	'.logo': 'max-height:40px cursor:pointer',
-	h1: 'font-size:1.5rem line-height:0.9 p: 0.1em 0 0.25em;',
+	h1: 'font-size:1.5rem line-height:0.9 p: 0.1em 0 0.25em; m:0 text-transform:none letter-spacing:normal font-weight:600',
 	'.title': 'flex:1',
-	'.subTitle': 'ml:$3 fg:$textMuted font-weight:normal',
+	'.subTitle': 'ml:$3 fg:$textMuted font-weight:normal text-transform:uppercase letter-spacing:0.05em font-size:1rem',
 	'.icon': 'w:32px h:32px cursor:pointer fg:$textMuted',
 	'.off, .critical': 'fg:$danger',
 	'.warning': 'fg:$warning',

@@ -76,11 +76,11 @@ test.describe('Active Scene', () => {
     await expect(page.locator('header h1').filter({ visible: true })).toContainText('Light Lynx');
     
     // Find the Living Room group row on the main list
-    const groupRow = page.locator('.item.group-row').filter({ visible: true }).filter({ has: page.locator('h2', { hasText: 'Living Room' }) });
+    const groupRow = page.locator('.item.group').filter({ visible: true }).filter({ has: page.locator('h2', { hasText: 'Living Room' }) });
     await expect(groupRow).toBeVisible();
 
-    // The active scene should be shown in the group-scenes section
-    const scenesSection = groupRow.locator('.group-scenes');
+    // The active scene should be shown in the scenes section
+    const scenesSection = groupRow.locator('.scenes');
     await expect(scenesSection).toBeVisible();
     
     // Count how many scenes are in the section

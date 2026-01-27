@@ -5,8 +5,8 @@ setSpacingCssVars();
 
 // Dark mode colors only - no light mode support
 cssVars.primary = '#f4810e';
-cssVars.primaryHover = '#ff9020';
 cssVars.primaryLight = '#ffb060';
+cssVars.primaryHover = cssVars.primaryLight;
 cssVars.primaryDark = '#d6690c';
 
 cssVars.bg = '#0a0a0a';
@@ -34,9 +34,12 @@ insertGlobalCss({
     body: 'line-height:1.5 -webkit-font-smoothing:antialiased -moz-osx-font-smoothing:grayscale user-select:none -webkit-user-select:none -webkit-touch-callout:none -webkit-tap-highlight-color:transparent bg:$bg fg:$text font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size:16px',
     
     // Typography
-    'h1, h2, h3, h4, h5, h6, p': 'm:0 overflow-wrap:break-word',
+    'h1, h2, h3, h4, h5, h6, p': {
+        '&': 'm:0 overflow-wrap:break-word',
+        '.icon': 'fg:$text',
+    },
     
-    h1: 'font-size:1.5rem font-weight:600 line-height:1.2',
+    h1: 'font-size:1.125rem font-weight:600 line-height:1.2 mt:$4 mb:$2 text-transform:uppercase letter-spacing:0.05em fg:$textMuted',
     h2: 'font-size:1.25rem font-weight:500 line-height:1.3',
     h3: 'font-size:1.125rem font-weight:500',
     
@@ -45,15 +48,13 @@ insertGlobalCss({
         '&': 'fg:$primary text-decoration:none cursor:pointer',
         '&:hover': 'fg:$primaryHover text-decoration:underline',
         '&:visited': 'fg:$primaryDark'
-    }
-});
+    },
 
-insertGlobalCss({
     // Media defaults
     'img, picture, video, canvas': 'display:block max-width:100%',
     
     // Form elements baseline
-    'input, textarea, button, select': 'font:inherit fg:inherit m:0',
+    'input, textarea, button, select': 'font:inherit bg:$bg fg:$text m:0',
     
     'input, textarea, select': {
         '&': 'p:$2 r:4px border: 2px solid $border; bg:$surface fg:$text outline:none transition:border-color',
@@ -93,15 +94,18 @@ insertGlobalCss({
     '.hide-scrollbar': {
         '&': 'scrollbar-width:none -ms-overflow-style:none',
         '&::-webkit-scrollbar': 'display:none'
-    }
-});
+    },
 
-insertGlobalCss({
     // List and item styles
     '.list': 'display:flex flex-direction:column gap:$2',
+
+    '.link': {
+        '&': 'cursor:pointer',
+        '&:hover, &:hover *': 'fg: $primaryHover !important; text-shadow: 0 0 5px $primaryHover !important;',
+    },
     
     '.item': {
-        '&': 'display:flex align-items:center gap:$3 p:$3 bg:$surface border: 1px solid $border; r:8px min-height:3rem',
+        '&': 'display:flex align-items:center gap:$3 p:$2 bg:$surface border: 1px solid $border; r:6px min-height:3rem',
         
         '&.link': {
             '&': 'cursor:pointer transition: background-color 0.2s, transform 0.1s;',
@@ -109,7 +113,7 @@ insertGlobalCss({
             '&:active': 'transform:scale(0.99)'
 		},
 		
-		'&.active-scene': 'bg: rgba(244, 129, 14, 0.15); border-left: 4px solid $primary; pl:$2',
+		'&.active-scene': 'bg: rgba(244, 129, 14, 0.15); border-left: 4px solid $primary; pl: calc($3 - 4px);',
 		
 		h2: 'font-size:1rem font-weight:500 flex: 1 0 auto; m:0',
 		
@@ -117,7 +121,7 @@ insertGlobalCss({
 			'&': 'flex:none w:24px h:24px',
 			'&:first-child': 'w:28px h:28px'
 		},
-		
-		'input[type="checkbox"]': 'flex:none m:0'
+		'& > input': 'flex:2 min-width:2rem',
+		'& > input[type="checkbox"]': 'flex:none m:0 min-width:initial'
 	}
 });

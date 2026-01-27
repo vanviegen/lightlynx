@@ -5,13 +5,13 @@ import * as route from 'aberdeen/route';
 
 // Export style classes for flexible use
 export const itemStyle = insertCss({
-	'&': 'display:flex align-items:center gap:$3 p: $2 $3; m: $1 0; bg:$surfaceLight border-top: 1px solid $borderLight; border-bottom: 1px solid rgba(0,0,0,0.3); r:4px white-space:nowrap',
+	'&': 'display:flex align-items:center gap:$3 p: $2 $3; m: $1 0; bg:$surfaceLight border: 1px solid $border; r:6px white-space:nowrap',
 	'&.link': {
 		'&': 'cursor:pointer transition:background-color 0.15s',
 		'&:hover': 'bg:$surfaceHover',
 		'&:active': 'transform:scale(0.99)'
 	},
-	'&.active-scene': 'bg:#f4810e30 border-left: 4px solid $primary; pl:$2',
+	'&.active-scene': 'bg: rgba(244, 129, 14, 0.15); border-left: 4px solid $primary; pl: calc($2 - 3px);',
 	h2: 'font-size:1.125rem font-weight:500 flex: 1 0 auto;',
 	'.icon:first-child': 'flex:none w:32px h:32px',
 	'.icon:last-child': 'ml:auto w:24px',
