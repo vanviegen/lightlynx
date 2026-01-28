@@ -2,15 +2,6 @@
 import { test, expect, connectToMockServer } from './base-test';
 
 test.describe('Automation Features', () => {
-  test.beforeEach(async ({ page }) => {
-    // Log console messages for debugging
-    page.on('console', msg => {
-        if (msg.type() === 'error' || msg.text().includes('api')) {
-            console.log('BROWSER:', msg.text());
-        }
-    });
-  });
-
   test('should show automation UI elements in admin mode', async ({ page }) => {
     await connectToMockServer(page);
     

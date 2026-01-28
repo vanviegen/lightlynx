@@ -1,7 +1,7 @@
-import { insertGlobalCss, cssVars, setSpacingCssVars } from 'aberdeen';
+import { insertCss, insertGlobalCss, cssVars, setSpacingCssVars } from 'aberdeen';
 
-// Initialize spacing scale (1rem = 16px by default)
-setSpacingCssVars();
+// Slightly smaller spacing than default, for more density!
+setSpacingCssVars(0.85);
 
 // Dark mode colors only - no light mode support
 cssVars.primary = '#f4810e';
@@ -26,6 +26,7 @@ cssVars.dangerHover = '#ff6666';
 cssVars.warning = '#ffaa00';
 cssVars.success = '#00dd88';
 cssVars.info = '#4a9eff';
+cssVars.link = cssVars.primary;
 
 insertGlobalCss({
     // CSS Reset (Josh Comeau's minimal reset)
@@ -45,7 +46,7 @@ insertGlobalCss({
     
     // Links
     a: {
-        '&': 'fg:$primary text-decoration:none cursor:pointer',
+        '&': 'fg:$link text-decoration:none cursor:pointer',
         '&:hover': 'fg:$primaryHover text-decoration:underline',
         '&:visited': 'fg:$primaryDark'
     },
@@ -101,11 +102,13 @@ insertGlobalCss({
 
     '.link': {
         '&': 'cursor:pointer',
+        '&:not(.item)': 'fg:$link',
         '&:hover, &:hover *': 'fg: $primaryHover !important; text-shadow: 0 0 5px $primaryHover !important;',
+        'svg&:hover, &:hover svg': 'filter: drop-shadow(0 0 5px var(--primaryHover));',
     },
     
     '.item': {
-        '&': 'display:flex align-items:center gap:$3 p:$2 bg:$surface border: 1px solid $border; r:6px min-height:3rem',
+        '&': 'display:flex align-items:center gap:$3 p:$2 bg:$surface border: 1px solid $border; r:6px',
         
         '&.link': {
             '&': 'cursor:pointer transition: background-color 0.2s, transform 0.1s;',
@@ -124,10 +127,12 @@ insertGlobalCss({
 		'& > input': 'flex:2 min-width:2rem',
 		'& > input[type="checkbox"]': 'flex:none m:0 min-width:initial'
 	},
+
+    'main > .list > .item': 'border-width: 1px 0; r:0',
 	
 	// Form styling
 	form: {
-		'&': 'display:flex flex-direction:column gap:$4 p:$4',
+		'&': 'display:flex flex-direction:column gap:$3 p:$3',
 		'.field': {
 			'&': 'display:flex flex-direction:column gap:$1',
 			'label': 'fg:$textLight font-weight:500 font-size:0.875rem',
@@ -151,4 +156,14 @@ insertGlobalCss({
 		'&': 'bg:transparent fg:$danger border: 2px solid $danger; font-weight:600',
 		'&:hover': 'bg: rgba(255, 68, 68, 0.1);'
 	}
+});
+
+export const errorMessageStyle = insertCss({
+    '&': 'fg:$danger bg:#3a1111 p:$3',
+    '& > svg': 'w:24px h:24px float:left margin-right:$3 margin-bottom:$2'
+});
+
+export const infoMessageStyle = insertCss({
+    '&': 'fg:$info bg:#113a5a p:$3',
+    '& > svg': 'w:24px h:24px float:left margin-right:$3 margin-bottom:$2'
 });

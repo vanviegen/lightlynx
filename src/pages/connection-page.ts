@@ -1,111 +1,105 @@
-import { $, proxy, peek, copy } from 'aberdeen';
+import { $, proxy, peek, unproxy, derive, onEach, clean } from 'aberdeen';
 import * as route from 'aberdeen/route';
 import api from '../api';
 import { ServerCredentials } from '../types';
-import { routeState, notify, askConfirm, hashSecret } from '../ui';
+import { routeState, askConfirm, hashSecret } from '../ui';
+import { errorMessageStyle } from '../global-style';
+import { notify } from '../ui';
+
+export function isEqual(a: any, b: any): boolean {
+    const result = proxy(false);
+    $(() => {
+        result.value = (unproxy(a)===a ? a : a.value) === (unproxy(b)===b ? b : b.value);
+    });
+    return result.value;
+}
+
+export function afterTime(delay: number, callback: () => void): void {
+    const timeoutId = setTimeout(callback, delay);
+    clean(() => clearTimeout(timeoutId));
+}
+
 
 export function drawConnectionPage(): void {
-    
-    // Read initial state non-reactively to avoid re-renders
-    const isEdit = peek(() => route.current.state.edit);
-    const oldData: Partial<ServerCredentials> = isEdit ? peek(() => api.store.servers[0] ? {...api.store.servers[0]} : {}) : {};
-    const initialHost = peek(() => route.current.search.host) || oldData.localAddress || '';
-    const initialUsername = peek(() => route.current.search.username) || oldData.username || 'admin';
-    const initialSecret = peek(() => route.current.search.secret);
-    
-    // Auto-connect if both host and username came from URL
-    const shouldAutoConnect = !isEdit && initialHost && initialUsername && peek(() => route.current.search.host) === initialHost;
-    
-    const saved = proxy(false);
-    const hostProxy = proxy(initialHost);
-    const usernameProxy = proxy(initialUsername);
-    const password = proxy('');
-    
-    $(() => {
-        routeState.title = isEdit ? 'Edit connection' : 'New connection';
-        routeState.subTitle = 'Z2M';
-    });
-    
-    // Update URL as user types
-    $(() => { route.current.search.host = hostProxy.value; });
-    $(() => { route.current.search.username = usernameProxy.value; });
-    
-    // Hash password and update URL (debounced)
-    let hashTimeout: any;
-    $(() => {
-        const pw = password.value;
-        clearTimeout(hashTimeout);
-        if (!pw) {
-            delete route.current.search.secret;
-            return;
-        }
-        // Check if it's already a 64-char hex secret
-        if (/^[0-9a-f]{64}$/i.test(pw)) {
-            route.current.search.secret = pw.toLowerCase();
-            return;
-        }
-        // Hash the password
-        hashTimeout = setTimeout(async () => {
-            const secret = await hashSecret(pw);
-            if (password.value === pw) route.current.search.secret = secret;
-        }, 300);
-    });
-    
-    // Auto-connect on initial load with URL params
-    if (shouldAutoConnect) {
-        console.log('Auto-connecting from URL parameters:', initialHost, initialUsername);
-        const existing = api.store.servers.find(s => s.localAddress === initialHost && s.username === initialUsername);
-        if (existing) {
-            if (initialSecret) existing.secret = initialSecret;
-            existing.status = 'try';
-            const index = api.store.servers.indexOf(existing);
-            if (index > 0) {
-                api.store.servers.splice(index, 1);
-                api.store.servers.unshift(existing);
-            }
-        } else {
-            api.store.servers.unshift({
-                localAddress: initialHost,
-                username: initialUsername,
-                secret: initialSecret || '',
-                status: 'try'
-            });
-        }
-        saved.value = true;
+    routeState.title = 'Z2M Connection'
+
+    // When this page is opened, we should disconnect
+    if (peek(() => api.store.servers[0]?.status === 'enabled')) {
+        api.store.servers[0]!.status = 'disabled';
     }
 
     // Navigate away on successful connection
     $(() => {
-        if (saved.value && api.store.servers[0]?.status === 'enabled') {
-            saved.value = false;
+        if (api.store.servers[0]?.status === 'enabled') {
             route.back('/');
         }
     });
 
+    const selectedIndex = proxy(0);
+    $(() => {
+        if (selectedIndex.value > api.store.servers.length) {
+            selectedIndex.value = api.store.servers.length;
+        }
+    })
+
+    $('h1#Select a connection');
+    $('div m:$3 div.list', () => {
+        onEach(api.store.servers, (server: ServerCredentials, index: number) => {
+            const name = `${server.username}@${server.localAddress}`;
+            if (isEqual(index, selectedIndex.value)) {
+                $('div.item fg:$primary text=', name);
+            } else {
+                $('div.item.link text=', name, 'click=', () => {
+                    delete api.store.lastConnectError;
+                    selectedIndex.value = index;
+                });
+            }
+        });
+        if (isEqual(selectedIndex.value, api.store.servers.length)) {
+            $('div.item fg:$primary text="New connection..."');
+        } else {
+            $('div.item.link text="New connection..." click=', () => {
+                delete api.store.lastConnectError;
+                selectedIndex.value = api.store.servers.length;
+            });
+        }
+    });
+
+    $('h1#Connection details');
+
+    $(() => {
+        drawConnectionDetails(selectedIndex);
+    })
+}
+
+function drawConnectionDetails(selectedIndex: { value: number }): void {
+    const index = selectedIndex.value;
+    const orgServer: Partial<ServerCredentials> = api.store.servers[index] || {};
+    
+    const localAddress = proxy(orgServer.localAddress || '');
+    const username = proxy(orgServer.username || 'admin');
+    const password = proxy(orgServer.secret || '');
+
     // Show connection errors
     $(() => {
         if (api.store.lastConnectError) {
-            notify('error', api.store.lastConnectError);
-            api.store.lastConnectError = '';
+            $('div', errorMessageStyle, '#', api.store.lastConnectError);
         }
     });
 
     async function handleSubmit(e: Event): Promise<void> {
         e.preventDefault();
-        const server: ServerCredentials = {
-            localAddress: hostProxy.value,
-            username: usernameProxy.value,
-            secret: peek(() => route.current.search.secret) || oldData.secret || '',
-            externalAddress: hostProxy.value !== oldData.localAddress ? undefined : oldData.externalAddress,
+        // Remove the existing server entry (if it exists), and shift the new/edited server to the front,
+        // and change selectedIndex such that we'll keep editing it.
+        api.store.servers.splice(index, 1);
+        selectedIndex.value = 0;
+        api.store.servers.unshift({
+            localAddress: localAddress.value,
+            username: username.value,
+            secret: await hashSecret(password.value),
+            externalAddress: localAddress.value !== orgServer.localAddress ? undefined : orgServer.externalAddress,
             status: 'try'
-        };
-        saved.value = true;
-        if (isEdit) {
-            copy(api.store.servers[0]!, server);
-        } else {
-            api.store.servers.unshift(server);
-            route.current.state.edit = 'y';
-        }
+        });
     }
 
     async function handleDelete(): Promise<void> {
@@ -118,23 +112,32 @@ export function drawConnectionPage(): void {
     $('form submit=', handleSubmit, () => {
         $('div.field', () => {
             $('label#Server Address');
-            $('input placeholder="e.g. 192.168.1.5[:port]" required=', true, 'bind=', hostProxy);
+            $('input placeholder="e.g. 192.168.1.5[:port]" required=', true, 'bind=', localAddress);
         });
         $('div.field', () => {
             $('label#Username');
-            $('input required=', true, 'bind=', usernameProxy);
+            $('input required=', true, 'bind=', username);
         });
         $('div.field', () => {
-            $('label#Password');
-            $('input type=password bind=', password, 'placeholder=', isEdit ? 'Password or secret (empty to clear)' : '');
+            $('label#Secret');
+            $('input type=password bind=', password, 'placeholder=', 'Password or hash or empty');
         });
         $('div.row', () => {
-            if (isEdit) $('button.danger type=button text=Delete click=', handleDelete);
+            if (index < api.store.servers.length) $('button.danger type=button text=Delete click=', handleDelete);
             $('button.secondary type=button text=Cancel click=', () => route.back('/'));
-            $('button.primary type=submit', () => {
-                const busy = api.store.connectionState === 'connecting' || api.store.connectionState === 'authenticating';			
-                $('.busy=', busy, busy ? '#Connecting...' : isEdit ? '#Save' : '#Create');
-            });
+            $('button.primary type=submit text=Connect .busy=', derive(() => orgServer.status !== 'disabled'));
+        });
+        $('small.link text-align:right text="Copy direct-connect URL" click=', async () => {
+            let url = `${location.protocol}//${location.host}/?host=${encodeURIComponent(localAddress.value)}&username=${encodeURIComponent(username.value)}`;
+            const secret = await hashSecret(password.value);
+            if (secret) url += `&secret=${encodeURIComponent(secret)}`;
+            try {
+                await navigator.clipboard.writeText(url);
+                notify('info', 'URL copied to clipboard');
+            } catch (e: any) {
+                notify('error', 'Failed to copy URL: ' + url);
+            }
         });
     });
+
 }

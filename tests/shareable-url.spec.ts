@@ -2,9 +2,6 @@ import { test, expect } from './base-test';
 
 test.describe('Shareable Connection URL', () => {
   test('should connect using shareable URL with all parameters', async ({ page }) => {
-    // Log console messages for debugging
-    page.on('console', msg => console.log('BROWSER:', msg.text()));
-    page.on('pageerror', err => console.log('BROWSER ERROR:', err.message));
 
     // Navigate to connect page with URL parameters (host and username)
     // The app will auto-hash the password and auto-connect

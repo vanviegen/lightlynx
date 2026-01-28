@@ -18,7 +18,7 @@ test.describe('Active Scene', () => {
     await page.getByRole('button', { name: 'OK' }).filter({ visible: true }).click();
     
     // Wait for scene to appear
-    const sceneItem = page.locator('.list').locator('.item.link', { hasText: 'Test Scene' }).filter({ visible: true });
+    const sceneItem = page.locator('.list').locator('.scene.link', { hasText: 'Test Scene' }).filter({ visible: true });
     await expect(sceneItem).toBeVisible();
 
     // Initially, scene should NOT be active

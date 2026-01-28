@@ -1,4 +1,4 @@
-import { $, insertCss, isEmpty } from 'aberdeen';
+import { $, insertCss, insertGlobalCss, isEmpty } from 'aberdeen';
 import * as route from 'aberdeen/route';
 import * as icons from '../icons';
 import api from '../api';
@@ -17,7 +17,10 @@ const headerStyle = insertCss({
 	'.spinning': 'animation: header-spin 2s linear infinite;',
 	'.pulse': 'animation: pulse-opacity 1.5s ease-in-out infinite;',
 	'.update-available': 'fg:$success animation: pulse-opacity 1.5s ease-in-out infinite;',
-	'@keyframes pulse-opacity': {
+});
+
+insertGlobalCss({
+    '@keyframes pulse-opacity': {
 		'0%': 'opacity:1',
 		'50%': 'opacity:0.3',
 		'100%': 'opacity:1'
@@ -30,7 +33,6 @@ const headerStyle = insertCss({
 
 export function drawHeader(
     updateAvailable: { value: boolean },
-    menuOpen: { value: boolean },
     disableJoin: () => void
 ): void {
     $('header', headerStyle, () => {
@@ -68,7 +70,8 @@ export function drawHeader(
                     '.spinning': state !== 'connected' && state !== 'idle',
                     '.off': state === 'idle',
                     '.critical': !!api.store.lastConnectError,
-                    'click': () => menuOpen.value = !menuOpen.value
+                    '.link': true,
+                    'click': () => route.go('/connect'),
                 });
             });
         });

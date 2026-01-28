@@ -1,26 +1,23 @@
 /// <reference types="vite/client" />
 import './global-style';
-import {$, proxy, ref, onEach, isEmpty, copy, unproxy, peek, partition, derive, insertCss} from 'aberdeen';
+import {$, proxy, copy, clone, onEach, isEmpty, derive, insertCss, peek} from 'aberdeen';
 import * as route from 'aberdeen/route';
-import { grow, shrink } from 'aberdeen/transitions';
 import api from './api';
 import * as icons from './icons';
 import * as colors from './colors';
 import { drawBulbCircle } from "./components/color-picker";
 import { drawToasts } from './components/toasts';
 import { drawHeader } from './components/header';
-import { drawMenu } from './components/menu';
 import { drawLandingPage } from './pages/landing-page';
 import { drawBulbPage } from './pages/bulb-page';
 import { drawGroupPage } from './pages/group-page';
 import { drawConnectionPage } from './pages/connection-page';
 import { drawUsersSection, drawUserEditor } from './pages/users-page';
 import { drawRemoteInfoPage, drawAutomationInfoPage, drawBatteriesPage, drawDumpPage } from './pages/info-pages';
-import { drawPromptPage } from './pages/prompt-page';
 import { Device } from './types';
-import { routeState, admin, toasts, notify, askConfirm, askPrompt, drawEmpty, lazySave } from './ui';
+import { routeState, admin, toasts, notify, askPrompt } from './ui';
+import { drawPromptPage } from './pages/prompt-page';
 import swUrl from './sw.ts?worker&url';
-
 
 
 route.setLog(true);
@@ -40,8 +37,6 @@ if (!import.meta.env.DEV && 'serviceWorker' in navigator) {
 		}
 	});
 }
-
-const menuOpen = proxy(false);
 
 // Register notify handler to show API messages as toasts
 api.notifyHandlers.push(notify);
@@ -217,7 +212,6 @@ function disableJoin(): void {
 	api.send("bridge", "request", "permit_join", {time: 0});
 }
 
-
 const mainStyle = insertCss({
     '&': 'overflow:auto overflow-x:hidden position:absolute z-index:2 transition: transform 0.2s ease-out, opacity 0.2s ease-out, visibility 0.2s ease-out; left:0 top:0 right:0 bottom:0 bg:$bg scrollbar-width:none -ms-overflow-style:none',
     '&::-webkit-scrollbar': 'display:none',
@@ -248,11 +242,10 @@ $('div', rootStyle, () => {
 		$('.landing-page:', isEmpty(api.store.servers) && route.current.path === '/');
 	});
 
-	drawHeader(updateAvailable, menuOpen, disableJoin);
-	drawMenu(menuOpen);
+	drawHeader(updateAvailable, disableJoin);
 	
 	$('div', mainContainerStyle, () => {
-		const p = route.current.p;
+		const p = clone(route.current.p); // Subscribe to full 'p', so we'll create new main elements for each page
 		
 		$('main', mainStyle, 'destroy=fadeOut create=', route.current.nav, () => {
 			routeState.title = '';
@@ -274,8 +267,6 @@ $('div', rootStyle, () => {
 				drawUserEditor();
 			} else if (p[0] === 'dump') {
 				drawDumpPage();
-			} else if (p[0] === 'prompt') {
-				drawPromptPage();
 			} else if (p[0] === 'remote-info') {
 				drawRemoteInfoPage();
 			} else if (p[0] === 'automation-info') {
@@ -284,6 +275,12 @@ $('div', rootStyle, () => {
 				drawTopPage();
 			}
 			route.persistScroll();
+
+			$(() => {
+				if (route.current.state.prompt) {
+					drawPromptPage(route.current.state.prompt);
+				}
+			})
 		}, {destroy: 'fadeOut', create: route.current.nav});
 	}); // end mainContainer
 

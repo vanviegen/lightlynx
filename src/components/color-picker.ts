@@ -17,7 +17,8 @@ const circleStyle = insertCss({
 		'&': 'border-color:#555',
 		'&::before': 'transform:translateX(24px) opacity:0',
 		'&::after': 'transform:translateX(24px) opacity:1'
-	}
+	},
+    '&:hover': 'border-color:$primaryHover box-shadow: 0 0 5px $primaryHover',
 });
 
 // Color wheel container styles

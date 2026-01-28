@@ -1,4 +1,4 @@
-import { $, proxy, ref, onEach, isEmpty, unproxy, peek } from 'aberdeen';
+import { $, proxy, ref, onEach, isEmpty, unproxy, peek, insertCss, map, copy } from 'aberdeen';
 import { grow, shrink } from 'aberdeen/transitions';
 import * as route from 'aberdeen/route';
 import api from '../api';
@@ -107,6 +107,18 @@ export function buildGroupTimeoutSuffix(timeout: GroupTimeout | null): string {
     return `${timeout.value}${timeout.unit}`;
 }
 
+// Draw the scene options in a grid, each at least 150px wide
+const scenePresetsClass = insertCss({
+    "&": "display:grid grid-template-columns:repeat(auto-fit,minmax(150px,1fr)) gap:$2 m:$3",
+    ".item": "display:flex flex-direction:column align-items:center padding:$2 r:8px border:1px solid $border hover:bg:$hover cursor:pointer",
+    ".item.selected": "color:$primary",
+    ".custom": {
+        "&": "display:flex flex-direction:column align-items:center justify-content:center",
+        "input": "width:100% background-color:#fff1 text-align:center",
+        "&:selected input": "color:$primary"
+    },
+});
+
 // Enhanced scene automation editor
 export function drawSceneEditor(group: Group, groupId: number): void {
 
@@ -140,25 +152,35 @@ export function drawSceneEditor(group: Group, groupId: number): void {
         !['dim', 'soft', 'orientation'].includes(name) // Filter out legacy aliases
     );
 
-	$('div.scene-presets', () => {
+    const selected: Record<string, boolean> = proxy({});
+    $(() => {
+        let name = sceneState.shortName.toLowerCase();
+        if (!scenePresets.includes(name)) name = 'custom';
+        copy(selected, {[name]: true});
+    });
+
+	$('div', scenePresetsClass, () => {
 		// Permanent input field as first "button"
-		$('div.scene-preset.custom', () => {
+		$('div.custom.item', () => {
+            $('small#Custom');
 			$('input', {
 				type: 'text',
 				bind: ref(sceneState, 'shortName')
 			});
-			// $('span#Type here');
-		});
+            $(() => {
+                $({'.selected': ref(selected, 'custom')});
+            });
+        });
 
 		for (const presetName of scenePresets) {
 			const icon = icons.scenes[presetName]!;
 			const label = presetName.charAt(0).toUpperCase() + presetName.slice(1);
 			
-			$('div.scene-preset.item.link click=', () => {
+			$('div.item.link click=', () => {
 				sceneState.shortName = label;
 			}, () => {
 				$(() => {
-					$({'.selected': sceneState.shortName.toLowerCase() === presetName.toLowerCase()});
+					$({'.selected': ref(selected, presetName)});
 				});
 				icon("color:inherit");
 				$('span#', label);
@@ -246,8 +268,8 @@ export function drawSceneEditor(group: Group, groupId: number): void {
 		if (!await askConfirm(`Are you sure you want to delete the '${scene.name}' scene for group '${group.name}'?`)) return;
 		api.send(group.name, "set", {scene_remove: scene.id});
 	}
-	$('div.item.link#Save current state', 'click=', save, icons.save);
-	$('div.item.link#Delete scene', 'click=', remove, icons.remove);
+	$('div.item.link', icons.save, '#Save current state', 'click=', save);
+	$('div.item.link', icons.remove, '#Delete scene', 'click=', remove);
 
     const newName = proxy('');
     lazySave(() => {
@@ -268,7 +290,7 @@ export function drawSceneEditor(group: Group, groupId: number): void {
         }
     });
 
-    $('small.item#', newName);
+    $('div font-size:85% m:$3 text-align:center font-style:italic #', newName);
 }
 
 // Time range editor component

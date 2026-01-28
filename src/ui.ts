@@ -40,7 +40,7 @@ function askDialog(type: 'confirm' | 'prompt', message: string, options: {defaul
     const resolveId = 0 | (Math.random() * 1000000);
     const result = new Promise(resolve => {
         dialogResolvers[resolveId] = resolve;
-        route.go({p: ['prompt'], state: {type, message, resolveId, value: options.defaultValue || '', title: options.title}});
+        route.push({state: {prompt: {type, message, resolveId, value: options.defaultValue, title: options.title}}});
     });
     delete dialogResolvers[resolveId];
     return result as any;
@@ -56,6 +56,10 @@ export async function askPrompt(message: string, defaultValue = '', title?: stri
 
 export async function hashSecret(password: string): Promise<string> {
     if (!password) return '';
+
+    // If it's already a 64-char hex secret, return as-is
+    if (/^[0-9a-f]{64}$/i.test(password)) return password.toLowerCase();
+
     const saltString = "LightLynx-Salt-v2";
     const salt = new TextEncoder().encode(saltString);
     const pw = new TextEncoder().encode(password);

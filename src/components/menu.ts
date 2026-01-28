@@ -1,9 +1,14 @@
+/**
+ * NOTE: This component is currently unused, but kept for future use.
+ */
+
 import { $, insertCss, onEach } from 'aberdeen';
 import { grow, shrink } from 'aberdeen/transitions';
 import * as route from 'aberdeen/route';
 import * as icons from '../icons';
 import api from '../api';
 import { ServerCredentials } from '../types';
+import { errorMessageStyle } from '../global-style';
 
 const overlayStyle = insertCss('position:fixed top:0 left:0 right:0 bottom:0 z-index:100');
 
@@ -16,10 +21,6 @@ const menuItemStyle = insertCss({
 	'&': 'p: $3 $4; cursor:pointer display:flex align-items:center gap:$3 font-size:1rem',
 	'&:hover': 'bg:#333',
 	'&.danger': 'fg:$danger',
-	'&.error': {
-		'&': 'fg:$danger cursor:default bg:#3a1111',
-		'&:hover': 'bg:#3a1111'
-	},
 	'.icon': {
 		'&': 'w:24px h:24px',
 		'&.on': 'fg:#0d8'
@@ -38,7 +39,7 @@ export function drawMenu(menuOpen: { value: boolean }): void {
             // Show connection error if present
             $(() => {
                 if (api.store.lastConnectError) {
-                    $('div', menuItemStyle, '.error create=', grow, 'destroy=', shrink, () => {
+                    $('div', errorMessageStyle, 'create=', grow, 'destroy=', shrink, () => {
                         icons.reconnect('.off');
                         $('span#', api.store.lastConnectError);
                     });

@@ -1,4 +1,5 @@
 import { $, proxy, clone, copy, unproxy, peek } from "aberdeen";
+import * as route from "aberdeen/route";
 import * as colors from "./colors";
 import { LightState, XYColor, HSColor, ColorValue, isHS, isXY, Store, LightCaps, Device, Group } from "./types";
 
@@ -170,6 +171,32 @@ class Api {
             const data = localStorage.getItem(topic);
             if (data) this.onMessage({ data } as MessageEvent);
         }
+
+        // Auto-connect from URL parameters
+        // As we're not in any scope, this peek shouldn't do anything, but just for clarity:
+        peek(() => {
+            const initialHost = route.current.search.host;
+            const initialUsername = route.current.search.username;
+            if (!initialHost || !initialUsername) return;
+            const initialSecret = route.current.search.secret;
+
+            console.log('Auto-connecting from URL parameters:', initialHost, initialUsername);
+            let server = this.store.servers.find(s => s.localAddress === initialHost && s.username === initialUsername);
+            if (server) {
+                if (initialSecret) server.secret = initialSecret;
+                const index = this.store.servers.indexOf(server);
+                if (index > 0) {
+                    this.store.servers.splice(index, 1);
+                    this.store.servers.unshift(server);
+                }
+            } else {
+                this.store.servers.unshift({localAddress: initialHost, username: initialUsername, secret: initialSecret || '', status: 'try'});
+            }
+            // Remove from the route
+            delete route.current.search.host;
+            delete route.current.search.username;
+            delete route.current.search.secret;
+        });
         
         // Persist servers list to localStorage on changes
         $(() => {
@@ -234,7 +261,6 @@ class Api {
         console.log("api/connect", creds.localAddress);
         
         this.store.connectionState = 'connecting';
-        delete this.store.lastConnectError;
         
         // Timeout for connection attempt
         this.connectTimeout = setTimeout(() => {
@@ -635,6 +661,7 @@ class Api {
             this.connectTimeout = undefined;
             this.store.connected = true;
             this.store.connectionState = 'connected';
+            delete this.store.lastConnectError;
             this.reconnectAttempts = 0;
             
             // If status was 'try', upgrade to 'enabled' on success
@@ -821,7 +848,6 @@ class Api {
     }
 }
 
+// Start API instance
 const api = new Api();
-(window as any).api = api;
-
 export default api;

@@ -3,10 +3,6 @@ import { test, expect, connectToMockServer } from './base-test';
 
 test.describe('Light Lynx Integration', () => {
   test('should connect, create group, add lights, and create scene', async ({ page }) => {
-    // Log console messages
-    page.on('console', msg => console.log('BROWSER:', msg.text()));
-    page.on('pageerror', err => console.log('BROWSER ERROR:', err.message));
-
     // 1. Connect to the mock server using helper
     await connectToMockServer(page);
 

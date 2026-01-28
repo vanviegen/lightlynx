@@ -3,6 +3,5 @@ build.*
 _webcentral_data
 tmp
 .env
-tests-passed
-tests-failed
+tests-out
 .mock-lock.json
