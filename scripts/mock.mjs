@@ -30,7 +30,7 @@ async function start() {
         const lock = JSON.parse(fs.readFileSync(lockFile, 'utf8'));
         if (isProcessRunning(lock.mockZ2mPid) && isProcessRunning(lock.vitePid)) {
             const localIp = await getLocalIp();
-            console.log(`http://${localIp}:${lock.vitePort}/connect?host=${localIp}:${lock.mockZ2mPort}&username=admin`);
+            console.log(`http://${localIp}:${lock.vitePort}/?host=${localIp}:${lock.mockZ2mPort}&username=admin`);
             process.exit(0);
         }
         // Stale lock file, remove it
@@ -74,7 +74,7 @@ async function start() {
         // Wait for servers to start
         await new Promise(resolve => setTimeout(resolve, 3000));
 
-        console.log(`http://${localIp}:${vitePort}/connect?host=${localIp}:${mockZ2mPort}&username=admin`);
+        console.log(`http://${localIp}:${vitePort}/?host=${localIp}:${mockZ2mPort}&username=admin`);
     } catch (error) {
         console.error('Error:', error.message);
         process.exit(1);

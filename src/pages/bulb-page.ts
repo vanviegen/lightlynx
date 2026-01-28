@@ -4,11 +4,12 @@ import * as icons from '../icons';
 import { drawColorPicker } from '../components/color-picker';
 import { routeState, admin, askConfirm, lazySave } from '../ui';
 import { deviceGroups } from '../app';
+import { drawEmpty } from '../components/list-items';
 
 export function drawBulbPage(ieee: string): void {
     let device = api.store.devices[ieee];
     if (!device) {
-        $('div.empty#No such light');
+        drawEmpty('No such light');
         return;
     }
     

@@ -25,7 +25,7 @@ cssVars.danger = '#ff4444';
 cssVars.dangerHover = '#ff6666';
 cssVars.warning = '#ffaa00';
 cssVars.success = '#00dd88';
-cssVars.info = '#4a9eff';
+cssVars.info = cssVars.text; // '#4a9eff';
 cssVars.link = cssVars.primary;
 
 insertGlobalCss({
@@ -102,7 +102,7 @@ insertGlobalCss({
 
     '.link': {
         '&': 'cursor:pointer',
-        '&:not(.item)': 'fg:$link',
+        '&:not(.item):not(svg)': 'fg:$link',
         '&:hover, &:hover *': 'fg: $primaryHover !important; text-shadow: 0 0 5px $primaryHover !important;',
         'svg&:hover, &:hover svg': 'filter: drop-shadow(0 0 5px var(--primaryHover));',
     },
@@ -148,12 +148,12 @@ insertGlobalCss({
 	},
 	
 	'button.secondary': {
-		'&': 'bg:transparent fg:$text border: 2px solid $border; font-weight:600',
+		'&': 'bg:transparent fg:$link font-weight:600',
 		'&:hover': 'bg:$surfaceHover border-color:$textMuted'
 	},
 	
 	'button.danger': {
-		'&': 'bg:transparent fg:$danger border: 2px solid $danger; font-weight:600',
+		'&': 'bg:transparent fg:$danger font-weight:600',
 		'&:hover': 'bg: rgba(255, 68, 68, 0.1);'
 	}
 });

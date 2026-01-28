@@ -5,13 +5,21 @@ import api from '../api';
 import * as icons from '../icons';
 import { drawColorPicker, drawBulbCircle } from '../components/color-picker';
 import { Device, Group } from '../types';
-import { routeState, admin, askConfirm, askPrompt, lazySave, drawEmpty } from '../ui';
-import { deviceGroups, drawDeviceItem } from '../app';
+import { routeState, admin, askConfirm, askPrompt, lazySave } from '../ui';
+import { deviceGroups } from '../app';
 import { drawSceneEditor } from './scene-editor';
+import { drawEmpty, itemStyle } from '../components/list-items';
 
 const GROUPS_REGEXP = /^lightlynx-groups (\d+(,\d+)*)$/m;
 const TIMEOUT_REGEXP = /^lightlynx-timeout (\d+(?:\.\d+)?)([smhd])$/m;
 
+// Helper function for common pattern: device item with bulb circle and name
+export function drawDeviceItem(device: Device, ieee: string): void {
+    $('div', itemStyle, () => {
+        drawBulbCircle(device, ieee);
+        $('h2.link#', device.name, 'click=', () => route.go(['bulb', ieee]));
+    });
+}
 
 // All non-light devices, partitioned group id (-1 for). {suffix: {ieee: Device}}
 const groupInputs = partition(api.store.devices, (device: Device, _ieee: string): number[] | undefined => {

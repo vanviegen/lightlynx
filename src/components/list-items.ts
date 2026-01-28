@@ -1,7 +1,4 @@
 import { $, insertCss } from 'aberdeen';
-import { drawBulbCircle } from './color-picker';
-import { Device } from '../types';
-import * as route from 'aberdeen/route';
 
 // Export style classes for flexible use
 export const itemStyle = insertCss({
@@ -25,14 +22,9 @@ export const emptyStyle = insertCss('p:$3 text-align:center font-style:italic co
 
 export const badgeStyle = insertCss({
     '&': 'p:$1 $2; r:4px font-size:0.75rem font-weight:500 bg:#333 color:#aaa ml:auto align-self:center',
-    
     '&.warning': 'bg:#f4810e30 color:$warning'
 });
 
-// Helper function for common pattern: device item with bulb circle and name
-export function drawDeviceItem(device: Device, ieee: string): void {
-    $('div', itemStyle, () => {
-        drawBulbCircle(device, ieee);
-        $('h2.link#', device.name, 'click=', () => route.go(['bulb', ieee]));
-    });
+export function drawEmpty(text: string): void {
+    $('div#', text, emptyStyle);
 }

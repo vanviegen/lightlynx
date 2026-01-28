@@ -4,7 +4,8 @@ import * as route from 'aberdeen/route';
 import api from '../api';
 import * as icons from '../icons';
 import { Group } from '../types';
-import { routeState, admin, askConfirm, lazySave, drawEmpty } from '../ui';
+import { routeState, admin, askConfirm, lazySave } from '../ui';
+import { drawEmpty } from '../components/list-items';
 
 export interface TriggerItem {
     type: '1' | '2' | '3' | '4' | '5' | 'motion' | 'time';

@@ -103,10 +103,9 @@ async function showOverlayBanner(page: Page, text: string, type: 'info' | 'error
     }, { text, type });
 }
 
-export async function connectToMockServer(page: Page) {
-    // Use shareable URL to connect directly
-    await page.goto('/connect?host=localhost:43598&username=admin&admin=y');
-    await expect(page.locator('h2', { hasText: 'Kitchen' })).toBeVisible({ timeout: 10000 });
+export async function connectToMockServer(page: Page, admin: boolean = true): Promise<void> {
+    // Use direct-connect URL
+    await page.goto(`/?host=localhost:43598&username=admin${admin ? '&admin=y' : ''}`);
 }
 
 function wrapLocator(actualLocator: Locator, actualPage: Page): Locator {
@@ -228,7 +227,7 @@ export const test = base.extend({
         }
         
         // Override the output directory
-        testInfo.outputPath = (name = '') => outDir;
+        testInfo.outputPath = (name = '') => path.join(outDir, 'error.md');
         
         // const consoleLogs: string[] = [];
         actualPage.on('console', (...args: any[]) => console.log('Browser:', ...args));
@@ -261,7 +260,7 @@ export const test = base.extend({
             //     errorInfo += `Console Logs:\n${consoleLogs.join('\n')}\n\n`;
             // }
             
-            fs.writeFileSync(outDir.replace(/\/$/, '') + ".error", errorInfo, 'utf-8');
+            fs.writeFileSync(path.join(outDir, "error.txt"), errorInfo, 'utf-8');
         }
     }
 });

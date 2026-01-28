@@ -136,32 +136,15 @@ To stop the servers:
 npm run mock stop
 ```
 
+### Direct-connection URL
 
-
-
-### URL-Based Connection
-
-You can connect to a server directly via URL parameters:
+You can connect to a server directly via URL parameters. Example:
 
 ```
-http://localhost:5173/connect?host=192.168.1.94:41791&username=admin&secret=<optional-hash>
+http://localhost:5173/?host=192.168.1.94:41791&username=admin&secret=<hash>
 ```
 
-Parameters:
-- `host`: Server address with optional port (required)
-- `username`: Username (required)
-- `secret`: Pre-hashed password secret (optional)
-
-When these parameters are present, the app will:
-1. Check if a server with matching host/username exists in saved servers
-2. If found: Update secret (if provided) and attempt connection
-3. If not found: Create new server entry and attempt connection
-4. Clear URL parameters after processing
-
-This is useful for:
-- Development workflows
-- Sharing pre-configured connection links
-- Automated testing with Playwright MCP
+This will connect to the specified server, saving the credentials in localStorage for future use (if they're not there yet).
 
 ### Mock Server Configuration
 
@@ -204,7 +187,7 @@ Read the .html files to understand the DOM structure at steps that may be of int
 
 You can use the Playwright MCP (Model Context Protocol) to interactively test the app:
 
-1. Run `npm run mock start`. It outputs an URL.
+1. Run `npm run mock start`. It outputs a direct-connection URL.
 2. Use Playwright MCP to navigate to that URL.
 
 ```
@@ -220,29 +203,13 @@ If the playwright MCP is not available or not working correctly, ask the user fo
 
 #### Example: Debugging a Failed Test
 
-If a test fails at line 34 in integration.spec.ts:
+Relevant files are in `tests-out/integration-0005/` (where integration is the base name of the .spec.ts file, and 0005 is the starting line number of the test in that file).
 
-1. Terminal shows: `Output for failed test moved to: tests-failed/integration-0005/`
-2. Open `tests-failed/integration-0005/error.txt` - shows error occurred at line 34
-3. You can review the output of previous steps by looking at files like `tests-failed/integration-0005/0034.html` (for the start after line 34)
-4. If you need to look at the visual output, as the user for a specific screenshot like `tests-failed/integration-0005/0034.png` - he/she will be able to provide it in a way that you can view it
-
-The line numbers in filenames directly correspond to lines in the test file, making it easy to correlate test code with captured state.
-
-#### Interactive Debugging
-
-For hands-on debugging, use the Playwright MCP:
-1. Start the test environment: `npm run mock start`
-2. Navigate to the URL in the MCP browser
-3. Use `mcp_playwright_browser_snapshot()` to get live page structure
-4. Replicate test actions interactively to isolate the issue
-
-### Manual Mock Server
-
-Start mock server independently:
-```bash
-npm run mock-z2m  # Uses MOCK_Z2M_PORT=43598 MOCK_Z2M_INSECURE=true
-```
+- error.txt: Error message and stack trace.
+- error.md: Playwright short DOM state dump at error time.
+- error.html: HTML DOM snapshot at error time.
+- error.png: Screenshot at error time.
+- NNNN[a-z].png / NNNN[a-z].html: Screenshots and HTML DOM snapshots at specific line numbers in the test file. So 0010b.png would be the second screenshot created in line 10 of the test file.
 
 ## Service Worker
 

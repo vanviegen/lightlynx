@@ -3,7 +3,8 @@ import * as route from 'aberdeen/route';
 import api from '../api';
 import * as icons from '../icons';
 import { User } from '../types';
-import { routeState, notify, askConfirm, hashSecret, drawEmpty } from '../ui';
+import { routeState, notify, askConfirm, hashSecret } from '../ui';
+import { drawEmpty } from '../components/list-items';
 
 export function drawUsersSection(): void {
     $("h1#Users", () => {

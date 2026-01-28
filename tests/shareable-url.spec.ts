@@ -5,7 +5,7 @@ test.describe('Shareable Connection URL', () => {
 
     // Navigate to connect page with URL parameters (host and username)
     // The app will auto-hash the password and auto-connect
-    const connectUrl = '/connect?host=localhost:43598&username=admin';
+    const connectUrl = '/?host=localhost:43598&username=admin';
     await page.goto(connectUrl);
 
     // The app should auto-connect and redirect to main page
@@ -50,7 +50,7 @@ test.describe('Shareable Connection URL', () => {
     await page.goto('/');
     
     // Use the shareable URL to reconnect
-    const shareableUrl = `/connect?host=${host}&username=${username}`;
+    const shareableUrl = `/?host=${host}&username=${username}`;
     await page.goto(shareableUrl);
     
     // Should auto-connect
@@ -111,14 +111,14 @@ test.describe('Shareable Connection URL', () => {
 
   test('should handle shareable URL with existing server', async ({ page }) => {
     // First connection to establish a server
-    await page.goto('/connect?host=localhost:43598&username=admin');
+    await page.goto('/?host=localhost:43598&username=admin');
     await expect(page.locator('h2', { hasText: 'Kitchen' }).filter({ visible: true })).toBeVisible({ timeout: 10000 });
     
     // Disconnect by navigating away
     await page.goto('/');
     
     // Now use the same shareable URL again
-    await page.goto('/connect?host=localhost:43598&username=admin');
+    await page.goto('/?host=localhost:43598&username=admin');
     
     // Should reconnect to the existing server
     await expect(page.locator('h2', { hasText: 'Kitchen' }).filter({ visible: true })).toBeVisible({ timeout: 10000 });

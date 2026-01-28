@@ -1,24 +1,11 @@
-import { $, proxy, peek, unproxy, derive, onEach, clean } from 'aberdeen';
+import { $, proxy, peek, derive, onEach } from 'aberdeen';
 import * as route from 'aberdeen/route';
 import api from '../api';
 import { ServerCredentials } from '../types';
 import { routeState, askConfirm, hashSecret } from '../ui';
 import { errorMessageStyle } from '../global-style';
 import { notify } from '../ui';
-
-export function isEqual(a: any, b: any): boolean {
-    const result = proxy(false);
-    $(() => {
-        result.value = (unproxy(a)===a ? a : a.value) === (unproxy(b)===b ? b : b.value);
-    });
-    return result.value;
-}
-
-export function afterTime(delay: number, callback: () => void): void {
-    const timeoutId = setTimeout(callback, delay);
-    clean(() => clearTimeout(timeoutId));
-}
-
+import { isEqual } from '../utils';
 
 export function drawConnectionPage(): void {
     routeState.title = 'Z2M Connection'
@@ -139,5 +126,4 @@ function drawConnectionDetails(selectedIndex: { value: number }): void {
             }
         });
     });
-
 }

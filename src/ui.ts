@@ -87,6 +87,3 @@ export function lazySave(getState: () => void | (() => void), delay: number = 10
     });
 }
 
-export function drawEmpty(text: string): void {
-    $('div.empty#', text);
-}

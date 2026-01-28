@@ -10,15 +10,14 @@ import { drawToasts } from './components/toasts';
 import { drawHeader } from './components/header';
 import { drawLandingPage } from './pages/landing-page';
 import { drawBulbPage } from './pages/bulb-page';
-import { drawGroupPage } from './pages/group-page';
+import { drawGroupPage, drawDeviceItem } from './pages/group-page';
 import { drawConnectionPage } from './pages/connection-page';
 import { drawUsersSection, drawUserEditor } from './pages/users-page';
 import { drawRemoteInfoPage, drawAutomationInfoPage, drawBatteriesPage, drawDumpPage } from './pages/info-pages';
-import { Device } from './types';
 import { routeState, admin, toasts, notify, askPrompt } from './ui';
 import { drawPromptPage } from './pages/prompt-page';
 import swUrl from './sw.ts?worker&url';
-
+import { drawEmpty } from './components/list-items';
 
 route.setLog(true);
 route.interceptLinks();
@@ -51,13 +50,6 @@ $(() => {
 	}
 	copy(deviceGroups, result);
 });
-
-export function drawDeviceItem(device: Device, ieee: string): void {
-	$("div.item", () => {
-		drawBulbCircle(device, ieee);
-		$('h2.link#', device.name, 'click=', () => route.go(['bulb', ieee]));
-	});
-}
 
 function drawManagementSection(): void {
 	$('h1#Management');
@@ -114,6 +106,15 @@ const groupListClass = insertCss({
 });
 
 function drawTopPage(): void {
+	if (isEmpty(api.store.servers)) return drawLandingPage();
+
+	if (isEmpty(api.store.groups) || api.store.connectionState !== 'connected') {
+		if (api.store.connectionState === 'idle') {
+			api.store.servers[0]!.status = 'try';
+		}
+		drawEmpty('Connecting...');
+	}
+
 	routeState.title = '';
 	routeState.subTitle = '';
 
@@ -213,11 +214,11 @@ function disableJoin(): void {
 }
 
 const mainStyle = insertCss({
-    '&': 'overflow:auto overflow-x:hidden position:absolute z-index:2 transition: transform 0.2s ease-out, opacity 0.2s ease-out, visibility 0.2s ease-out; left:0 top:0 right:0 bottom:0 bg:$bg scrollbar-width:none -ms-overflow-style:none',
+    '&': 'overflow:auto box-shadow: 0 0 10px $primary; overflow-x:hidden position:absolute z-index:2 transition: transform 0.2s ease-out, opacity 0.2s ease-out; left:0 top:0 right:0 bottom:0 bg:$bg scrollbar-width:none -ms-overflow-style:none',
     '&::-webkit-scrollbar': 'display:none',
     '&.fadeOut': {
-        '&': 'z-index:1 opacity:0 visibility:hidden pointer-events:none',
-        '*': 'visibility:hidden pointer-events:none'
+        '&': 'z-index:-1 opacity:0 pointer-events:none',
+        '*': 'pointer-events:none'
     },
     '&.forward, &.go': 'transform:translateX(100%)',
     '&.back': 'transform:translateX(-100%)',
@@ -247,7 +248,8 @@ $('div', rootStyle, () => {
 	$('div', mainContainerStyle, () => {
 		const p = clone(route.current.p); // Subscribe to full 'p', so we'll create new main elements for each page
 		
-		$('main', mainStyle, 'destroy=fadeOut create=', route.current.nav, () => {
+		const nav = peek(() => route.current.nav);
+		$('main', mainStyle, 'destroy=fadeOut create=', nav, () => {
 			routeState.title = '';
 			routeState.subTitle = '';
 			delete routeState.drawIcons;
@@ -255,8 +257,6 @@ $('div', rootStyle, () => {
 			// Show Landing page if no server active
 			if (p[0] === 'connect') {
 				drawConnectionPage();
-			} else if (isEmpty(api.store.servers)) {
-				drawLandingPage();
 			} else if (p[0]==='group' && p[1]) {
 				drawGroupPage(parseInt(p[1]));
 			} else if (p[0] === 'bulb' && p[1]) {
@@ -275,14 +275,15 @@ $('div', rootStyle, () => {
 				drawTopPage();
 			}
 			route.persistScroll();
-
-			$(() => {
-				if (route.current.state.prompt) {
-					drawPromptPage(route.current.state.prompt);
-				}
-			})
 		}, {destroy: 'fadeOut', create: route.current.nav});
 	}); // end mainContainer
 
 	drawToasts(toasts);
 }); // end root
+
+
+$(() => {
+	if (route.current.state.prompt) {
+		drawPromptPage(route.current.state.prompt);
+	}
+})
