@@ -22,7 +22,7 @@ const featureStyle = insertCss({
 
 const primaryButtonStyle = insertCss({
 	'&': 'align-self:center w:auto !important; min-width:280px p: $3 $4 !important; font-size:1.125rem r:50px box-shadow: 0 4px 15px #f4810e40; transition: transform 0.2s, box-shadow 0.2s;',
-	'&:hover': 'transform:translateY(-2px) box-shadow: 0 6px 20px #f4810e60;'
+	'&.interacting': 'transform:translateY(-2px) box-shadow: 0 6px 20px #f4810e60;'
 });
 
 export function drawLandingPage(): void {

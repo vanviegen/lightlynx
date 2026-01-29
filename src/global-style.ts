@@ -1,7 +1,44 @@
-import { insertCss, insertGlobalCss, cssVars, setSpacingCssVars } from 'aberdeen';
+import { $, insertCss, insertGlobalCss, cssVars, setSpacingCssVars } from 'aberdeen';
 
 // Slightly smaller spacing than default, for more density!
 setSpacingCssVars(0.85);
+
+const interactingElements = new Set<Element>();
+
+/**
+ * CSS :hover is a b**ch on touch device, as the hover will stick until another touch event.
+ * So, we're not using :hover, but instead adding/removing an 'interacting' class on elements
+ * that have either mouseover or an active touch that started on the element or one of its
+ * descendants. So basically, you should use '.interacting' in your CSS instead of ':hover' and
+ * ':active'.
+ */
+
+$(`mouseover=`, (e: Event) => {
+	if (e.target instanceof Element) {
+		e.target.classList.add('interacting');
+		interactingElements.add(e.target);
+	}
+}, {passive:true, capture:true});
+
+$('mouseout=', (e: Event) => {
+	if (e.target instanceof Element) {
+		e.target.classList.remove('interacting');
+		interactingElements.delete(e.target);
+	}
+}, {passive:true, capture:true});
+
+$('touchstart=', (e: Event) => {
+    for(let el = e.target; el instanceof Element; el = el.parentElement) {
+        el.classList.add('interacting');
+        interactingElements.add(el);
+    }
+}, {passive:true, capture:true});
+
+['touchend', 'touchcancel'].forEach(eventType => $(`${eventType}=`, () => {
+	interactingElements.forEach(e => e.classList.remove('interacting'));
+	interactingElements.clear();
+}, {passive:true, capture:true}));
+
 
 // Dark mode colors only - no light mode support
 cssVars.primary = '#f4810e';
@@ -47,7 +84,7 @@ insertGlobalCss({
     // Links
     a: {
         '&': 'fg:$link text-decoration:none cursor:pointer',
-        '&:hover': 'fg:$primaryHover text-decoration:underline',
+        '&.interacting': 'fg:$primaryHover text-decoration:underline',
         '&:visited': 'fg:$primaryDark'
     },
 
@@ -66,7 +103,7 @@ insertGlobalCss({
     // Standard buttons
     button: {
         '&': 'p: $2 $3; r:4px border:none bg:$primary fg:#000 font-weight:600 cursor:pointer transition: background-color 0.2s, transform 0.1s;',
-        '&:hover': 'bg:$primaryHover',
+        '&.interacting': 'bg:$primaryHover',
         '&:active': 'transform:scale(0.98)',
         '&:disabled': 'opacity:0.5 cursor:not-allowed pointer-events:none'
     },
@@ -101,10 +138,10 @@ insertGlobalCss({
     '.list': 'display:flex flex-direction:column gap:$2',
 
     '.link': {
-        '&': 'cursor:pointer',
-        '&:not(.item):not(svg)': 'fg:$link',
-        '&:hover, &:hover *': 'fg: $primaryHover !important; text-shadow: 0 0 5px $primaryHover !important;',
-        'svg&:hover, &:hover svg': 'filter: drop-shadow(0 0 5px var(--primaryHover));',
+        '&': 'cursor:pointer fg:$link',
+        '&.item, svg&, .item &': 'fg:unset',
+        '&.interacting, &.interacting *': 'fg: $primaryHover !important; text-shadow: 0 0 5px $primaryHover !important;',
+        'svg&.interacting, &.interacting svg': 'filter: drop-shadow(0 0 5px var(--primaryHover));',
     },
     
     '.item': {
@@ -112,7 +149,7 @@ insertGlobalCss({
         
         '&.link': {
             '&': 'cursor:pointer transition: background-color 0.2s, transform 0.1s;',
-            '&:hover': 'bg:$surfaceHover',
+            '&.interacting': 'bg:$surfaceHover',
             '&:active': 'transform:scale(0.99)'
 		},
 		
@@ -121,7 +158,7 @@ insertGlobalCss({
 		h2: 'font-size:1rem font-weight:500 flex: 1 0 auto; m:0',
 		
 		'.icon': {
-			'&': 'flex:none w:24px h:24px',
+			'&': 'flex:none w:24px h:24px  background-color:#0000',
 			'&:first-child': 'w:28px h:28px'
 		},
 		'& > input': 'flex:2 min-width:2rem',
@@ -143,18 +180,18 @@ insertGlobalCss({
 	
 	'button.primary': {
 		'&': 'bg:$primary fg:#000 font-weight:600',
-		'&:hover': 'bg:$primaryHover',
+		'&.interacting': 'bg:$primaryHover',
 		'&.busy': 'opacity:0.7 pointer-events:none'
 	},
 	
 	'button.secondary': {
 		'&': 'bg:transparent fg:$link font-weight:600',
-		'&:hover': 'bg:$surfaceHover border-color:$textMuted'
+		'&.interacting': 'bg:$surfaceHover border-color:$textMuted'
 	},
 	
 	'button.danger': {
 		'&': 'bg:transparent fg:$danger font-weight:600',
-		'&:hover': 'bg: rgba(255, 68, 68, 0.1);'
+		'&.interacting': 'bg: rgba(255, 68, 68, 0.1);'
 	}
 });
 

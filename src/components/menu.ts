@@ -19,7 +19,7 @@ const menuStyle = insertCss({
 
 const menuItemStyle = insertCss({
 	'&': 'p: $3 $4; cursor:pointer display:flex align-items:center gap:$3 font-size:1rem',
-	'&:hover': 'bg:#333',
+	'&.interacting': 'bg:#333',
 	'&.danger': 'fg:$danger',
 	'.icon': {
 		'&': 'w:24px h:24px',

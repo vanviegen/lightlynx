@@ -108,7 +108,7 @@ const groupListClass = insertCss({
 function drawTopPage(): void {
 	if (isEmpty(api.store.servers)) return drawLandingPage();
 
-	if (isEmpty(api.store.groups) || api.store.connectionState !== 'connected') {
+	if (isEmpty(api.store.groups) && api.store.connectionState !== 'connected') {
 		if (api.store.connectionState === 'idle') {
 			api.store.servers[0]!.status = 'try';
 		}

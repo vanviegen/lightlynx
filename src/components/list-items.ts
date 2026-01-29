@@ -5,7 +5,7 @@ export const itemStyle = insertCss({
 	'&': 'display:flex align-items:center gap:$3 p: $2 $3; m: $1 0; bg:$surfaceLight border: 1px solid $border; r:6px white-space:nowrap',
 	'&.link': {
 		'&': 'cursor:pointer transition:background-color 0.15s',
-		'&:hover': 'bg:$surfaceHover',
+		'&.interacting': 'bg:$surfaceHover',
 		'&:active': 'transform:scale(0.99)'
 	},
 	'&.active-scene': 'bg: rgba(244, 129, 14, 0.15); border-left: 4px solid $primary; pl: calc($2 - 3px);',
