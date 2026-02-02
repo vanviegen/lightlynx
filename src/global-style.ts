@@ -144,7 +144,7 @@ insertGlobalCss({
                 '&:first-child': 'w:28px h:28px'
             },
             '& > input': 'flex:2 min-width:2rem',
-            '& > input[type="checkbox"]': 'flex:none m:0 min-width:initial'
+            '& > input[type="checkbox"]': 'flex:none m:0 min-width:initial mh:4px', // The 4px is to make it just as wide as icons (20px+2*4px)
         },
     },
     

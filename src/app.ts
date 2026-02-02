@@ -312,7 +312,7 @@ const mainContainerStyle = insertCss('flex:1 position:relative overflow:hidden')
 
 $('div', rootStyle, () => {
 	$(() => {
-		$('.landing-page:', isEmpty(api.store.servers) && route.current.path === '/');
+		$('.landing-page=', isEmpty(api.store.servers) && route.current.path === '/');
 	});
 
 	drawHeader(updateAvailable, disableJoin);

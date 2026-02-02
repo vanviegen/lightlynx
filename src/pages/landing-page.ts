@@ -34,7 +34,7 @@ export function drawLandingPage(): void {
             $('p#Light Lynx is a modern, fast, and mobile-friendly interface for Zigbee2MQTT. No hubs, no clouds, just your home.');
         });
 
-        $('button', primaryButtonStyle, 'type:button#Connect to a server click=', () => route.go(['connect']));
+        $('button', primaryButtonStyle, 'type:button text="Connect to a server" click=', () => route.go(['connect']));
         
         $('div', featuresStyle, () => {
             $('div', featureStyle, () => {

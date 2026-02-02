@@ -17,7 +17,7 @@ export function drawUsersSection(): void {
             $('div.item.link', 'click=', () => route.go(['user', username]), () => {
                 (user.isAdmin ? icons.shield : icons.user)();
                 $('h2#', username);
-                if (!user.hasPassword) $('span.badge.warning#No password');
+                if (!user.secret) $('span.badge.warning#No password');
                 else if (user.allowRemote) $('span.badge#Remote');
             });
         });
@@ -35,13 +35,15 @@ export function drawUserEditor(): void {
         isAdmin: false,
         allowedGroups: [],
         allowRemote: false, // Can't enable without password
-        password: ''
+        secret: ''
     }) : proxy(clone(unproxy(storeUser || {
         isAdmin: true,
         allowedGroups: [],
         allowRemote: false,
-        password: ''
+        secret: ''
     })));
+    
+    const password = proxy(storeUser?.secret || '');
     
     const newUsername = proxy('');
 
@@ -61,8 +63,8 @@ export function drawUserEditor(): void {
         }
 
         $('div.item', () => {
-            $('h2.form-label#Password');
-            $('input type=password bind=', ref(user, 'password'), 'placeholder=', isNew ? 'Required' : 'Password or secret (empty to clear)');
+            $('h2.form-label flex:0 #Password');
+            $('input flex:1 type=password bind=', password, 'placeholder=', 'Password or secret');
         });
 
         if (!isAdminUser) {
@@ -73,12 +75,11 @@ export function drawUserEditor(): void {
         }
 
         $('label.item', () => {
-            // Can only enable remote access if user has password (either existing or being set)
-            const hasOrSettingPassword = () => user.password || storeUser?.hasPassword;
-            $('input type=checkbox bind=', ref(user, 'allowRemote'), 'disabled=', () => !hasOrSettingPassword(), 'title=', () => hasOrSettingPassword() ? '' : 'Set a password first to enable remote access');
+            // Can only enable remote access if user has password
+            $('input type=checkbox bind=', ref(user, 'allowRemote'), 'disabled=', () => !password.value, 'title=', () => password.value ? '' : 'Set a password first to enable remote access');
             $('h2#Allow remote access');
             $(() => {
-                if (!hasOrSettingPassword()) $('p.muted#Requires password');
+                if (!password.value) $('p.muted#Requires password');
             });
         });
     });
@@ -105,7 +106,7 @@ export function drawUserEditor(): void {
     });
 
     const busy = proxy(false);
-    $('div.button-row', () => {
+    $('form div.button-row', () => {
 
         if (!isNew && !isAdminUser) {
             $('button.danger', icons.remove, '#Delete user', 'click=', async () => {
@@ -123,25 +124,13 @@ export function drawUserEditor(): void {
             try {
                 const finalUsername = isNew ? newUsername.value : username;
                 if (!finalUsername) throw new Error("Username required");
-                const payload: any = unproxy(user);
                 
-                // Handle password/secret - only include if user entered something
-                if (user.password) {
-                    // Check if it's already a 64-char hex secret
-                    if (/^[0-9a-f]{64}$/i.test(user.password)) {
-                        payload.secret = user.password.toLowerCase();
-                    } else {
-                        payload.secret = await hashSecret(user.password);
-                    }
-                }
-                delete payload.password;
-                
-                const userPayload = {
+                const userPayload: any = {
                     username: finalUsername,
-                    isAdmin: payload.isAdmin,
-                    allowedGroups: payload.allowedGroups,
-                    allowRemote: payload.allowRemote,
-                    secret: payload.secret, // could be undefined
+                    isAdmin: user.isAdmin,
+                    allowedGroups: [...user.allowedGroups],
+                    allowRemote: user.allowRemote,
+                    secret: await hashSecret(password.value),
                 };
                 
                 if (isNew) {

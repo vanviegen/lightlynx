@@ -77,9 +77,7 @@ export interface User {
     isAdmin: boolean;
     allowedGroups: number[];
     allowRemote: boolean;
-    hasPassword?: boolean; // Whether user has a password set
-    secret?: string; // Only used for UI editing, not stored in state dump
-    password?: string;
+    secret: string;
 }
 
 export type ServerStatus = 'enabled' | 'disabled' | 'try';

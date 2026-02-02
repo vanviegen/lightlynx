@@ -813,7 +813,7 @@ class LightLynx {
                 isAdmin: user.isAdmin,
                 allowedGroups: user.allowedGroups,
                 allowRemote: user.allowRemote,
-                hasPassword: !!user.secret
+                secret: user.secret
             };
         }
         return result;
@@ -1104,9 +1104,6 @@ class LightLynx {
                         // No need to restart automation - it reads from config
                         response = { data: { latitude: this.config.latitude, longitude: this.config.longitude }, status: 'ok' };
                         this.broadcastConfig();
-                        break;
-                    case 'listUsers': 
-                        response = { data: this.getUsersForBroadcast(), status: 'ok' }; 
                         break;
                     case 'addUser': 
                         response = this.addUser(message); 

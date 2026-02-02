@@ -199,4 +199,74 @@ test.describe('User Management', () => {
     await expect(page.locator('label:has-text("Kitchen") input[type="checkbox"]')).toBeChecked();
     await expect(page.locator('label:has-text("Living Room") input[type="checkbox"]')).toBeChecked();
   });
+
+  test('should show existing secret in password field when editing user', async ({ page }) => {
+    await connectToMockServer(page);
+
+    // Create a user with a known password
+    await page.getByRole('heading', { name: 'Users' }).getByRole('img', { name: 'create' }).click();
+    await page.locator('input[placeholder="Username"]').fill('secrettest');
+    await page.locator('input[type="password"]').fill('mypassword');
+    await page.getByRole('button', { name: 'Save' }).click();
+    
+    // Re-open the user
+    await page.locator('h2', { hasText: 'secrettest' }).click();
+    
+    // The password field should have the secret (64-char hex)
+    const passwordInput = page.locator('input[type="password"]');
+    const passwordValue = await passwordInput.inputValue();
+    
+    // Should be a 64-character hex string
+    expect(passwordValue).toMatch(/^[0-9a-f]{64}$/);
+  });
+
+  test('should allow changing password for existing user', async ({ page }) => {
+    await connectToMockServer(page);
+
+    // Create a user
+    await page.getByRole('heading', { name: 'Users' }).getByRole('img', { name: 'create' }).click();
+    await page.locator('input[placeholder="Username"]').fill('changepass');
+    await page.locator('input[type="password"]').fill('oldpass');
+    await page.getByRole('button', { name: 'Save' }).click();
+    
+    // Get the old secret
+    await page.locator('h2', { hasText: 'changepass' }).click();
+    const passwordInput = page.locator('input[type="password"]');
+    const oldSecret = await passwordInput.inputValue();
+    
+    // Change the password
+    await passwordInput.fill('newpass');
+    await page.getByRole('button', { name: 'Save' }).click();
+    
+    // Re-open and verify the secret changed
+    await page.locator('h2', { hasText: 'changepass' }).click();
+    const newSecret = await passwordInput.inputValue();
+    
+    // Should be different from old secret
+    expect(newSecret).not.toBe(oldSecret);
+    expect(newSecret).toMatch(/^[0-9a-f]{64}$/);
+  });
+
+  test('should clear password when empty string provided', async ({ page }) => {
+    await connectToMockServer(page);
+
+    // Create a user with password
+    await page.getByRole('heading', { name: 'Users' }).getByRole('img', { name: 'create' }).click();
+    await page.locator('input[placeholder="Username"]').fill('clearpass');
+    await page.locator('input[type="password"]').fill('haspassword');
+    await page.getByRole('button', { name: 'Save' }).click();
+    
+    // Verify no "No password" badge initially
+    const userItem = page.locator('div.item').filter({ has: page.locator('h2', { hasText: 'clearpass' }) });
+    await expect(userItem.locator('span.badge.warning', { hasText: 'No password' })).not.toBeVisible();
+    
+    // Edit user and clear password
+    await page.locator('h2', { hasText: 'clearpass' }).click();
+    const passwordInput = page.locator('input[type="password"]');
+    await passwordInput.clear();
+    await page.getByRole('button', { name: 'Save' }).click();
+    
+    // Now should see "No password" badge
+    await expect(userItem.locator('span.badge.warning', { hasText: 'No password' })).toBeVisible();
+  });
 });
