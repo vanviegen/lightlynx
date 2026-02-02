@@ -10,34 +10,26 @@ async function connectV2(page: Page, options: { admin?: boolean; username?: stri
 
 test.describe('Protocol V2', () => {
   test('should connect using v2 protocol and receive state dump', async ({ page }) => {
-    // Enable console logging to see the messages
-    const messages: any[] = [];
-    page.on('console', msg => {
-        const text = msg.text();
-        if (text.includes('WebSocket') || text.includes('type:') || text.includes('state')) {
-            messages.push(text);
-        }
-    });
-
     // Connect using v2 protocol
     await connectV2(page);
     
-    // Wait for page to load
-    await page.waitForTimeout(2000);
-    
-    // Log the messages for debugging
-    console.log('Console messages:', messages.join('\n'));
-    
-    // Verify connection by checking if we can see any groups or devices
-    // For now, just verify the page loaded
+    // Wait for the page body to be visible
     await expect(page.locator('body')).toBeVisible();
+    
+    // Wait a moment for state to be received
+    await page.waitForLoadState('networkidle');
+    
+    // Verify we're connected by checking for any visible content
+    // (The actual state verification would require inspecting the app's internal state)
+    const hasContent = await page.locator('body').evaluate(el => el.textContent && el.textContent.length > 10);
+    expect(hasContent).toBeTruthy();
   });
 
-  test('should send light.set command and receive response', async ({ page }) => {
+  // TODO: Implement command/response flow test once command sending is implemented in client
+  test.skip('should send light.set command and receive response', async ({ page }) => {
     // This test will verify the command/response flow
-    // TODO: Implement after client-side v2 support is added
+    // Skipped until client-side v2 command sending is implemented
     await connectV2(page);
-    await page.waitForTimeout(1000);
     
     // For now, just verify connection works
     await expect(page.locator('body')).toBeVisible();

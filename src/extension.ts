@@ -1112,7 +1112,7 @@ class LightLynx {
         for (const condition of suffix.split(',')) {
             const m = condition.match(/^\s*([0-9a-z]+)(?: ([^)-]*?)-([^)-]*))?\s*$/);
             if (!m) continue;
-            const [_, trigger, start, end] = m;
+            const [_fullMatch, trigger, start, end] = m;
             
             if (trigger === 'sensor') {
                 triggers.push({ type: 'sensor' });
@@ -1400,7 +1400,12 @@ class LightLynx {
             this.mqtt.onMessage(`${this.mqttBaseTopic}/${group.name}/set`, Buffer.from(JSON.stringify(payload)));
             return undefined;
         }
-        // TODO: Implement scene.store, scene.create, scene.update, scene.delete
+        // TODO: Implement scene state storage and management
+        // - scene.store: Store current bulb states for a scene (requires reading back states from devices)
+        // - scene.create: Create a new scene in Z2M
+        // - scene.update: Update scene name or states
+        // - scene.delete: Remove a scene from Z2M
+        // These will require integration with Z2M's scene management API
         throw new Error(`Scene action not implemented: ${action}`);
     }
 
@@ -1438,6 +1443,8 @@ class LightLynx {
             
             case 'setPermitJoin':
                 // TODO: Implement permit join control
+                // Requires integration with Z2M's permit_join API to control pairing mode
+                // Should support duration parameter and broadcast config updates to all v2 clients
                 throw new Error('setPermitJoin not yet implemented');
             
             default:
@@ -1497,7 +1504,10 @@ class LightLynx {
     }
 
     private async handleDeviceCommandV2(clientInfo: any, action: string, args: any) {
-        // TODO: Implement device.rename, device.linkGroups
+        // TODO: Implement device management operations
+        // - device.rename: Rename a device in Z2M (requires Z2M rename API)
+        // - device.linkGroups: Associate non-light devices with groups via description metadata
+        //   (update device description with 'lightlynx-groups X,Y,Z' format)
         throw new Error(`Device action not implemented: ${action}`);
     }
 
