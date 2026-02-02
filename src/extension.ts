@@ -836,6 +836,7 @@ class LightLynx {
         const username = url.searchParams.get('user');
         if (!username) return this.sendConnectError(req, socket, head, 'No username provided.');
         const password = url.searchParams.get('secret') || '';
+        const protocol = url.searchParams.get('protocol') || 'v1';
         const clientIp = this.getClientIp(req);
 
         const user = this.validateUser(username, password);
@@ -851,23 +852,28 @@ class LightLynx {
         }
 
         this.wss!.handleUpgrade(req, socket, head, (ws) => {
-            this.clients.set(ws, { username, ...user });
+            this.clients.set(ws, { username, protocol, ...user });
             this.wss!.emit('connection', ws, req);
         });
     }
 
     private async onConnection(ws: WebSocket, _req: http.IncomingMessage) {
         const clientInfo = this.clients.get(ws);
-        this.log('info', `Client connected: ${clientInfo?.username}`);
+        this.log('info', `Client connected: ${clientInfo?.username} (protocol: ${clientInfo?.protocol || 'v1'})`);
 
         ws.on('error', (err) => this.log('error', `WebSocket error: ${err.message}`));
         ws.on('close', () => this.clients.delete(ws));
         ws.on('message', (data) => this.onClientMessage(ws, data));
 
-        await this.sendInitialState(ws, clientInfo);
+        const protocol = clientInfo?.protocol || 'v1';
+        if (protocol === 'v2') {
+            await this.sendInitialStateV2(ws, clientInfo);
+        } else {
+            await this.sendInitialStateV1(ws, clientInfo);
+        }
     }
 
-    private async sendInitialState(ws: WebSocket, clientInfo: any) {
+    private async sendInitialStateV1(ws: WebSocket, clientInfo: any) {
         for (const [topic, msg] of Object.entries(this.mqtt.retainedMessages as Record<string, any>)) {
             if (!topic.startsWith(`${this.mqttBaseTopic}/`)) continue;
             const shortTopic = topic.slice(this.mqttBaseTopic.length + 1);
@@ -896,6 +902,296 @@ class LightLynx {
         }
         ws.send(JSON.stringify({ topic: 'bridge/lightlynx/config', payload: await this.getPayloadForConfig() }));
         ws.send(JSON.stringify({ topic: 'bridge/lightlynx/sceneSet', payload: this.activeScenes }));
+    }
+
+    private async sendInitialStateV2(ws: WebSocket, clientInfo: any) {
+        const state = await this.buildStateV2(clientInfo);
+        ws.send(JSON.stringify({ 
+            type: 'state', 
+            data: { full: state } 
+        }));
+    }
+
+    private async buildStateV2(clientInfo: any) {
+        const state: any = {
+            lights: {},
+            groups: {},
+            scenes: {},
+            devices: {},
+            activeScenes: {},
+            config: {
+                permitJoin: false,
+                remoteAccess: this.config.remoteAccess,
+                automation: this.config.automation,
+                location: this.config.latitude && this.config.longitude ? {
+                    latitude: this.config.latitude,
+                    longitude: this.config.longitude
+                } : undefined,
+                addresses: {
+                    local: this.config.ssl?.localIp ? `${this.config.ssl.localIp}:${PORT}` : undefined,
+                    external: this.config.remoteAccess && this.config.ssl?.externalIp && this.config.externalPort 
+                        ? `${this.config.ssl.externalIp}:${this.config.externalPort}` 
+                        : undefined
+                }
+            }
+        };
+
+        // Read permitJoin from retained messages
+        const bridgeInfoTopic = `${this.mqttBaseTopic}/bridge/info`;
+        const bridgeInfo = this.mqtt.retainedMessages[bridgeInfoTopic];
+        if (bridgeInfo) {
+            try {
+                const info = JSON.parse(bridgeInfo.payload);
+                state.config.permitJoin = !!info.permit_join;
+            } catch {}
+        }
+
+        // Build lights from devices with light capabilities
+        for (const device of this.zigbee.devicesIterator((d: any) => d.type !== 'Coordinator')) {
+            const ieee = device.zh?.ieeeAddr;
+            if (!ieee) continue;
+
+            const deviceState = this.state.get(device) || {};
+            const definition = device.definition;
+            
+            // Check if this is a light device
+            const lightExpose = definition?.exposes?.find((e: any) => e.type === 'light' || e.type === 'switch');
+            
+            if (lightExpose) {
+                // Extract light capabilities
+                const features = lightExpose.features || [];
+                const brightnessFeat = features.find((f: any) => f.name === 'brightness');
+                const colorHsFeat = features.find((f: any) => f.name === 'color_hs');
+                const colorXyFeat = features.find((f: any) => f.name === 'color_xy');
+                const colorTempFeat = features.find((f: any) => f.name === 'color_temp');
+
+                state.lights[ieee] = {
+                    ieee,
+                    name: device.name,
+                    model: (definition?.description || device.modelID) + " (" + (definition?.vendor || device.manufacturerName) + ")",
+                    description: device.options?.description,
+                    state: {
+                        on: deviceState.state === 'ON',
+                        brightness: deviceState.brightness,
+                        color: deviceState.color_temp ? deviceState.color_temp :
+                               deviceState.color ? deviceState.color : undefined
+                    },
+                    caps: {
+                        brightness: brightnessFeat ? {
+                            valueMin: brightnessFeat.value_min || 0,
+                            valueMax: brightnessFeat.value_max || 255
+                        } : undefined,
+                        colorTemp: colorTempFeat ? {
+                            valueMin: colorTempFeat.value_min || 150,
+                            valueMax: colorTempFeat.value_max || 500
+                        } : undefined,
+                        colorHs: !!colorHsFeat,
+                        colorXy: !!colorXyFeat,
+                        supportsBrightness: !!brightnessFeat,
+                        supportsColor: !!(colorHsFeat || colorXyFeat),
+                        supportsColorTemp: !!colorTempFeat
+                    },
+                    meta: {
+                        online: deviceState.linkquality !== undefined,
+                        battery: deviceState.battery,
+                        linkquality: deviceState.linkquality,
+                        updateAvailable: deviceState.update?.state === 'available'
+                    }
+                };
+            } else {
+                // Non-light device
+                const actionExpose = definition?.exposes?.find((e: any) => e.name === 'action');
+                state.devices[ieee] = {
+                    ieee,
+                    name: device.name,
+                    model: (definition?.description || device.modelID) + " (" + (definition?.vendor || device.manufacturerName) + ")",
+                    description: device.options?.description,
+                    actions: actionExpose?.values,
+                    state: deviceState,
+                    meta: {
+                        online: deviceState.linkquality !== undefined,
+                        battery: deviceState.battery,
+                        linkquality: deviceState.linkquality
+                    }
+                };
+            }
+        }
+
+        // Build groups
+        for (const group of this.zigbee.groupsIterator()) {
+            const groupId = group.ID;
+            const members = (group.zh?.members || []).map((m: any) => m.deviceIeeeAddress);
+            const scenes: any = {};
+            
+            // Extract scenes from group members
+            for (const endpoint of group.zh?.members || []) {
+                const scenesData = endpoint.meta?.scenes || {};
+                for (const sceneKey in scenesData) {
+                    const [sceneIdStr, groupIdStr] = sceneKey.split('_');
+                    if (parseInt(groupIdStr!) !== groupId) continue;
+                    const sceneId = parseInt(sceneIdStr!);
+                    if (!scenes[sceneId]) {
+                        const sceneName = scenesData[sceneKey].name || `Scene ${sceneId}`;
+                        const suffix = sceneName.match(/ \((.*?)\)$/);
+                        scenes[sceneId] = {
+                            id: sceneId,
+                            name: sceneName,
+                            triggers: suffix ? this.parseSceneTriggers(suffix[1]) : undefined
+                        };
+                    }
+                }
+            }
+
+            // Compute aggregate state from members
+            const groupState = this.computeGroupState(members, state.lights);
+            
+            // Parse group metadata
+            const description = group.options?.description || '';
+            const timeoutMatch = description.match(/^lightlynx-timeout (\d+(?:\.\d+)?)([smhd])$/m);
+            let timeout: number | undefined;
+            if (timeoutMatch) {
+                const value = parseFloat(timeoutMatch[1]);
+                const unit = {s: 1, m: 60, h: 60*60, d: 24*60*60}[timeoutMatch[2] as 's' | 'm' | 'h' | 'd'];
+                if (unit && !isNaN(value)) timeout = value * unit * 1000;
+            }
+
+            // Extract linked devices (non-lights associated via description)
+            const linkedDevices: string[] = [];
+            for (const ieee in state.devices) {
+                const dev = state.devices[ieee];
+                const groupsMatch = dev.description?.match(/^lightlynx-groups (\d+(,\d+)*)$/m);
+                if (groupsMatch) {
+                    const groupIds = groupsMatch[1].split(',').map((s: string) => parseInt(s));
+                    if (groupIds.includes(groupId)) {
+                        linkedDevices.push(ieee);
+                    }
+                }
+            }
+
+            state.groups[groupId] = {
+                id: groupId,
+                name: group.name,
+                description,
+                members,
+                state: groupState.state,
+                caps: groupState.caps,
+                timeout,
+                linkedDevices
+            };
+
+            if (Object.keys(scenes).length > 0) {
+                state.scenes[groupId] = scenes;
+            }
+        }
+
+        // Add active scenes
+        for (const [groupName, sceneId] of Object.entries(this.activeScenes)) {
+            const group = Object.values(state.groups).find((g: any) => g.name === groupName);
+            if (group && sceneId !== undefined) {
+                state.activeScenes[group.id] = sceneId;
+            }
+        }
+
+        // Add users (admin only)
+        if (clientInfo.isAdmin) {
+            state.users = {};
+            for (const [username, user] of Object.entries(this.config.users)) {
+                state.users[username] = {
+                    isAdmin: user.isAdmin,
+                    allowedGroups: user.allowedGroups,
+                    allowRemote: user.allowRemote
+                };
+            }
+        }
+
+        return state;
+    }
+
+    private parseSceneTriggers(suffix: string): any[] {
+        const triggers: any[] = [];
+        for (const condition of suffix.split(',')) {
+            const m = condition.match(/^\s*([0-9a-z]+)(?: ([^)-]*?)-([^)-]*))?\s*$/);
+            if (!m) continue;
+            const [_, trigger, start, end] = m;
+            
+            if (trigger === 'sensor') {
+                triggers.push({ type: 'sensor' });
+            } else if (trigger === 'time' && start && end) {
+                triggers.push({ type: 'time', timeRange: { start, end } });
+            } else {
+                const clicks = parseInt(trigger!);
+                if (!isNaN(clicks)) {
+                    triggers.push({ type: 'click', clicks });
+                }
+            }
+        }
+        return triggers;
+    }
+
+    private computeGroupState(members: string[], lights: any): { state: any, caps: any } {
+        let groupState: any = { on: false };
+        let groupCaps: any = {
+            supportsBrightness: false,
+            supportsColor: false,
+            supportsColorTemp: false
+        };
+        let onCount = 0;
+
+        for (const ieee of members) {
+            const light = lights[ieee];
+            if (!light) continue;
+
+            // Merge capabilities
+            if (light.caps.supportsBrightness) groupCaps.supportsBrightness = true;
+            if (light.caps.supportsColor) groupCaps.supportsColor = true;
+            if (light.caps.supportsColorTemp) groupCaps.supportsColorTemp = true;
+            if (light.caps.brightness) {
+                if (!groupCaps.brightness) {
+                    groupCaps.brightness = { ...light.caps.brightness };
+                } else {
+                    groupCaps.brightness.valueMin = Math.min(groupCaps.brightness.valueMin, light.caps.brightness.valueMin);
+                    groupCaps.brightness.valueMax = Math.max(groupCaps.brightness.valueMax, light.caps.brightness.valueMax);
+                }
+            }
+            if (light.caps.colorTemp) {
+                if (!groupCaps.colorTemp) {
+                    groupCaps.colorTemp = { ...light.caps.colorTemp };
+                } else {
+                    groupCaps.colorTemp.valueMin = Math.min(groupCaps.colorTemp.valueMin, light.caps.colorTemp.valueMin);
+                    groupCaps.colorTemp.valueMax = Math.max(groupCaps.colorTemp.valueMax, light.caps.colorTemp.valueMax);
+                }
+            }
+            if (light.caps.colorHs) groupCaps.colorHs = true;
+            if (light.caps.colorXy) groupCaps.colorXy = true;
+
+            // Compute aggregate state
+            if (light.state.on) {
+                onCount++;
+                groupState.on = true;
+            }
+        }
+
+        // Average properties only from ON lights
+        if (onCount > 0) {
+            let totalBrightness = 0, brightCount = 0;
+            let totalColorTemp = 0, colorTempCount = 0;
+            for (const ieee of members) {
+                const light = lights[ieee];
+                if (!light || !light.state.on) continue;
+                if (light.state.brightness !== undefined) {
+                    totalBrightness += light.state.brightness;
+                    brightCount++;
+                }
+                if (typeof light.state.color === 'number') {
+                    totalColorTemp += light.state.color;
+                    colorTempCount++;
+                }
+            }
+            if (brightCount > 0) groupState.brightness = Math.round(totalBrightness / brightCount);
+            if (colorTempCount > 0) groupState.color = Math.round(totalColorTemp / colorTempCount);
+        }
+
+        return { state: groupState, caps: groupCaps };
     }
 
     private filterPayload(topic: string, payload: any) {
@@ -950,6 +1246,15 @@ class LightLynx {
         const clientInfo = this.clients.get(ws);
         if (!clientInfo) return;
 
+        const protocol = clientInfo.protocol || 'v1';
+        if (protocol === 'v2') {
+            this.onClientMessageV2(ws, clientInfo, data);
+        } else {
+            this.onClientMessageV1(ws, clientInfo, data);
+        }
+    }
+
+    private onClientMessageV1(ws: WebSocket, clientInfo: any, data: any) {
         let msg: any;
         try { msg = JSON.parse(data.toString()); } catch { return; }
         const { topic, payload } = msg;
@@ -960,6 +1265,300 @@ class LightLynx {
         }
 
         this.mqtt.onMessage(`${this.mqttBaseTopic}/${topic}`, Buffer.from(JSON.stringify(payload)));
+    }
+
+    private onClientMessageV2(ws: WebSocket, clientInfo: any, data: any) {
+        let msg: any;
+        try { msg = JSON.parse(data.toString()); } catch { return; }
+        
+        if (msg.type !== 'command') {
+            this.log('warning', `Invalid message type from ${clientInfo.username}: ${msg.type}`);
+            return;
+        }
+
+        const { id, cmd, args } = msg;
+        this.handleCommandV2(ws, clientInfo, id, cmd, args);
+    }
+
+    private async handleCommandV2(ws: WebSocket, clientInfo: any, id: string, cmd: string, args: any) {
+        try {
+            const [category, action] = cmd.split('.');
+            let result: any;
+
+            switch (category) {
+                case 'light':
+                    result = await this.handleLightCommandV2(clientInfo, action, args);
+                    break;
+                case 'group':
+                    result = await this.handleGroupCommandV2(clientInfo, action, args);
+                    break;
+                case 'scene':
+                    result = await this.handleSceneCommandV2(clientInfo, action, args);
+                    break;
+                case 'config':
+                    result = await this.handleConfigCommandV2(clientInfo, action, args);
+                    break;
+                case 'user':
+                    result = await this.handleUserCommandV2(clientInfo, action, args);
+                    break;
+                case 'device':
+                    result = await this.handleDeviceCommandV2(clientInfo, action, args);
+                    break;
+                default:
+                    throw new Error(`Unknown command category: ${category}`);
+            }
+
+            ws.send(JSON.stringify({ type: 'response', id, ok: true, data: result }));
+        } catch (error: any) {
+            this.log('error', `Command error for ${clientInfo.username}: ${error.message}`);
+            ws.send(JSON.stringify({ 
+                type: 'response', 
+                id, 
+                ok: false, 
+                error: error.message 
+            }));
+        }
+    }
+
+    private async handleLightCommandV2(clientInfo: any, action: string, args: any) {
+        if (action === 'set') {
+            const { ieee, state, transition } = args;
+            const device = this.findDeviceByIeee(ieee);
+            if (!device) throw new Error('Device not found');
+            
+            // Check permission
+            if (!clientInfo.isAdmin) {
+                const hasAccess = this.checkDeviceAccess(clientInfo, ieee);
+                if (!hasAccess) throw new Error('Permission denied');
+            }
+
+            const payload: any = {};
+            if (state.on !== undefined) payload.state = state.on ? 'ON' : 'OFF';
+            if (state.brightness !== undefined) payload.brightness = state.brightness;
+            if (state.color !== undefined) {
+                if (typeof state.color === 'number') {
+                    payload.color_temp = state.color;
+                } else if (state.color.hue !== undefined) {
+                    payload.color = { hue: state.color.hue, saturation: state.color.saturation * 100 };
+                } else if (state.color.x !== undefined) {
+                    payload.color = { x: state.color.x, y: state.color.y };
+                }
+            }
+            if (transition !== undefined) payload.transition = transition;
+
+            this.mqtt.onMessage(`${this.mqttBaseTopic}/${device.name}/set`, Buffer.from(JSON.stringify(payload)));
+            return undefined;
+        }
+        throw new Error(`Unknown light action: ${action}`);
+    }
+
+    private async handleGroupCommandV2(clientInfo: any, action: string, args: any) {
+        if (action === 'set') {
+            const { id, state, transition } = args;
+            const group = this.zigbee.resolveEntity(id);
+            if (!group) throw new Error('Group not found');
+            
+            // Check permission
+            if (!clientInfo.isAdmin && !clientInfo.allowedGroups?.includes(id)) {
+                throw new Error('Permission denied');
+            }
+
+            const payload: any = {};
+            if (state.on !== undefined) payload.state = state.on ? 'ON' : 'OFF';
+            if (state.brightness !== undefined) payload.brightness = state.brightness;
+            if (state.color !== undefined) {
+                if (typeof state.color === 'number') {
+                    payload.color_temp = state.color;
+                } else if (state.color.hue !== undefined) {
+                    payload.color = { hue: state.color.hue, saturation: state.color.saturation * 100 };
+                } else if (state.color.x !== undefined) {
+                    payload.color = { x: state.color.x, y: state.color.y };
+                }
+            }
+            if (transition !== undefined) payload.transition = transition;
+
+            this.mqtt.onMessage(`${this.mqttBaseTopic}/${group.name}/set`, Buffer.from(JSON.stringify(payload)));
+            return undefined;
+        }
+        throw new Error(`Unknown group action: ${action}`);
+    }
+
+    private async handleSceneCommandV2(clientInfo: any, action: string, args: any) {
+        if (action === 'recall') {
+            const { groupId, sceneId, transition } = args;
+            const group = this.zigbee.resolveEntity(groupId);
+            if (!group) throw new Error('Group not found');
+            
+            // Check permission
+            if (!clientInfo.isAdmin && !clientInfo.allowedGroups?.includes(groupId)) {
+                throw new Error('Permission denied');
+            }
+
+            const payload: any = { scene_recall: sceneId };
+            if (transition !== undefined) payload.transition = transition;
+
+            this.mqtt.onMessage(`${this.mqttBaseTopic}/${group.name}/set`, Buffer.from(JSON.stringify(payload)));
+            return undefined;
+        }
+        // TODO: Implement scene.store, scene.create, scene.update, scene.delete
+        throw new Error(`Scene action not implemented: ${action}`);
+    }
+
+    private async handleConfigCommandV2(clientInfo: any, action: string, args: any) {
+        if (!clientInfo.isAdmin) throw new Error('Admin permission required');
+
+        switch (action) {
+            case 'setRemoteAccess':
+                this.config.remoteAccess = !!args.enabled;
+                this.saveConfig();
+                await this.setupSSL();
+                this.broadcastConfigV2();
+                return undefined;
+            
+            case 'setAutomation':
+                const wasEnabled = this.config.automation;
+                this.config.automation = !!args.enabled;
+                this.saveConfig();
+                if (this.config.automation && !wasEnabled) {
+                    this.automation = new Automation(this.mqtt, this.zigbee, this.state, this.mqttBaseTopic, this.config);
+                    this.automation.start(this.eventBus);
+                } else if (!this.config.automation && wasEnabled && this.automation) {
+                    this.automation.stop(this.eventBus);
+                    this.automation = undefined;
+                }
+                this.broadcastConfigV2();
+                return undefined;
+            
+            case 'setLocation':
+                if (args.latitude !== undefined) this.config.latitude = args.latitude;
+                if (args.longitude !== undefined) this.config.longitude = args.longitude;
+                this.saveConfig();
+                this.broadcastConfigV2();
+                return undefined;
+            
+            case 'setPermitJoin':
+                // TODO: Implement permit join control
+                throw new Error('setPermitJoin not yet implemented');
+            
+            default:
+                throw new Error(`Unknown config action: ${action}`);
+        }
+    }
+
+    private async handleUserCommandV2(clientInfo: any, action: string, args: any) {
+        if (!clientInfo.isAdmin) throw new Error('Admin permission required');
+
+        switch (action) {
+            case 'add':
+                const { username, secret, isAdmin, allowedGroups, allowRemote } = args;
+                if (!username) throw new Error('Username required');
+                if (username === 'admin') throw new Error('Cannot add admin user');
+                if (this.config.users[username]) throw new Error('User already exists');
+                if (allowRemote && !secret) throw new Error('Cannot enable remote access without a password');
+                this.config.users[username] = { 
+                    secret: secret || '', 
+                    isAdmin: !!isAdmin, 
+                    allowedGroups: allowedGroups || [], 
+                    allowRemote: !!allowRemote 
+                };
+                this.saveConfig();
+                this.broadcastUsersV2();
+                return undefined;
+            
+            case 'update':
+                const updateUsername = args.username;
+                if (!updateUsername) throw new Error('Username required');
+                const user = this.config.users[updateUsername];
+                if (!user) throw new Error('User not found');
+                if (args.secret !== undefined) user.secret = args.secret;
+                if (args.isAdmin !== undefined) user.isAdmin = args.isAdmin;
+                if (args.allowedGroups !== undefined) user.allowedGroups = args.allowedGroups;
+                if (args.allowRemote !== undefined) {
+                    if (args.allowRemote && !user.secret) throw new Error('Cannot enable remote access without a password');
+                    user.allowRemote = args.allowRemote;
+                }
+                this.saveConfig();
+                this.broadcastUsersV2();
+                return undefined;
+            
+            case 'delete':
+                const deleteUsername = args.username;
+                if (!deleteUsername) throw new Error('Username required');
+                if (deleteUsername === 'admin') throw new Error('Cannot delete admin user');
+                if (!this.config.users[deleteUsername]) throw new Error('User not found');
+                delete this.config.users[deleteUsername];
+                this.saveConfig();
+                this.broadcastUsersV2();
+                return undefined;
+            
+            default:
+                throw new Error(`Unknown user action: ${action}`);
+        }
+    }
+
+    private async handleDeviceCommandV2(clientInfo: any, action: string, args: any) {
+        // TODO: Implement device.rename, device.linkGroups
+        throw new Error(`Device action not implemented: ${action}`);
+    }
+
+    private findDeviceByIeee(ieee: string): any {
+        for (const device of this.zigbee.devicesIterator()) {
+            if (device.zh?.ieeeAddr === ieee) return device;
+        }
+        return null;
+    }
+
+    private checkDeviceAccess(clientInfo: any, ieee: string): boolean {
+        if (clientInfo.isAdmin) return true;
+        for (const gid of clientInfo.allowedGroups || []) {
+            const g = this.zigbee.resolveEntity(gid) as any;
+            const members = g?.zh?.members;
+            if (members?.some((m: any) => m.deviceIeeeAddress === ieee)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private broadcastConfigV2() {
+        const payload = {
+            config: {
+                remoteAccess: this.config.remoteAccess,
+                automation: this.config.automation,
+                location: this.config.latitude && this.config.longitude ? {
+                    latitude: this.config.latitude,
+                    longitude: this.config.longitude
+                } : undefined,
+                addresses: {
+                    local: this.config.ssl?.localIp ? `${this.config.ssl.localIp}:${PORT}` : undefined,
+                    external: this.config.remoteAccess && this.config.ssl?.externalIp && this.config.externalPort 
+                        ? `${this.config.ssl.externalIp}:${this.config.externalPort}` 
+                        : undefined
+                }
+            }
+        };
+        this.broadcastV2({ type: 'state', data: payload });
+    }
+
+    private broadcastUsersV2() {
+        const users: any = {};
+        for (const [username, user] of Object.entries(this.config.users)) {
+            users[username] = {
+                isAdmin: user.isAdmin,
+                allowedGroups: user.allowedGroups,
+                allowRemote: user.allowRemote
+            };
+        }
+        this.broadcastV2({ type: 'state', data: { users } });
+    }
+
+    private broadcastV2(message: any) {
+        for (const [ws, clientInfo] of this.clients) {
+            if (ws.readyState !== WebSocket.OPEN) continue;
+            if (clientInfo.protocol === 'v2') {
+                ws.send(JSON.stringify(message));
+            }
+        }
     }
 
     private checkPermission(clientInfo: any, topic: string, _payload: any) {
