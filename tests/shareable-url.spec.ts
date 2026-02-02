@@ -35,7 +35,7 @@ test.describe('Shareable Connection URL', () => {
     
     // Should show a toast (either success "URL copied" or error "Failed to copy URL")
     // The toast div has class "info" or "error" depending on success/failure
-    const toast = page.locator('div.info, div.error', { hasText: /URL|copied|clipboard/i });
+    const toast = page.locator('div.info, div.error', { hasText: /URL/i });
     await expect(toast).toBeVisible({ timeout: 3000 });
     
     console.log('Copy URL link works and shows toast!');

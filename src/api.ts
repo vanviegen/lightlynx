@@ -1,4 +1,5 @@
 import { $, proxy, clone, copy, unproxy, peek } from "aberdeen";
+import { applyPrediction, applyCanon } from "aberdeen/prediction";
 import * as route from "aberdeen/route";
 import * as colors from "./colors";
 import { LightState, XYColor, HSColor, ColorValue, isHS, isXY, Store, LightCaps, Device, Group } from "./types";
@@ -469,6 +470,32 @@ class Api {
         }
     }
 
+    // ==================== Light State Management ====================
+    //
+    // Light state flows through three stages:
+    //
+    // 1. USER INPUT (setLightState)
+    //    - User changes light state via UI
+    //    - Immediately applies optimistic update via applyPrediction()
+    //    - Queues delta for transmission (rate-limited to 3/sec per device)
+    //    - Sets 3s timeout to revert prediction if server doesn't respond
+    //
+    // 2. TRANSMISSION (flushLightStateQueue)
+    //    - Sends queued deltas to Z2M at most 3 times per second
+    //    - Rate limiting prevents overwhelming slow Zigbee devices
+    //
+    // 3. SERVER RESPONSE (applyServerLightState)
+    //    - Receives authoritative state from Z2M
+    //    - Applies via applyCanon() which auto-reverts stale predictions
+    //    - If server confirms our change: no visible UI change
+    //    - If server rejected (permission denied): UI reverts to actual state
+    //
+    // ================================================================
+
+    /**
+     * Request a light state change from user input.
+     * Applies optimistic update immediately, then queues for server transmission.
+     */
     setLightState(target: string | number, lightState: LightState) {
         console.log('api/setLightState', target, lightState);
 
@@ -476,10 +503,10 @@ class Api {
             const group = this.store.groups[target];
             if (!group) return;
             if (lightState.on != null && Object.keys(lightState).length === 1) {
-                // Just an on/off toggle, emit it to the group
+                // Just an on/off toggle, emit it to the group directly
                 this.send(group.name, "set", createLightStateDelta({}, lightState));
             } else {
-                // Other params changing. We'll customize this per member, creating a state prediction
+                // Other params changing - customize per member for accurate predictions
                 for (let ieee of this.store.groups[target]?.members || []) {
                     this.setLightState(ieee, lightState);
                 }
@@ -497,75 +524,104 @@ class Api {
         const delta = createLightStateDelta(dev.lightState || {}, lightState);
         
         if (!objectIsEmpty(delta)) {
-            console.log('merge', dev.lightState, lightState);
-            if (dev.lightState) copy(dev.lightState, lightState);
-            else dev.lightState = lightState;
+            // Optimistic update: show change immediately, revert if server disagrees
+            const patch = applyPrediction(() => {
+                console.log('api/applyPrediction', target, lightState);
+                if (dev.lightState) copy(dev.lightState, lightState);
+                else dev.lightState = lightState;
+            });
             
-            let held = this.heldLightDeltas.get(target);
-            if (held != null) {
-                copy(held, delta);
-            } else {
-                this.heldLightDeltas.set(target, delta);
-                this.heldLightTimeouts.set(target, setTimeout(() => this.transmitHeldLightDelta(target), 0));
-            }
+            // Revert prediction after 3s. (Usually, the prediction will be dropped earlier if the server responds with new values.)
+            setTimeout(() => applyCanon(undefined, [patch]), 3000);
+            
+            // Queue for rate-limited transmission
+            this.queueLightStateDelta(target, delta);
         }
     }
 
-    // Used to send at most 3 updates per second to zigbee2mqtt
-    private heldLightDeltas: Map<string, LightStateDelta> = new Map();
-    private heldLightTimeouts: Map<string, ReturnType<typeof setTimeout>> = new Map();
+    /** Pending deltas waiting to be sent, keyed by device ieee */
+    private pendingLightDeltas: Map<string, LightStateDelta> = new Map();
+    /** Timers for rate-limited transmission, keyed by device ieee */
+    private lightDeltaTimers: Map<string, ReturnType<typeof setTimeout>> = new Map();
 
-    // Used to delay updates from zigbee2mqtt shortly after we've asked it to update state
-    private echoTimeouts: Map<string, ReturnType<typeof setTimeout>> = new Map();
-    private echoLightStates: Map<string, LightState> = new Map();
+    /** Queue a delta for rate-limited transmission to Z2M */
+    private queueLightStateDelta(ieee: string, delta: LightStateDelta) {
+        let pending = this.pendingLightDeltas.get(ieee);
+        if (pending != null) {
+            // Already have a pending delta - merge this one into it
+            copy(pending, delta);
+        } else {
+            // Start new queue and schedule immediate flush
+            this.pendingLightDeltas.set(ieee, delta);
+            this.lightDeltaTimers.set(ieee, setTimeout(() => this.flushLightStateQueue(ieee), 0));
+        }
+    }
 
-    private handleLightState(ieee: string, payload: any) {
-        let lightState : LightState = {
+    /** Send queued delta to Z2M and schedule next flush if more changes arrive */
+    private flushLightStateQueue(ieee: string) {
+        let delta = this.pendingLightDeltas.get(ieee);
+        if (delta && !objectIsEmpty(delta)) {
+            console.log('api/flushLightStateQueue', ieee, delta);
+            delta.transition = 0.333;
+            this.send(ieee, "set", delta);
+
+            // Reset queue and schedule next flush in 333ms (max 3/sec)
+            this.pendingLightDeltas.set(ieee, {});
+            this.lightDeltaTimers.set(ieee, setTimeout(() => this.flushLightStateQueue(ieee), 333));
+        } else {
+            // Queue empty - clean up
+            this.pendingLightDeltas.delete(ieee);
+            this.lightDeltaTimers.delete(ieee);
+        }
+    }
+
+    /**
+     * Apply authoritative light state from Z2M server.
+     * Auto-reverts any conflicting predictions from optimistic updates.
+     */
+    private applyServerLightState(ieee: string, payload: any) {
+        let lightState: LightState = {
             on: payload.state === 'ON',
             brightness: payload.brightness,
             color: undefined,
         };
         if (payload.color_mode === 'color_temp') {
             lightState.color = payload.color_temp;
-        }
-        else if (payload.color?.hue) {
-            lightState.color = { hue: payload.color.hue, saturation: payload.color.saturation/100 };
-        }
-        else if (payload.color?.x) {
-            lightState.color = payload.color
+        } else if (payload.color?.hue) {
+            lightState.color = { hue: payload.color.hue, saturation: payload.color.saturation / 100 };
+        } else if (payload.color?.x) {
+            lightState.color = payload.color;
         }
 
-        // console.log("api/handleLightState", ieee, lightState);
-        if (this.echoTimeouts.get(ieee)) {
-            this.echoLightStates.set(ieee, lightState);
-        }
-        else {
+        applyCanon(() => {
             const dev = this.store.devices[ieee];
             if (dev) {
                 dev.lightState ||= {};
                 copy(dev.lightState, lightState);
             }
-        }
+        });
     }
 
+    /**
+     * Compute aggregate light state/caps for a group from its member devices.
+     * Sets up reactive subscription so group state updates when members change.
+     */
     private streamGroupState(groupId: number) {
         $(() => {
-            // In case a group disappeared, this will cause the observe to end without
-            // observing anything anymore.
             if (!unproxy(this.store).groups[groupId]) return;
             const group = this.store.groups[groupId]!;
+            const members = group.members || [];
 
-            let members = group.members || [];
-
+            // Start with first member's state/caps as base
             let groupState: LightState = {};
             let groupCaps: LightCaps = {};
             if (members.length) {
-                let ieee = members[0]!;
+                const ieee = members[0]!;
                 groupState = clone(this.store.devices[ieee]?.lightState || {});
                 groupCaps = clone(this.store.devices[ieee]?.lightCaps || {});
             }
 
-            for(let memberIndex=1; memberIndex<members.length; memberIndex++) {
+            for(let memberIndex = 1; memberIndex < members.length; memberIndex++) {
                 let ieee = members[memberIndex]!;
 
                 for(const [name,obj] of Object.entries(this.store.devices[ieee]?.lightCaps||{}) as [keyof LightCaps, any][]) {
@@ -615,32 +671,7 @@ class Api {
         });
     }
 
-    private transmitHeldLightDelta(ieee: string) {
-        let delta = this.heldLightDeltas.get(ieee);
-        if (delta && !objectIsEmpty(delta)) {
-            console.log('api/transmitHeldLightDelta', ieee, 'to', delta);
-            delta.transition = 0.333;
-            this.send(ieee, "set", delta);
-
-            this.heldLightDeltas.set(ieee, {});
-            this.heldLightTimeouts.set(ieee, setTimeout(() => this.transmitHeldLightDelta(ieee), 333));
-
-            console.log('api/pause echos', ieee);
-            clearTimeout(this.echoTimeouts.get(ieee));
-            this.echoTimeouts.set(ieee, setTimeout(() => {
-                console.log('api/unpause echos', ieee);
-                this.echoTimeouts.delete(ieee);
-                const echoState = this.echoLightStates.get(ieee);
-                const dev = this.store.devices[ieee];
-                if (dev?.lightState && echoState) {
-                    copy(dev.lightState, echoState);
-                }
-            }, 1500));
-        } else {
-            this.heldLightDeltas.delete(ieee);
-            this.heldLightTimeouts.delete(ieee);
-        }
-    }
+    // ==================== Public API Methods ====================
 
     setRemoteAccess(enabled: boolean): Promise<void> {
         return this.send('bridge/request/lightlynx/config/setRemoteAccess', { enabled });
@@ -874,7 +905,7 @@ class Api {
                     }
                 
                     if (payload.state) {
-                        this.handleLightState(ieee, payload)
+                        this.applyServerLightState(ieee, payload)
                     } else {
                         dev.otherState = payload;
                     }

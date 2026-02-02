@@ -192,4 +192,50 @@ test.describe('User Permissions', () => {
       await expect(circle).toHaveClass(/on/);
     }
   });
+
+  test('should revert optimistic update when permission denied', async ({ page }) => {
+    // Set up as admin and create a limited user with access only to Kitchen (group 2)
+    await connectToMockServer(page, { admin: true });
+    
+    await page.getByRole('heading', { name: 'Users' }).getByRole('img', { name: 'create' }).click();
+    await page.locator('input[placeholder="Username"]').fill('reverttest');
+    await page.locator('input[type="password"]').fill('revertpass');
+    
+    // Give permission to Kitchen group only (NOT Living Room)
+    await page.locator('label:has-text("Kitchen") input[type="checkbox"]').check();
+    
+    await page.getByRole('button', { name: 'Save' }).click();
+    
+    // Get password hash and reconnect as limited user
+    const hashedPassword = await hashPassword(page, 'revertpass');
+    
+    // Connect as limited user
+    await connectToMockServer(page, { username: 'reverttest', password: hashedPassword, admin: false });
+    
+    // Wait for devices to load by checking for groups on the main page
+    await expect(page.locator('.item.group').first()).toBeVisible({ timeout: 5000 });
+    
+    // Navigate directly to bulb 0x001 which is only in Living Room (no permission)
+    await page.goto('/bulb/0x001');
+    
+    // Now we should be on the bulb page
+    const circle = page.locator('.circle').first();
+    await expect(circle).toBeVisible({ timeout: 10000 });
+    const initiallyOn = await circle.evaluate(el => el.classList.contains('on'));
+    
+    // Click to toggle - this should trigger optimistic update
+    await circle.click();
+    
+    // The optimistic update should briefly show the toggled state
+    // But since permission is denied, the prediction should timeout and revert
+    // after 3 seconds (the client-side prediction timeout)
+    
+    // Verify the state reverted back to original (permission was denied)
+    // Use a longer timeout to account for the 3s prediction timeout
+    if (initiallyOn) {
+      await expect(circle).toHaveClass(/on/, { timeout: 5000 });
+    } else {
+      await expect(circle).not.toHaveClass(/on/, { timeout: 5000 });
+    }
+  });
 });

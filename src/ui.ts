@@ -61,7 +61,7 @@ export async function copyToClipboard(text: string, label: string = 'Text'): Pro
         await navigator.clipboard.writeText(text);
         createToast('info', `${label} copied to clipboard`);
     } catch (e: any) {
-        createToast('error', `Failed to copy: ${text}`);
+        createToast('error', `${label} failed to copy: ${text}`);
     }
 }
 

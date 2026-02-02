@@ -1,7 +1,7 @@
 import { $, proxy, unproxy, onEach } from 'aberdeen';
 import api from '../api';
 import * as icons from '../icons';
-import { drawColorPicker } from '../components/color-picker';
+import { drawColorPicker, drawBulbCircle } from '../components/color-picker';
 import { routeState, admin, lazySave } from '../ui';
 import { askConfirm } from '../components/prompt';
 import { deviceGroups } from '../app';
@@ -17,7 +17,12 @@ export function drawBulbPage(ieee: string): void {
         routeState.title = device.name;
     });
     routeState.subTitle = 'bulb';
-    $("div.empty#", device.model);
+    
+    // Device info with toggle circle
+    $('div.list div.item', () => {
+        drawBulbCircle(device, ieee);
+        $('span#', device.model);
+    });
     
     drawColorPicker(device, ieee);
 
