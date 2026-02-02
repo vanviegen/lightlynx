@@ -127,7 +127,7 @@ function drawLocationSetting(): void {
 			click: (e: Event) => {
 				e.preventDefault();
 				if (!navigator.geolocation) {
-					createToast('error', 'Geolocation not supported');
+					createToast('error', 'Geolocation not supported', 'location');
 					return;
 				}
 				navigator.geolocation.getCurrentPosition(
@@ -135,10 +135,10 @@ function drawLocationSetting(): void {
 						const lat = Math.round(position.coords.latitude * 100) / 100;
 						const lon = Math.round(position.coords.longitude * 100) / 100;
 						await api.setLocation(lat, lon);
-						createToast('info', `Location set to ${lat}, ${lon}`);
+						createToast('info', `Location set to ${lat}, ${lon}`, 'location');
 					},
 					(error) => {
-						createToast('error', `Location error: ${error.message}`);
+						createToast('error', `Location error: ${error.message}`, 'location');
 					},
 					{ enableHighAccuracy: false, timeout: 10000 }
 				);
@@ -249,10 +249,10 @@ function drawRemoteAccessToggle(): void {
 				try {
 					await api.setRemoteAccess(checked);
 					if (checked) {
-						createToast('info', "Remote access enabled!");
+						createToast('info', "Remote access enabled!", 'remote-access');
 					}
 				} catch (e: any) {
-					createToast('error', "Failed to toggle remote access: " + e.message);
+					createToast('error', "Failed to toggle remote access: " + e.message, 'remote-access');
 				} finally {
 					remoteBusy.value = false;
 				}

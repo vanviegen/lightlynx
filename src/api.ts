@@ -160,11 +160,11 @@ class Api {
         allowedGroupIds: {},
     });
     groupDescriptionsCache: Record<string, string | undefined> = {};
-    notifyHandlers: Array<(type: 'error' | 'info' | 'warning', msg: string) => void> = [];
+    notifyHandlers: Array<(type: 'error' | 'info' | 'warning', msg: string, channel?: string) => void> = [];
     
     notify = (type: 'error' | 'info' | 'warning', msg: string): void => {
         for (const handler of this.notifyHandlers) {
-            handler(type, msg);
+            handler(type, msg, 'api');
         }
     };
     
@@ -423,6 +423,9 @@ class Api {
 
     public async upgradeExtension(): Promise<void> {
         try {
+            // Show "updating" toast on extension channel
+            this.notify('info', 'Updating extension...');
+            
             const response = await fetch(`/extension.js`);
             if (!response.ok) throw new Error(`HTTP ${response.status}`);
             const code = await response.text();

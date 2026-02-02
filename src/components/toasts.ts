@@ -6,10 +6,19 @@ const TOAST_TIME = 7;
 const toasts = proxy({} as Record<number,Toast>);
 let toastCount = 0;
 
-export function createToast(type: 'error' | 'info' | 'warning', message: string): void {
+export function createToast(type: 'error' | 'info' | 'warning', message: string, channel?: string): void {
+    // If channel specified, remove any existing toast on that channel
+    if (channel) {
+        for (const [index, toast] of Object.entries(toasts)) {
+            if (toast.channel === channel) {
+                delete toasts[parseInt(index)];
+            }
+        }
+    }
+    
     const id = Math.random();
     const index = toastCount++;
-    toasts[index] = { id, type, message };
+    toasts[index] = { id, type, message, channel };
     setTimeout(() => {
         delete toasts[index];
     }, TOAST_TIME * 1000);
@@ -38,6 +47,7 @@ export interface Toast {
     id: number;
     type: 'error' | 'info' | 'warning';
     message: string;
+    channel?: string;
 }
 
 export function drawToasts(): void {

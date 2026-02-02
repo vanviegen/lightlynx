@@ -59,9 +59,9 @@ export function lazySave(getState: () => void | (() => void), delay: number = 10
 export async function copyToClipboard(text: string, label: string = 'Text'): Promise<void> {
     try {
         await navigator.clipboard.writeText(text);
-        createToast('info', `${label} copied to clipboard`);
+        createToast('info', `${label} copied to clipboard`, 'clipboard');
     } catch (e: any) {
-        createToast('error', `${label} failed to copy: ${text}`);
+        createToast('error', `${label} failed to copy: ${text}`, 'clipboard');
     }
 }
 
