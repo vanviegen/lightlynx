@@ -2,6 +2,7 @@ node_modules
 build.*
 _webcentral_data
 tmp
+tmp-*
 .env
 tests-out
 .mock-lock.json

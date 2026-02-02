@@ -13,9 +13,6 @@ const __dirname = path.dirname(__filename);
 const MOCK_Z2M_PORT = parseInt(process.env.MOCK_Z2M_PORT || '43598', 10);
 const MOCK_Z2M_INSECURE = process.env.MOCK_Z2M_INSECURE === 'true';
 
-// Get extension paths from command line arguments (everything after the script name)
-const extensionPaths = process.argv.slice(2);
-
 // Set up global for extension to read
 (globalThis as any).MOCK_Z2M = {
     httpsPort: MOCK_Z2M_PORT,

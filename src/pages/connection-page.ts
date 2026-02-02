@@ -1,4 +1,4 @@
-import { $, proxy, peek, derive, onEach } from 'aberdeen';
+import { $, proxy, peek, derive, onEach, insertCss } from 'aberdeen';
 import * as route from 'aberdeen/route';
 import api from '../api';
 import { ServerCredentials } from '../types';
@@ -6,6 +6,14 @@ import { routeState, hashSecret, copyToClipboard } from '../ui';
 import { askConfirm } from '../components/prompt';
 import { errorMessageStyle } from '../global-style';
 import { isEqual } from '../utils';
+
+const setupInstructionsStyle = insertCss({
+    '&': 'bg:$surface r:8px p:$3 mb:$3 line-height:1.6',
+    'h3': 'mt:0 mb:$2 fg:$primary font-size:1rem',
+    'ol': 'pl:1.5em m:0 fg:$textLight',
+    'li': 'mb:$2',
+    'code': 'bg:$surfaceLight p: 2px 6px; r:4px font-size:0.9em'
+});
 
 export function drawConnectionPage(): void {
     routeState.title = 'Z2M Connection'
@@ -28,6 +36,28 @@ export function drawConnectionPage(): void {
             selectedIndex.value = api.store.servers.length;
         }
     })
+
+    // Show setup instructions for first-time users
+    $(() => {
+        if (api.store.servers.length === 0) {
+            $('div', setupInstructionsStyle, () => {
+                $('h3#First time? Install the extension:');
+                $('ol', () => {
+                    $('li', () => {
+                        $('#Download ');
+                        $('a href=/extension.js download=lightlynx.js #lightlynx.js');
+                    });
+                    $('li', () => {
+                        $('#Copy it to your Zigbee2MQTT ');
+                        $('code#data/extension');
+                        $('#folder');
+                    });
+                    $('li#Restart Zigbee2MQTT');
+                    $('li#Enter your server address below');
+                });
+            });
+        }
+    });
 
     $('h1#Select a connection');
     $('div m:$3 div.list', () => {
