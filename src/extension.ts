@@ -1525,6 +1525,261 @@ class LightLynx {
         return null;
     }
 
+    private broadcastDevicesDelta() {
+        // Rebuild light and device data from current Zigbee state
+        const lights: any = {};
+        const devices: any = {};
+        
+        for (const device of this.zigbee.devicesIterator((d: any) => d.type !== 'Coordinator')) {
+            const ieee = device.zh?.ieeeAddr;
+            if (!ieee) continue;
+            
+            const deviceState = this.state.get(device) || {};
+            const definition = device.definition;
+            const lightExpose = definition?.exposes?.find((e: any) => e.type === 'light' || e.type === 'switch');
+            
+            if (lightExpose) {
+                const features = lightExpose.features || [];
+                const brightnessFeat = features.find((f: any) => f.name === 'brightness');
+                const colorHsFeat = features.find((f: any) => f.name === 'color_hs');
+                const colorXyFeat = features.find((f: any) => f.name === 'color_xy');
+                const colorTempFeat = features.find((f: any) => f.name === 'color_temp');
+                
+                lights[ieee] = {
+                    ieee,
+                    name: device.name,
+                    model: (definition?.description || device.modelID) + " (" + (definition?.vendor || device.manufacturerName) + ")",
+                    description: device.options?.description,
+                    state: {
+                        on: deviceState.state === 'ON',
+                        brightness: deviceState.brightness,
+                        color: deviceState.color_temp ? deviceState.color_temp :
+                               deviceState.color ? deviceState.color : undefined
+                    },
+                    caps: {
+                        brightness: brightnessFeat ? {
+                            valueMin: brightnessFeat.value_min || 0,
+                            valueMax: brightnessFeat.value_max || 255
+                        } : undefined,
+                        colorTemp: colorTempFeat ? {
+                            valueMin: colorTempFeat.value_min || 150,
+                            valueMax: colorTempFeat.value_max || 500
+                        } : undefined,
+                        colorHs: !!colorHsFeat,
+                        colorXy: !!colorXyFeat,
+                        supportsBrightness: !!brightnessFeat,
+                        supportsColor: !!(colorHsFeat || colorXyFeat),
+                        supportsColorTemp: !!colorTempFeat
+                    },
+                    meta: {
+                        online: deviceState.linkquality !== undefined,
+                        battery: deviceState.battery,
+                        linkquality: deviceState.linkquality,
+                        updateAvailable: deviceState.update?.state === 'available'
+                    }
+                };
+            } else {
+                const actionExpose = definition?.exposes?.find((e: any) => e.name === 'action');
+                devices[ieee] = {
+                    ieee,
+                    name: device.name,
+                    model: (definition?.description || device.modelID) + " (" + (definition?.vendor || device.manufacturerName) + ")",
+                    description: device.options?.description,
+                    actions: actionExpose?.values,
+                    state: deviceState,
+                    meta: {
+                        online: deviceState.linkquality !== undefined,
+                        battery: deviceState.battery,
+                        linkquality: deviceState.linkquality
+                    }
+                };
+            }
+        }
+        
+        this.broadcast({ type: 'state', data: { lights, devices } });
+    }
+
+    private broadcastGroupsDelta() {
+        const groups: any = {};
+        const scenes: any = {};
+        
+        // Rebuild all lights for group state computation
+        const lights: any = {};
+        for (const device of this.zigbee.devicesIterator((d: any) => d.type !== 'Coordinator')) {
+            const ieee = device.zh?.ieeeAddr;
+            if (!ieee) continue;
+            
+            const deviceState = this.state.get(device) || {};
+            const definition = device.definition;
+            const lightExpose = definition?.exposes?.find((e: any) => e.type === 'light' || e.type === 'switch');
+            
+            if (lightExpose) {
+                const features = lightExpose.features || [];
+                const brightnessFeat = features.find((f: any) => f.name === 'brightness');
+                const colorHsFeat = features.find((f: any) => f.name === 'color_hs');
+                const colorXyFeat = features.find((f: any) => f.name === 'color_xy');
+                const colorTempFeat = features.find((f: any) => f.name === 'color_temp');
+                
+                lights[ieee] = {
+                    state: {
+                        on: deviceState.state === 'ON',
+                        brightness: deviceState.brightness,
+                        color: deviceState.color_temp ? deviceState.color_temp :
+                               deviceState.color ? deviceState.color : undefined
+                    },
+                    caps: {
+                        brightness: brightnessFeat ? {
+                            valueMin: brightnessFeat.value_min || 0,
+                            valueMax: brightnessFeat.value_max || 255
+                        } : undefined,
+                        colorTemp: colorTempFeat ? {
+                            valueMin: colorTempFeat.value_min || 150,
+                            valueMax: colorTempFeat.value_max || 500
+                        } : undefined,
+                        colorHs: !!colorHsFeat,
+                        colorXy: !!colorXyFeat,
+                        supportsBrightness: !!brightnessFeat,
+                        supportsColor: !!(colorHsFeat || colorXyFeat),
+                        supportsColorTemp: !!colorTempFeat
+                    }
+                };
+            }
+        }
+        
+        // Get all devices for linkedDevices lookup
+        const allDevices: any = {};
+        for (const device of this.zigbee.devicesIterator((d: any) => d.type !== 'Coordinator')) {
+            const ieee = device.zh?.ieeeAddr;
+            if (!ieee) continue;
+            allDevices[ieee] = {
+                description: device.options?.description
+            };
+        }
+        
+        for (const group of this.zigbee.groupsIterator()) {
+            const groupId = group.ID;
+            const members = (group.zh?.members || []).map((m: any) => m.deviceIeeeAddress);
+            const groupScenes: any = {};
+            
+            for (const endpoint of group.zh?.members || []) {
+                const scenesData = endpoint.meta?.scenes || {};
+                for (const sceneKey in scenesData) {
+                    const [sceneIdStr, groupIdStr] = sceneKey.split('_');
+                    if (parseInt(groupIdStr!) !== groupId) continue;
+                    const sceneId = parseInt(sceneIdStr!);
+                    if (!groupScenes[sceneId]) {
+                        const sceneName = scenesData[sceneKey].name || `Scene ${sceneId}`;
+                        const suffix = sceneName.match(/ \((.*?)\)$/);
+                        groupScenes[sceneId] = {
+                            id: sceneId,
+                            name: sceneName,
+                            triggers: suffix ? this.parseSceneTriggers(suffix[1]) : undefined
+                        };
+                    }
+                }
+            }
+            
+            const groupState = this.computeGroupState(members, lights);
+            const description = group.options?.description || '';
+            const timeoutMatch = description.match(/^lightlynx-timeout (\d+(?:\.\d+)?)([smhd])$/m);
+            let timeout: number | undefined;
+            if (timeoutMatch) {
+                const value = parseFloat(timeoutMatch[1]);
+                const unit = {s: 1, m: 60, h: 60*60, d: 24*60*60}[timeoutMatch[2] as 's' | 'm' | 'h' | 'd'];
+                if (unit && !isNaN(value)) timeout = value * unit * 1000;
+            }
+            
+            const linkedDevices: string[] = [];
+            for (const ieee in allDevices) {
+                const dev = allDevices[ieee];
+                const groupsMatch = dev.description?.match(/^lightlynx-groups (\d+(,\d+)*)$/m);
+                if (groupsMatch) {
+                    const groupIds = groupsMatch[1].split(',').map((s: string) => parseInt(s));
+                    if (groupIds.includes(groupId)) {
+                        linkedDevices.push(ieee);
+                    }
+                }
+            }
+            
+            groups[groupId] = {
+                id: groupId,
+                name: group.name,
+                description,
+                members,
+                state: groupState.state,
+                caps: groupState.caps,
+                timeout,
+                linkedDevices
+            };
+            
+            if (Object.keys(groupScenes).length > 0) {
+                scenes[groupId] = groupScenes;
+            }
+        }
+        
+        this.broadcast({ type: 'state', data: { groups, scenes } });
+    }
+
+    private broadcastAffectedGroupStates(ieee: string) {
+        // Find all groups containing this device
+        const affectedGroups: any = {};
+        
+        // Build current lights map for group state computation
+        const lights: any = {};
+        for (const device of this.zigbee.devicesIterator((d: any) => d.type !== 'Coordinator')) {
+            const deviceIeee = device.zh?.ieeeAddr;
+            if (!deviceIeee) continue;
+            
+            const deviceState = this.state.get(device) || {};
+            const definition = device.definition;
+            const lightExpose = definition?.exposes?.find((e: any) => e.type === 'light' || e.type === 'switch');
+            
+            if (lightExpose) {
+                const features = lightExpose.features || [];
+                const brightnessFeat = features.find((f: any) => f.name === 'brightness');
+                const colorHsFeat = features.find((f: any) => f.name === 'color_hs');
+                const colorXyFeat = features.find((f: any) => f.name === 'color_xy');
+                const colorTempFeat = features.find((f: any) => f.name === 'color_temp');
+                
+                lights[deviceIeee] = {
+                    state: {
+                        on: deviceState.state === 'ON',
+                        brightness: deviceState.brightness,
+                        color: deviceState.color_temp ? deviceState.color_temp :
+                               deviceState.color ? deviceState.color : undefined
+                    },
+                    caps: {
+                        brightness: brightnessFeat ? {
+                            valueMin: brightnessFeat.value_min || 0,
+                            valueMax: brightnessFeat.value_max || 255
+                        } : undefined,
+                        colorTemp: colorTempFeat ? {
+                            valueMin: colorTempFeat.value_min || 150,
+                            valueMax: colorTempFeat.value_max || 500
+                        } : undefined,
+                        colorHs: !!colorHsFeat,
+                        colorXy: !!colorXyFeat,
+                        supportsBrightness: !!brightnessFeat,
+                        supportsColor: !!(colorHsFeat || colorXyFeat),
+                        supportsColorTemp: !!colorTempFeat
+                    }
+                };
+            }
+        }
+        
+        for (const group of this.zigbee.groupsIterator()) {
+            const members = (group.zh?.members || []).map((m: any) => m.deviceIeeeAddress);
+            if (members.includes(ieee)) {
+                const groupState = this.computeGroupState(members, lights);
+                affectedGroups[group.ID] = { state: groupState.state };
+            }
+        }
+        
+        if (Object.keys(affectedGroups).length > 0) {
+            this.broadcast({ type: 'state', data: { groups: affectedGroups } });
+        }
+    }
+
     private handleSceneTracking(data: any) {
         if (!data.topic.startsWith(`${this.mqttBaseTopic}/`)) return;
         const parts = data.topic.slice(this.mqttBaseTopic.length + 1).split('/');
@@ -1564,14 +1819,77 @@ class LightLynx {
     }
 
     private onMQTTPublish(data: any) {
-        // This handler is registered with the event bus but state updates
-        // are now handled through buildState and specific broadcast methods
         if (data.options.meta?.isEntityState || !data.topic.startsWith(`${this.mqttBaseTopic}/`)) return;
+        
+        const topic = data.topic.slice(this.mqttBaseTopic.length + 1);
+        
+        // Handle bridge/devices changes
+        if (topic === 'bridge/devices') {
+            this.broadcastDevicesDelta();
+            return;
+        }
+        
+        // Handle bridge/groups changes
+        if (topic === 'bridge/groups') {
+            this.broadcastGroupsDelta();
+            return;
+        }
+        
+        // Handle bridge/info changes (permitJoin)
+        if (topic === 'bridge/info') {
+            try {
+                const info = JSON.parse(data.payload.toString());
+                if ('permit_join' in info) {
+                    this.broadcast({ 
+                        type: 'state', 
+                        data: { config: { permitJoin: !!info.permit_join } } 
+                    });
+                }
+            } catch {}
+            return;
+        }
     }
 
     private onEntityState(data: any) {
-        // This handler is registered with the event bus but state updates
-        // are now handled through buildState and specific broadcast methods
+        const ieee = data.entity?.device?.zh?.ieeeAddr;
+        if (!ieee) return;
+        
+        const device = data.entity.device;
+        const definition = device.definition;
+        const deviceState = data.state || {};
+        
+        // Check if this is a light device
+        const lightExpose = definition?.exposes?.find((e: any) => e.type === 'light' || e.type === 'switch');
+        
+        if (lightExpose) {
+            // Build light state delta
+            const lightState: any = {
+                on: deviceState.state === 'ON',
+                brightness: deviceState.brightness,
+                color: deviceState.color_temp ? deviceState.color_temp :
+                       deviceState.color ? deviceState.color : undefined
+            };
+            
+            const delta = {
+                lights: {
+                    [ieee]: { state: lightState }
+                }
+            };
+            
+            this.broadcast({ type: 'state', data: delta });
+            
+            // Recompute and broadcast affected group states
+            this.broadcastAffectedGroupStates(ieee);
+        } else {
+            // Non-light device state update
+            const delta = {
+                devices: {
+                    [ieee]: { state: deviceState }
+                }
+            };
+            
+            this.broadcast({ type: 'state', data: delta });
+        }
     }
 
     private async onMQTTRequest(data: any) {
