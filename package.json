@@ -21,7 +21,7 @@
   "author": "Frank van Viegen",
   "license": "All rights reserved",
   "dependencies": {
-    "aberdeen": "^1.7.1"
+    "aberdeen": "^1.7.4"
   },
   "devDependencies": {
     "@parcel/packager-raw-url": "^2.13.3",

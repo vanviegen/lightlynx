@@ -2,10 +2,11 @@ import { $, proxy, peek, derive, onEach } from 'aberdeen';
 import * as route from 'aberdeen/route';
 import api from '../api';
 import { ServerCredentials } from '../types';
-import { routeState, askConfirm, hashSecret } from '../ui';
+import { routeState, hashSecret } from '../ui';
+import { askConfirm } from '../components/prompt';
 import { errorMessageStyle } from '../global-style';
-import { notify } from '../ui';
 import { isEqual } from '../utils';
+import { createToast } from '../components/toasts';
 
 export function drawConnectionPage(): void {
     routeState.title = 'Z2M Connection'
@@ -120,9 +121,9 @@ function drawConnectionDetails(selectedIndex: { value: number }): void {
             if (secret) url += `&secret=${encodeURIComponent(secret)}`;
             try {
                 await navigator.clipboard.writeText(url);
-                notify('info', 'URL copied to clipboard');
+                createToast('info', 'URL copied to clipboard');
             } catch (e: any) {
-                notify('error', 'Failed to copy URL: ' + url);
+                createToast('error', 'Failed to copy URL: ' + url);
             }
         });
     });

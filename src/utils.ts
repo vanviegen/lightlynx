@@ -14,3 +14,9 @@ export function runDelayed(delay: number, callback: () => void): void {
     const timeoutId = setTimeout(callback, delay);
     clean(() => clearTimeout(timeoutId));
 }
+
+export function preventFormNavigation(): void {
+    document.addEventListener('submit', (e: Event) => {
+        e.preventDefault();
+    }, true);
+}

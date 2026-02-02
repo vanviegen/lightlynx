@@ -75,7 +75,6 @@ export interface Group {
 
 export interface User {
     isAdmin: boolean;
-    allowedDevices: string[];
     allowedGroups: number[];
     allowRemote: boolean;
     hasPassword?: boolean; // Whether user has a password set
@@ -112,6 +111,8 @@ export interface Store {
     localAddress?: string;          // From lightlynx extension config
     externalAddress?: string;       // From lightlynx extension config
     activeScenes: Record<string, number | undefined>; // Group name -> active scene ID
+    isAdmin: boolean;               // Whether current user is admin (reactive)
+    allowedGroupIds: Record<number, true>; // Group IDs current user can control (reactive)
 }
 
 // Helper functions for color type checking

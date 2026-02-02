@@ -3,7 +3,8 @@ import * as route from 'aberdeen/route';
 import * as icons from '../icons';
 import api from '../api';
 import logoUrl from '../logo.webp';
-import { routeState, admin, notify } from '../ui';
+import { routeState, admin } from '../ui';
+import { createToast } from './toasts';
 
 const headerStyle = insertCss({
 	'&': 'bg:$surface display:flex gap:$2 align-items:center pr:$2',
@@ -12,6 +13,7 @@ const headerStyle = insertCss({
 	'.title': 'flex:1',
 	'.subTitle': 'ml:$3 fg:$textMuted font-weight:normal text-transform:uppercase letter-spacing:0.05em font-size:1rem',
 	'.icon': 'w:32px h:32px cursor:pointer fg:$textMuted',
+    '.on': 'fg:$success',
 	'.off, .critical': 'fg:$danger',
 	'.warning': 'fg:$warning',
 	'.spinning': 'animation: header-spin 2s linear infinite;',
@@ -64,19 +66,6 @@ export function drawHeader(
         });
         
         $(() => {
-            icons.reconnect(() => {
-                const state = api.store.connectionState;
-                $({
-                    '.spinning': state !== 'connected' && state !== 'idle',
-                    '.off': state === 'idle',
-                    '.critical': !!api.store.lastConnectError,
-                    '.link': true,
-                    'click': () => route.go('/connect'),
-                });
-            });
-        });
-        
-        $(() => {
             if (api.store.permitJoin) {
                 icons.create('.on.spinning click=', disableJoin);
             }
@@ -116,9 +105,24 @@ export function drawHeader(
                 'touchend': () => clearTimeout(holdTimeout),
                 'click': () => {
                     admin.value = !admin.value;
-                    notify('info', admin.value ? 'Entered admin mode' : 'Left admin mode');
+                    createToast('info', admin.value ? 'Entered admin mode' : 'Left admin mode');
                 },
             });
         });
+
+        $(() => {
+            icons.reconnect(() => {
+                const state = api.store.connectionState;
+                $({
+                    '.spinning': state !== 'connected' && state !== 'idle',
+                    '.on': state === 'connected',
+                    '.off': state === 'idle',
+                    '.critical': !!api.store.lastConnectError,
+                    '.link': true,
+                    'click': () => route.go('/connect'),
+                });
+            });
+        });
+        
     });
 }

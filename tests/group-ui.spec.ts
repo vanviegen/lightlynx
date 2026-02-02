@@ -7,14 +7,16 @@ test.describe('Group configuration UI', () => {
     const groupName = 'Living Room';
     
     // Enable automation (required for timer controls)
-    page.locator('label.item h2', { hasText: 'Automation' }).click();
+    const automationLabel = page.locator('label.item').filter({ has: page.locator('h2', { hasText: 'Automation' }) });
+    await automationLabel.locator('input[type="checkbox"]').check();
+    await expect(automationLabel.locator('input[type="checkbox"]')).toBeChecked({ timeout: 10000 });
     
     // Open the group - the automation-dependent UI should be visible
-    await page.locator('.list h2.link', { hasText: groupName }).filter({ visible: true }).click();
-    await expect(page.locator('header h1').filter({ visible: true })).toContainText(groupName);
+    await page.locator('.list h2.link', { hasText: groupName }).click();
+    await expect(page.locator('header h1')).toContainText(groupName);
 
     // Ensure Settings header is present
-    await expect(page.locator('h1', { hasText: 'Settings' }).filter({ visible: true })).toBeVisible();
+    await expect(page.locator('h1', { hasText: 'Settings' })).toBeVisible();
 
     // Find the Lights off timer label and checkbox
     const timerLabel = page.locator('label.item').filter({ has: page.locator('h2', { hasText: 'Lights off timer' }) });
@@ -45,12 +47,12 @@ test.describe('Group configuration UI', () => {
     await page.waitForTimeout(1500);
 
     // Navigate back to main and then back to group to verify persistence
-    await page.locator('header img.logo').filter({ visible: true }).click();
-    await expect(page.locator('header h1').filter({ visible: true })).toContainText('Light Lynx');
+    await page.locator('header img.logo').click();
+    await expect(page.locator('header h1')).toContainText('Light Lynx');
 
     // Re-open group
-    await page.locator('.list h2.link', { hasText: groupName }).filter({ visible: true }).click();
-    await expect(page.locator('header h1').filter({ visible: true })).toContainText(groupName);
+    await page.locator('.list h2.link', { hasText: groupName }).click();
+    await expect(page.locator('header h1')).toContainText(groupName);
 
     // Ensure the timer controls are still present and show our values
     const numberInput2 = page.locator('input[type="number"]');
@@ -65,40 +67,37 @@ test.describe('Group configuration UI', () => {
 
     const groupName = 'Kitchen';
     // Open Kitchen group
-    await page.locator('.list h2.link', { hasText: groupName }).filter({ visible: true }).click();
-    await expect(page.locator('header h1').filter({ visible: true })).toContainText(groupName);
+    await page.locator('.list h2.link', { hasText: groupName }).click();
+    await expect(page.locator('header h1')).toContainText(groupName);
 
     // Find and click Delete group
-    const deleteItem = page.locator('div.item.link', { hasText: 'Delete group' }).filter({ visible: true });
+    const deleteItem = page.locator('div.item.link', { hasText: 'Delete group' });
     await expect(deleteItem).toBeVisible();
     await deleteItem.click();
 
     // Confirm dialog should appear; click Yes
-    await expect(page.locator('button.primary', { hasText: 'Yes' }).filter({ visible: true })).toBeVisible();
-    await page.locator('button.primary', { hasText: 'Yes' }).filter({ visible: true }).click();
+    await expect(page.locator('button.primary', { hasText: 'Yes' })).toBeVisible();
+    await page.locator('button.primary', { hasText: 'Yes' }).click();
 
     // After deletion, the group should no longer be visible on main list
-    await expect(page.locator('.list h2.link', { hasText: groupName }).filter({ visible: true })).not.toBeVisible({ timeout: 10000 });
+    await expect(page.locator('.list h2.link', { hasText: groupName })).not.toBeVisible({ timeout: 10000 });
   });
 
   test('should open scene editor when clicking configure for a scene', async ({ page }) => {
     await connectToMockServer(page);
 
     const groupName = 'Living Room';
-    await page.locator('.list h2.link', { hasText: groupName }).filter({ visible: true }).click();
-    await expect(page.locator('header h1').filter({ visible: true })).toContainText(groupName);
+    await page.locator('.list h2.link', { hasText: groupName }).click();
+    await expect(page.locator('header h1')).toContainText(groupName);
 
-    // Find the Bright scene and click its configure icon (second svg.icon in the item)
-    const sceneItem = page.locator('.list').locator('.item.link', { hasText: 'Bright' }).filter({ visible: true });
+    // Find the Bright scene and click its configure icon (by aria-label 'configure')
+    const sceneItem = page.locator('.list').locator('.item.link', { hasText: 'Bright' });
     await expect(sceneItem).toBeVisible();
 
-    // There is an icon (scene icon) then configure icon - click second
-    const svgs = sceneItem.locator('svg.icon');
-    const svgCount = await svgs.count();
-    expect(svgCount >= 2).toBe(true);
-    await svgs.nth(1).click({ force: true });
+    // Click the configure icon by its aria-label
+    await sceneItem.getByRole('img', { name: 'configure' }).click({ force: true });
 
     // Scene editor page should show "Scene name" header
-    await expect(page.locator('h1', { hasText: 'Scene name' }).filter({ visible: true })).toBeVisible();
+    await expect(page.locator('h1', { hasText: 'Scene name' })).toBeVisible();
   });
 });

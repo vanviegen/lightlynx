@@ -4,8 +4,8 @@ import * as route from 'aberdeen/route';
 import api from '../api';
 import * as icons from '../icons';
 import { Group } from '../types';
-import { routeState, admin, askConfirm, lazySave } from '../ui';
-import { drawEmpty } from '../components/list-items';
+import { routeState, admin, lazySave } from '../ui';
+import { askConfirm } from '../components/prompt';
 
 export interface TriggerItem {
     type: '1' | '2' | '3' | '4' | '5' | 'motion' | 'time';
@@ -160,7 +160,7 @@ export function drawSceneEditor(group: Group, groupId: number): void {
         copy(selected, {[name]: true});
     });
 
-	$('div', scenePresetsClass, () => {
+	$('div.list', scenePresetsClass, () => {
 		// Permanent input field as first "button"
 		$('div.custom.item', () => {
             $('small#Custom');
@@ -194,7 +194,8 @@ export function drawSceneEditor(group: Group, groupId: number): void {
 	$('h1#Triggers', () => {
 		if (automationEnabled) icons.create('click=', () => sceneState.triggers.push({type: '1'}));
 	});
-    if (automationEnabled) {
+	$('div.list', () => {
+	    if (!automationEnabled) return;
 		onEach(sceneState.triggers, (trigger, triggerIndex) => {
 			$(() => {
 				// There must be a time range for time-based triggers
@@ -248,8 +249,8 @@ export function drawSceneEditor(group: Group, groupId: number): void {
 
 			})
 		});
-		if (isEmpty(sceneState.triggers)) drawEmpty("None yet");
-    }
+		if (isEmpty(sceneState.triggers)) $('div.empty#None yet');
+    });
 
 	$('h1#Actions');
 	async function save(e: Event): Promise<void> {
@@ -269,8 +270,10 @@ export function drawSceneEditor(group: Group, groupId: number): void {
 		if (!await askConfirm(`Are you sure you want to delete the '${scene.name}' scene for group '${group.name}'?`)) return;
 		api.send(group.name, "set", {scene_remove: scene.id});
 	}
-	$('div.item.link', icons.save, '#Save current state', 'click=', save);
-	$('div.item.link', icons.remove, '#Delete scene', 'click=', remove);
+	$('div.list', () => {
+		$('div.item.link', icons.save, '#Save current state', 'click=', save);
+		$('div.item.link', icons.remove, '#Delete scene', 'click=', remove);
+	})
 
     const newName = proxy('');
     lazySave(() => {

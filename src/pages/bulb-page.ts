@@ -2,14 +2,14 @@ import { $, proxy, unproxy, onEach } from 'aberdeen';
 import api from '../api';
 import * as icons from '../icons';
 import { drawColorPicker } from '../components/color-picker';
-import { routeState, admin, askConfirm, lazySave } from '../ui';
+import { routeState, admin, lazySave } from '../ui';
+import { askConfirm } from '../components/prompt';
 import { deviceGroups } from '../app';
-import { drawEmpty } from '../components/list-items';
 
 export function drawBulbPage(ieee: string): void {
     let device = api.store.devices[ieee];
     if (!device) {
-        drawEmpty('No such light');
+        $('div.empty#No such light');
         return;
     }
     
@@ -17,7 +17,7 @@ export function drawBulbPage(ieee: string): void {
         routeState.title = device.name;
     });
     routeState.subTitle = 'bulb';
-    $("div.item#", device.model);
+    $("div.empty#", device.model);
     
     drawColorPicker(device, ieee);
 
@@ -25,9 +25,9 @@ export function drawBulbPage(ieee: string): void {
 
     $('h1#Settings');
     const name = proxy(unproxy(device).name);
-    $('div.item', () => {
+    $('div.list div.item', () => {
         $('h2#Name');
-        $('input', 'bind=', name);
+        $('input flex:3 bind=', name);
     });
     lazySave(() => {
         const newName = name.value;
@@ -41,12 +41,12 @@ export function drawBulbPage(ieee: string): void {
     $('h1#Actions');
     const removing = proxy(false);
 
-    $(() => {
+    $('div.list', () => {
         if (!removing.value && deviceGroups[ieee]) onEach(deviceGroups[ieee], (groupId) => {
             const busy = proxy(false);
             const group = api.store.groups[groupId];
             if (group) {
-                $(`div.item.link#Remove from "${group.name}"`, '.busy=', busy, icons.remove, 'click=', async function() {
+                $(`div.item.link .busy=`, busy, icons.remove, `#Remove from "${group.name}"`, 'click=', async function() {
                     busy.value = true;
                     try {
                         await api.send("bridge", "request", "group", "members", "remove", {group: group!.name, device: device!.name});
@@ -58,7 +58,7 @@ export function drawBulbPage(ieee: string): void {
         });
 
         if (!removing.value) {
-            $('div.item.link#Delete', icons.eject, 'click=', async function() {
+            $('div.item.link', icons.eject, 'text=Delete click=', async function() {
                 if (await askConfirm(`Are you sure you want to detach '${device.name}' from zigbee2mqtt?`)) {
                     removing.value = true;
                     try {
@@ -69,7 +69,7 @@ export function drawBulbPage(ieee: string): void {
                 }
             });
         } else {
-            $('div.item.link#Force delete', icons.eject, 'click=', async function() {
+            $('div.item.link', icons.eject, 'text="Force delete" click=', async function() {
                 if (await askConfirm(`Are you sure you want to FORCE detach '${device.name}' from zigbee2mqtt?`)) {
                     api.send("bridge", "request", "device", "remove", {id: ieee, force: true});
                 }

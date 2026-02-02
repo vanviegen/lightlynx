@@ -1,5 +1,18 @@
 
 import { defineConfig, devices } from '@playwright/test';
+import { execSync } from 'child_process';
+
+// Make sure there are no hanging server processes from previous test runs.
+// As the config is reread by workers, we need to take care to only do this once,
+// or we might kill newly started servers.
+if (!process.env.PW_CLEANUP_DONE) {
+  process.env.PW_CLEANUP_DONE = '1';
+  for (const port of [25833, 43598]) {
+    try {
+      execSync(`lsof -ti:${port} | xargs kill -9 2>/dev/null || true`, { stdio: 'ignore' });
+    } catch {}
+  }
+}
 
 export default defineConfig({
   testDir: './tests',
@@ -33,7 +46,6 @@ export default defineConfig({
     {
       command: 'exec npm run mock-z2m',
       port: 43598,
-      reuseExistingServer: !process.env.CI,
       env: {
         MOCK_Z2M_PORT: '43598',
         MOCK_Z2M_INSECURE: 'true',
@@ -42,7 +54,6 @@ export default defineConfig({
     {
       command: 'exec npm run dev -- --port 25833',
       port: 25833,
-      reuseExistingServer: !process.env.CI,
     },
   ],
 });

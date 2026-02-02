@@ -1,8 +1,6 @@
 import { test as base, expect, type Locator, type Page } from '@playwright/test';
 import * as path from 'path';
 import * as fs from 'fs';
-import { createCipheriv } from 'crypto';
-import { checkServerIdentity } from 'tls';
 
 export { type Page, expect } from '@playwright/test';
 
@@ -103,22 +101,41 @@ async function showOverlayBanner(page: Page, text: string, type: 'info' | 'error
     }, { text, type });
 }
 
-export async function connectToMockServer(page: Page, admin: boolean = true): Promise<void> {
+export async function connectToMockServer(page: Page, options: { admin?: boolean; username?: string; password?: string } = {}): Promise<void> {
+    const { admin = true, username = 'admin', password = '' } = options;
     // Use direct-connect URL
-    await page.goto(`/?host=localhost:43598&username=admin${admin ? '&admin=y' : ''}`);
+    const adminParam = admin ? '&admin=y' : '';
+    const passwordParam = password ? `&secret=${encodeURIComponent(password)}` : '';
+    await page.goto(`/?host=localhost:43598&username=${encodeURIComponent(username)}${passwordParam}${adminParam}`);
+}
+
+export async function hashPassword(page: Page, password: string): Promise<string> {
+    return page.evaluate(async (password: string) => {
+        const saltString = "LightLynx-Salt-v2";
+        const salt = new TextEncoder().encode(saltString);
+        const pw = new TextEncoder().encode(password);
+        const keyMaterial = await window.crypto.subtle.importKey("raw", pw, "PBKDF2", false, ["deriveBits"]);
+        const derivedBits = await window.crypto.subtle.deriveBits({
+            name: "PBKDF2",
+            salt: salt,
+            iterations: 100000,
+            hash: "SHA-256"
+        }, keyMaterial, 256);
+        return Array.from(new Uint8Array(derivedBits)).map(b => b.toString(16).padStart(2, '0')).join('');
+    }, password);
 }
 
 function wrapLocator(actualLocator: Locator, actualPage: Page): Locator {
     const wrapped = Object.create(actualLocator) as any;
 
-    const actionMethods = ['click', 'fill', 'type', 'press', 'check', 'uncheck', 'selectOption', 'hover', 'dblclick', 'clear', '_expect'];
+    const actionMethods = ['click', 'fill', 'type', 'press', 'check', 'uncheck', 'selectOption', 'hover', 'dblclick', 'clear'];
     for (const method of actionMethods) {
         wrapped[method] = async function(...args: any[]) {
-            const short = method === '_expect' ? args[0] : (typeof args[0] === 'string' ? method + " " + JSON.stringify(args[0]) : method);
-            const label = short + (short === method ? args : args.slice(1)).map(a => " "+JSON.stringify(a)).join("");
+            const short = typeof args[0] === 'string' ? method + " " + JSON.stringify(args[0]) : method;
+            const label = short + args.slice(1).map(a => " "+JSON.stringify(a)).join("");
             try {
                 // Some succes... we didn't crash! :-)
-                const box = await actualLocator.boundingBox({timeout: 3000});
+                const box = await actualLocator.boundingBox({timeout: 3000}).catch(() => null);
                 if (!box) {
                     await showOverlayBanner(actualPage, `Cannot find ${actualLocator} for ${label}`, 'info');
                 } else {
@@ -143,6 +160,24 @@ function wrapLocator(actualLocator: Locator, actualPage: Page): Locator {
             }
         };
     }
+
+    wrapped._expect = async function(method: string, options: any) {
+        const isNot = !!options?.isNot;
+        const msg = (isNot ? "not." : "") + method;
+
+        // For expect, we take a screenshot AFTER the expectation is met (or fails),
+        // but we can't easily do it after it's met without re-implementing the wait logic.
+        // So we'll just take it before for now, or just skip it if it's a "not" expectation
+        // that might wait a long time.
+        
+        // Actually, let's just do the original _expect.
+        const result = await (actualLocator as any)._expect(method, options);
+        
+        // After it's met, take a screenshot
+        await takeScreenshot(actualPage);
+        
+        return result;
+    };
     
     const locatorReturning = ['locator', 'filter', 'nth', 'first', 'last', 'getByText', 'getByRole', 'getByPlaceholder', 'getByLabel', 'getByTestId', 'getByAltText', 'getByTitle'];
     for (const method of locatorReturning) {
@@ -194,18 +229,12 @@ async function takeScreenshot(actualPage: Page) {
     await waitForRepaint(actualPage);
 
     const fileName = `${lineNumber.toString().padStart(4, '0')}` + String.fromCharCode(97 + lastScreenshotNumber);
-    const pngPath = path.join(lastOutDir, `${fileName}.png`);
-    const htmlPath = path.join(lastOutDir, `${fileName}.html`);
+    const basePath = path.join(lastOutDir, `${fileName}`);
     
-    // Output just the capture line number
-    process.stdout.write(`Capture ${fileName}\n`);
-    
-    await actualPage.screenshot({ path: pngPath, fullPage: true });
-    
-    // Also capture DOM snapshot as HTML for structure analysis
-    await hideOverlay(actualPage);
-    const domHtml = await actualPage.evaluate(() => document.body.outerHTML);
-    fs.writeFileSync(htmlPath, domHtml, 'utf-8');
+    await captureDom(basePath, actualPage);
+
+       // Output just the capture line number
+    process.stdout.write(`Captured ${basePath}.*\n`);
 }
 
 let lastOutDir: string = '';
@@ -238,12 +267,8 @@ export const test = base.extend({
         
         // On test failure, move to failed directory and capture final state
         if (testInfo.status === 'failed' || testInfo.status === 'timedOut') {
-            // Capture final screenshot
-            await actualPage.screenshot({ path: path.join(outDir, 'error.png'), fullPage: false });
-            
             // Capture final HTML
-            const domHtml = await actualPage.evaluate(() => document.body.outerHTML);
-            fs.writeFileSync(path.join(outDir, 'error.html'), domHtml, 'utf-8');
+            await captureDom(path.join(outDir, 'error'), actualPage);
             
             // Create error.txt with useful diagnostic info
             let errorInfo = `Test: ${testInfo.title}\n`;
@@ -264,3 +289,19 @@ export const test = base.extend({
         }
     }
 });
+
+async function captureDom(basePath: string, actualPage: Page): Promise<void> {
+    // Capture screenshot with any overlays visible
+    await actualPage.screenshot({ path: basePath + '.png', fullPage: true });    
+
+    // Before capturing the HTML, remove the overlay
+    await hideOverlay(actualPage);
+
+    // Capture the body and head HTML separately, removing any SVG <path> elements to reduce noise/tokens
+    const {body, head} = await actualPage.evaluate(() => ({
+        body: document.body.outerHTML.replace(/<path .*?<\/path>/g, ''),
+        head: document.head.outerHTML
+    }));
+    fs.writeFileSync(basePath+'.body.html', body, 'utf-8');
+    fs.writeFileSync(basePath+'.head.html', head, 'utf-8');
+}

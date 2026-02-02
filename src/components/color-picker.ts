@@ -10,9 +10,9 @@ const CT_MIN = 100, CT_MAX = 550;
 const circleStyle = insertCss({
 	'&': 'w:52px h:28px r:14px border: 1px solid $border; bg:#080808 cursor:pointer flex-shrink:0 position:relative overflow:visible transition: background-color 0.3s ease, border-color 0.3s ease;',
 	// Off-state circle (always dark)
-	'&::before': 'content:""; position:absolute w:22px h:22px r:50% bg:#555 top:2px left:2px transition: transform 0.3s ease, opacity 0.3s ease; opacity:1',
+	'&::before': 'content: ""; position:absolute w:22px h:22px r:50% bg:#555 top:2px left:2px transition: transform 0.3s ease, opacity 0.3s ease; opacity:1',
 	// On-state circle (with gradient)
-	'&::after': 'content:""; position:absolute w:22px h:22px r:50% bg: var(--knob-background, var(--knob-color, #555)); top:2px left:2px transition: transform 0.3s ease, opacity 0.3s ease, box-shadow 0.3s ease; box-shadow: var(--knob-glow, none); opacity:0',
+	'&::after': 'content: ""; position:absolute w:22px h:22px r:50% bg: var(--knob-background, var(--knob-color, #555)); top:2px left:2px transition: transform 0.3s ease, opacity 0.3s ease, box-shadow 0.3s ease; box-shadow: var(--knob-glow, none); opacity:0',
 	'&.on': {
 		'&': 'border-color:#555',
 		'&::before': 'transform:translateX(24px) opacity:0',
@@ -25,7 +25,7 @@ const circleStyle = insertCss({
 const wheelStyle = insertCss('position:relative');
 
 // Handle/marker styles
-const handleStyle = insertCss('position:absolute transition:all 0.1s; r:50% border: 2px solid #fff; box-shadow: 0 0 0 1px #000 inset; touch-action:none user-select:none -webkit-touch-callout:none -webkit-tap-highlight-color:transparent');
+const handleStyle = insertCss('position:absolute transition: all 0.1s; r:50% border: 2px solid #fff; box-shadow: 0 0 0 1px #000 inset; touch-action:none user-select:none -webkit-touch-callout:none -webkit-tap-highlight-color:transparent');
 
 // Scale container styles
 const scaleStyle = insertCss('border: 1px solid $border; position:relative h:40px r:3px overflow:hidden');
@@ -245,25 +245,27 @@ export function drawColorPicker(target: Device | Group, targetId: string | numbe
     const capabilities = target.lightCaps;
     if (!capabilities) return;
             
-    $('div display:flex gap:$3 align-items:center', () => {
-        if ('members' in target) { // group
-            drawBulbCircle(target as Device, targetId as string);
+    $('div m:$3 display:flex gap:$3 flex-direction:column', () => {
+        $('div display:flex gap:$3 align-items:center', () => {
+            if ('members' in target) { // group
+                drawBulbCircle(target as Device, targetId as string);
+            }
+            if (capabilities.brightness) {
+                drawScale(target, targetId);
+            }
+        });
+
+        if (capabilities.colorTemp || capabilities.colorXy || capabilities.colorHs) {
+            let temps: [number, number] = capabilities.colorTemp ? 
+                [capabilities.colorTemp.valueMin, capabilities.colorTemp.valueMax] : 
+                [CT_MIN, CT_MAX];
+            drawScale(target, targetId, temps);
         }
-        if (capabilities.brightness) {
-            drawScale(target, targetId);
+            
+        if (capabilities.colorXy || capabilities.colorHs) {
+            drawColorWheel(target, targetId);
         }
     });
-
-    if (capabilities.colorTemp || capabilities.colorXy || capabilities.colorHs) {
-        let temps: [number, number] = capabilities.colorTemp ? 
-            [capabilities.colorTemp.valueMin, capabilities.colorTemp.valueMax] : 
-            [CT_MIN, CT_MAX];
-        drawScale(target, targetId, temps);
-    }
-        
-    if (capabilities.colorXy || capabilities.colorHs) {
-        drawColorWheel(target, targetId);
-    }
 }
 
 function drawScale(target: Device | Group, targetId: string | number, colorTempRange?: [number, number]): void {

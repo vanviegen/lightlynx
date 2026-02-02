@@ -13,28 +13,14 @@ const interactingElements = new Set<Element>();
  * ':active'.
  */
 
-$(`mouseover=`, (e: Event) => {
-	if (e.target instanceof Element) {
-		e.target.classList.add('interacting');
-		interactingElements.add(e.target);
-	}
-}, {passive:true, capture:true});
-
-$('mouseout=', (e: Event) => {
-	if (e.target instanceof Element) {
-		e.target.classList.remove('interacting');
-		interactingElements.delete(e.target);
-	}
-}, {passive:true, capture:true});
-
-$('touchstart=', (e: Event) => {
+['mouseover', 'touchstart'].forEach(eventType => $(`${eventType}=`, (e: Event) => {
     for(let el = e.target; el instanceof Element; el = el.parentElement) {
         el.classList.add('interacting');
         interactingElements.add(el);
     }
-}, {passive:true, capture:true});
+}, {passive:true, capture:true}));
 
-['touchend', 'touchcancel'].forEach(eventType => $(`${eventType}=`, () => {
+['touchend', 'touchcancel', 'mouseout'].forEach(eventType => $(`${eventType}=`, () => {
 	interactingElements.forEach(e => e.classList.remove('interacting'));
 	interactingElements.clear();
 }, {passive:true, capture:true}));
@@ -61,7 +47,7 @@ cssVars.borderLight = '#1f1f1f';
 cssVars.danger = '#ff4444';
 cssVars.dangerHover = '#ff6666';
 cssVars.warning = '#ffaa00';
-cssVars.success = '#00dd88';
+cssVars.success = '#79c00c';
 cssVars.info = cssVars.text; // '#4a9eff';
 cssVars.link = cssVars.primary;
 
@@ -70,6 +56,8 @@ insertGlobalCss({
     '*': 'box-sizing:border-box',
     'html, body': 'h:100% m:0 p:0',
     body: 'line-height:1.5 -webkit-font-smoothing:antialiased -moz-osx-font-smoothing:grayscale user-select:none -webkit-user-select:none -webkit-touch-callout:none -webkit-tap-highlight-color:transparent bg:$bg fg:$text font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size:16px',
+
+    'svg.icon': 'pointer-events:bounding-box',
     
     // Typography
     'h1, h2, h3, h4, h5, h6, p': {
@@ -135,38 +123,42 @@ insertGlobalCss({
     },
 
     // List and item styles
-    '.list': 'display:flex flex-direction:column gap:$2',
+    '.list': {
+        '&': 'display:flex flex-direction:column gap:$2',
+        'main > & > .item': 'border-width: 1px 0; r:0',
+        '.item': {
+            '&': 'display:flex align-items:center gap:$3 p:$2 bg:$surface border: 1px solid $border; r:6px',
+            
+            '&.link': {
+                '&': 'cursor:pointer transition: background-color 0.2s, transform 0.1s;',
+                '&.interacting': 'bg:$surfaceHover',
+                '&:active': 'transform:scale(0.99)'
+            },
+            
+            '&.active-scene': 'bg: rgba(244, 129, 14, 0.15); border-left: 4px solid $primary; pl: calc($3 - 4px);',
+            
+            h2: 'font-size:1rem font-weight:500 flex: 1 0 auto; m:0',
+            
+            '.icon': {
+                '&': 'flex:none w:24px h:24px  background-color:#0000',
+                '&:first-child': 'w:28px h:28px'
+            },
+            '& > input': 'flex:2 min-width:2rem',
+            '& > input[type="checkbox"]': 'flex:none m:0 min-width:initial'
+        },
+    },
+    
+    '.empty': 'p:$3 text-align:center font-style:italic color:$textMuted',
 
     '.link': {
-        '&': 'cursor:pointer fg:$link',
+        '&': 'cursor:pointer fg:$link transition: color 0.3s ease-out, text-shadow 0.6s ease-out, filter 0.6s ease-out;',
         '&.item, svg&, .item &': 'fg:unset',
         '&.interacting, &.interacting *': 'fg: $primaryHover !important; text-shadow: 0 0 5px $primaryHover !important;',
         'svg&.interacting, &.interacting svg': 'filter: drop-shadow(0 0 5px var(--primaryHover));',
     },
     
-    '.item': {
-        '&': 'display:flex align-items:center gap:$3 p:$2 bg:$surface border: 1px solid $border; r:6px',
-        
-        '&.link': {
-            '&': 'cursor:pointer transition: background-color 0.2s, transform 0.1s;',
-            '&.interacting': 'bg:$surfaceHover',
-            '&:active': 'transform:scale(0.99)'
-		},
-		
-		'&.active-scene': 'bg: rgba(244, 129, 14, 0.15); border-left: 4px solid $primary; pl: calc($3 - 4px);',
-		
-		h2: 'font-size:1rem font-weight:500 flex: 1 0 auto; m:0',
-		
-		'.icon': {
-			'&': 'flex:none w:24px h:24px  background-color:#0000',
-			'&:first-child': 'w:28px h:28px'
-		},
-		'& > input': 'flex:2 min-width:2rem',
-		'& > input[type="checkbox"]': 'flex:none m:0 min-width:initial'
-	},
 
-    'main > .list > .item': 'border-width: 1px 0; r:0',
-	
+
 	// Form styling
 	form: {
 		'&': 'display:flex flex-direction:column gap:$3 p:$3',

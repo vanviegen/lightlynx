@@ -3,8 +3,9 @@ import * as route from 'aberdeen/route';
 import api from '../api';
 import * as icons from '../icons';
 import { User } from '../types';
-import { routeState, notify, askConfirm, hashSecret } from '../ui';
-import { drawEmpty } from '../components/list-items';
+import { routeState, hashSecret } from '../ui';
+import { askConfirm } from '../components/prompt';
+import { createToast } from '../components/toasts';
 
 export function drawUsersSection(): void {
     $("h1#Users", () => {
@@ -32,13 +33,11 @@ export function drawUserEditor(): void {
     const storeUser = api.store.users[username];
     const user = isNew ? proxy<User>({
         isAdmin: false,
-        allowedDevices: [],
         allowedGroups: [],
         allowRemote: false, // Can't enable without password
         password: ''
     }) : proxy(clone(unproxy(storeUser || {
         isAdmin: true,
-        allowedDevices: [],
         allowedGroups: [],
         allowRemote: false,
         password: ''
@@ -52,32 +51,35 @@ export function drawUserEditor(): void {
     });
 
     $('h1#Settings');
-    if (isNew) {
+    $('div.list', () => {
+
+        if (isNew) {
+            $('div.item', () => {
+                $('h2.form-label#Username');
+                $('input bind=', newUsername, 'placeholder=Username');
+            });
+        }
+
         $('div.item', () => {
-            $('h2.form-label#Username');
-            $('input bind=', newUsername, 'placeholder=Username');
+            $('h2.form-label#Password');
+            $('input type=password bind=', ref(user, 'password'), 'placeholder=', isNew ? 'Required' : 'Password or secret (empty to clear)');
         });
-    }
 
-    $('div.item', () => {
-        $('h2.form-label#Password');
-        $('input type=password bind=', ref(user, 'password'), 'placeholder=', isNew ? 'Required' : 'Password or secret (empty to clear)');
-    });
+        if (!isAdminUser) {
+            $('label.item', () => {
+                $('input type=checkbox bind=', ref(user, 'isAdmin'));
+                $('h2#Admin access');
+            });
+        }
 
-    if (!isAdminUser) {
         $('label.item', () => {
-            $('input type=checkbox bind=', ref(user, 'isAdmin'));
-            $('h2#Admin access');
-        });
-    }
-
-    $('label.item', () => {
-        // Can only enable remote access if user has password (either existing or being set)
-        const hasOrSettingPassword = () => user.password || storeUser?.hasPassword;
-        $('input type=checkbox bind=', ref(user, 'allowRemote'), '.disabled=', () => !hasOrSettingPassword(), 'title=', () => hasOrSettingPassword() ? '' : 'Set a password first to enable remote access');
-        $('h2#Allow remote access');
-        $(() => {
-            if (!hasOrSettingPassword()) $('p.muted#Requires password');
+            // Can only enable remote access if user has password (either existing or being set)
+            const hasOrSettingPassword = () => user.password || storeUser?.hasPassword;
+            $('input type=checkbox bind=', ref(user, 'allowRemote'), 'disabled=', () => !hasOrSettingPassword(), 'title=', () => hasOrSettingPassword() ? '' : 'Set a password first to enable remote access');
+            $('h2#Allow remote access');
+            $(() => {
+                if (!hasOrSettingPassword()) $('p.muted#Requires password');
+            });
         });
     });
 
@@ -98,68 +100,62 @@ export function drawUserEditor(): void {
                     $('h2#', group.name);
                 });
             });
-            $(() => { if (isEmpty(api.store.groups)) drawEmpty("No groups"); });
-        });
-
-        $('h2#Allowed Devices');
-        $('div.list', () => {
-            onEach(api.store.devices, (device, ieee) => {
-                if (!device.lightCaps) return;
-                $('label.item', () => {
-                    const checked = user.allowedDevices.includes(ieee);
-                    $('input type=checkbox', 'checked=', checked, 'change=', (e: any) => {
-                        if (e.target.checked) user.allowedDevices.push(ieee);
-                        else user.allowedDevices = user.allowedDevices.filter((id: string) => id !== ieee);
-                    });
-                    $('h2#', device.name);
-                });
-            });
-            $(() => { if (isEmpty(api.store.devices)) drawEmpty("No devices"); });
+            $(() => { if (isEmpty(api.store.groups)) $('div.empty#No groups'); });
         });
     });
 
-    $('h1#Actions');
     const busy = proxy(false);
-    $('div.item.link#Save', '.busy=', busy, icons.save, 'click=', async () => {
-        busy.value = true;
-        try {
-            const finalUsername = isNew ? newUsername.value : username;
-            if (!finalUsername) throw new Error("Username required");
-            const payload: any = unproxy(user);
-            
-            if (user.password) {
-                // Check if it's already a 64-char hex secret
-                if (/^[0-9a-f]{64}$/i.test(user.password)) {
-                    payload.secret = user.password.toLowerCase();
-                } else {
-                    payload.secret = await hashSecret(user.password);
-                }
-            }
-            delete payload.password;
-            
-            const userPayload = {
-                username: finalUsername,
-                ...payload
-            };
-            if (isNew) {
-                await api.addUser(userPayload);
-            } else {
-                await api.updateUser(userPayload);
-            }
-            route.up();
-        } catch (e: any) {
-            notify('error', e.message || "Failed to save user");
-        } finally {
-            busy.value = false;
-        }
-    });
+    $('form div.row', () => {
 
-    if (!isNew && !isAdminUser) {
-        $('div.item.link.danger#Delete user', icons.remove, 'click=', async () => {
-            if (await askConfirm(`Are you sure you want to delete user '${username}'?`)) {
-                await api.deleteUser(username);
+        if (!isNew && !isAdminUser) {
+            $('button.danger', icons.remove, '#Delete user', 'click=', async () => {
+                if (await askConfirm(`Are you sure you want to delete user '${username}'?`)) {
+                    await api.deleteUser(username);
+                    route.up();
+                }
+            });
+        }
+
+
+        $('button.secondary type=button text=Cancel click=', () => route.up());
+        $('button.primary type=button .busy=', busy, 'text=Save click=', async () => {
+            busy.value = true;
+            try {
+                const finalUsername = isNew ? newUsername.value : username;
+                if (!finalUsername) throw new Error("Username required");
+                const payload: any = unproxy(user);
+                
+                // Handle password/secret - only include if user entered something
+                if (user.password) {
+                    // Check if it's already a 64-char hex secret
+                    if (/^[0-9a-f]{64}$/i.test(user.password)) {
+                        payload.secret = user.password.toLowerCase();
+                    } else {
+                        payload.secret = await hashSecret(user.password);
+                    }
+                }
+                delete payload.password;
+                
+                const userPayload = {
+                    username: finalUsername,
+                    isAdmin: payload.isAdmin,
+                    allowedGroups: payload.allowedGroups,
+                    allowRemote: payload.allowRemote,
+                    secret: payload.secret, // could be undefined
+                };
+                
+                if (isNew) {
+                    await api.addUser(userPayload);
+                } else {
+                    await api.updateUser(userPayload);
+                }
                 route.up();
+            } catch (e: any) {
+                createToast('error', e.message || "Failed to save user");
+            } finally {
+                busy.value = false;
             }
         });
-    }
+    });
+
 }

@@ -1,6 +1,5 @@
 import { $, proxy } from 'aberdeen';
 import * as route from 'aberdeen/route';
-import type { Toast } from './components/toasts';
 
 export interface RouteState {
     title: string;
@@ -22,37 +21,6 @@ $(() => {
     if (admin.value) route.current.search.admin = 'y';
     else delete route.current.search.admin;
 });
-
-export const toasts = proxy([] as Toast[]);
-
-export function notify(type: 'error' | 'info' | 'warning', message: string): void {
-    const id = Math.random();
-    toasts.push({ id, type, message });
-    setTimeout(() => {
-        const index = toasts.findIndex(t => t.id === id);
-        if (index !== -1) toasts.splice(index, 1);
-    }, 10000);
-}
-
-export const dialogResolvers: Record<number, (value: any) => void> = {};
-
-function askDialog(type: 'confirm' | 'prompt', message: string, options: {defaultValue?: string, title?: string} = {}): Promise<any> {
-    const resolveId = 0 | (Math.random() * 1000000);
-    const result = new Promise(resolve => {
-        dialogResolvers[resolveId] = resolve;
-        route.push({state: {prompt: {type, message, resolveId, value: options.defaultValue, title: options.title}}});
-    });
-    delete dialogResolvers[resolveId];
-    return result as any;
-}
-
-export async function askConfirm(message: string, title?: string): Promise<boolean> {
-    return askDialog('confirm', message, {title});
-}
-
-export async function askPrompt(message: string, defaultValue = '', title?: string): Promise<string | undefined> {
-    return askDialog('prompt', message, {defaultValue, title});
-}
 
 export async function hashSecret(password: string): Promise<string> {
     if (!password) return '';

@@ -12,7 +12,6 @@ const SSL_RENEW_THRESHOLD = 10 * 24 * 60 * 60 * 1000; // 10 days
 interface UserConfig {
     secret: string;
     isAdmin: boolean;
-    allowedDevices: string[];
     allowedGroups: number[];
     allowRemote: boolean;
 }
@@ -623,7 +622,7 @@ class LightLynx {
                 const externalPort = (i < 2 && storedPort) ? storedPort : Math.floor(Math.random() * (65535 - 10000) + 10000);
 
                 try {
-                    await this.addPortMapping(gatewayUrl, localIp, PORT, externalPort, 'TCP', 'Light Lynx');
+                    await this.addPortMapping(gatewayUrl, localIp, PORT, externalPort, 'TCP', 'LightLynx');
                     this.log('info', `UPnP port mapped: <router>:${externalPort} -> ${localIp}:${PORT}`);
                     return externalPort;
                 } catch (err: any) {
@@ -762,7 +761,6 @@ class LightLynx {
             this.config.users.admin = {
                 secret: '',
                 isAdmin: true,
-                allowedDevices: [],
                 allowedGroups: [],
                 allowRemote: false
             };
@@ -805,7 +803,6 @@ class LightLynx {
         for (const [name, user] of Object.entries(users)) {
             result[name] = {
                 isAdmin: user.isAdmin,
-                allowedDevices: user.allowedDevices,
                 allowedGroups: user.allowedGroups,
                 allowRemote: user.allowRemote,
                 hasPassword: !!user.secret
@@ -838,9 +835,7 @@ class LightLynx {
 
         const externalIp = this.config.ssl?.externalIp;
         if (!user.allowRemote && !this.isLocalIp(clientIp) && clientIp !== externalIp) {
-            socket.write('HTTP/1.1 403 Forbidden\r\n\r\n');
-            socket.destroy();
-            return;
+            return this.sendConnectError(req, socket, head, 'Remote access not permitted for user.');
         }
 
         this.wss!.handleUpgrade(req, socket, head, (ws) => {
@@ -880,6 +875,12 @@ class LightLynx {
 
         if (clientInfo.isAdmin) {
             ws.send(JSON.stringify({ topic: 'bridge/lightlynx/users', payload: this.getUsersForBroadcast() }));
+        } else {
+            // Non-admin users only get their own user info to know their permissions
+            const ownUserData = this.getUsersForBroadcast()[clientInfo.username];
+            if (ownUserData) {
+                ws.send(JSON.stringify({ topic: 'bridge/lightlynx/users', payload: { [clientInfo.username]: ownUserData } }));
+            }
         }
         ws.send(JSON.stringify({ topic: 'bridge/lightlynx/config', payload: await this.getPayloadForConfig() }));
         ws.send(JSON.stringify({ topic: 'bridge/lightlynx/sceneSet', payload: this.activeScenes }));
@@ -955,13 +956,18 @@ class LightLynx {
         const parts = topic.split('/');
         const name = parts[0];
         if (name && parts[1] === 'set') {
+            // Check if this is a group and user has permission
+            const group = this.findGroupByName(name);
+            if (group && clientInfo.allowedGroups?.includes(group.id)) return true;
+            
+            // Check if this device belongs to a group the user has access to
             const device = this.findDeviceByName(name);
             if (device) {
-                if (clientInfo.allowedDevices?.includes(device.ieeeAddr)) return true;
-            } else {
-                const group = this.findGroupByName(name);
-                if (group) {
-                    if (clientInfo.allowedGroups?.includes(group.id)) return true;
+                for (const gid of clientInfo.allowedGroups || []) {
+                    const g = this.zigbee.resolveEntity(String(gid)) as any;
+                    if (g && g.members?.some((m: any) => m.ieeeAddr === device.ieeeAddr)) {
+                        return true;
+                    }
                 }
             }
         }
@@ -1131,7 +1137,7 @@ class LightLynx {
     }
 
     private addUser(message: any) {
-        const { username, secret, isAdmin, allowedDevices, allowedGroups, allowRemote } = message;
+        const { username, secret, isAdmin, allowedGroups, allowRemote } = message;
         if (!username) throw new Error('Username required');
         if (username === 'admin') throw new Error('Cannot add admin user');
         if (this.config.users[username]) throw new Error('User already exists');
@@ -1139,7 +1145,6 @@ class LightLynx {
         this.config.users[username] = { 
             secret: secret || '', 
             isAdmin: !!isAdmin, 
-            allowedDevices: allowedDevices || [], 
             allowedGroups: allowedGroups || [], 
             allowRemote: !!allowRemote 
         };
@@ -1148,13 +1153,12 @@ class LightLynx {
     }
 
     private updateUser(message: any) {
-        const { username, secret, isAdmin, allowedDevices, allowedGroups, allowRemote } = message;
+        const { username, secret, isAdmin, allowedGroups, allowRemote } = message;
         if (!username) throw new Error('Username required');
         const user = this.config.users[username];
         if (!user) throw new Error('User not found');
         if (secret !== undefined) user.secret = secret;
         if (isAdmin !== undefined) user.isAdmin = isAdmin;
-        if (allowedDevices !== undefined) user.allowedDevices = allowedDevices;
         if (allowedGroups !== undefined) user.allowedGroups = allowedGroups;
         if (allowRemote !== undefined) {
             if (allowRemote && !user.secret) throw new Error('Cannot enable remote access without a password');
@@ -1178,7 +1182,7 @@ class LightLynx {
         const payload = this.getUsersForBroadcast();
         for (const [ws, clientInfo] of this.clients) {
             if (ws.readyState === WebSocket.OPEN && clientInfo.isAdmin) {
-                ws.send(JSON.stringify({ topic: 'lightlynx/users', payload }));
+                ws.send(JSON.stringify({ topic: 'bridge/lightlynx/users', payload }));
             }
         }
     }

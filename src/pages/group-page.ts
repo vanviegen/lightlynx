@@ -5,17 +5,17 @@ import api from '../api';
 import * as icons from '../icons';
 import { drawColorPicker, drawBulbCircle } from '../components/color-picker';
 import { Device, Group } from '../types';
-import { routeState, admin, askConfirm, askPrompt, lazySave } from '../ui';
+import { routeState, admin, lazySave } from '../ui';
+import { askConfirm, askPrompt } from '../components/prompt';
 import { deviceGroups } from '../app';
 import { drawSceneEditor } from './scene-editor';
-import { drawEmpty, itemStyle } from '../components/list-items';
 
 const GROUPS_REGEXP = /^lightlynx-groups (\d+(,\d+)*)$/m;
 const TIMEOUT_REGEXP = /^lightlynx-timeout (\d+(?:\.\d+)?)([smhd])$/m;
 
 // Helper function for common pattern: device item with bulb circle and name
 export function drawDeviceItem(device: Device, ieee: string): void {
-    $('div', itemStyle, () => {
+    $('div.item', () => {
         drawBulbCircle(device, ieee);
         $('h2.link#', device.name, 'click=', () => route.go(['bulb', ieee]));
     });
@@ -30,10 +30,16 @@ const groupInputs = partition(api.store.devices, (device: Device, _ieee: string)
 export function drawGroupPage(groupId: number): void {
     const optGroup = api.store.groups[groupId];
     if (!optGroup) {
-        drawEmpty('No such group');
+        $('div.empty#No such group');
         return;
     }
     const group = optGroup;
+    
+    // Check if user has permission to access this group
+    if (!api.store.isAdmin && !api.store.allowedGroupIds[groupId]) {
+        $("div.empty#You don't have access to this group");
+        return;
+    }
     
     if (route.current.p[2] === 'addLight') return drawGroupAddLight(group, groupId);
     if (route.current.p[2] === 'addInput') return drawGroupAddInput(group, groupId);
@@ -79,7 +85,7 @@ export function drawGroupPage(groupId: number): void {
             });
         }, (scene) => `${scene.suffix || "x"}#${scene.shortName}`);
         $(() => {
-            if (isEmpty(group.scenes)) drawEmpty("None yet");
+            if (isEmpty(group.scenes)) $('div.empty#None yet');
         });
     });
 
@@ -95,7 +101,7 @@ export function drawGroupPage(groupId: number): void {
         }, (ieee) => devices[ieee]?.name);
         
         if (isEmpty(group.members)) {
-            drawEmpty("None yet");
+            $('div.empty#None yet');
         }
     });
 
@@ -186,61 +192,66 @@ function drawGroupConfigurationEditor(
     });
 
     if (automationEnabled) {
-        onEach(groupInputs[groupId] || {}, (device, ieee) => {
-            $("div.item", () => {
-                drawBulbCircle(device, ieee);
-                $("h2#", device.name);
-                icons.remove('.link click=', () => {
-                    const description = buildDescriptionWithGroupIds(device.description, (getGroupIdsFromDescription(device.description) || []).filter(id => id !== groupId));
-                    api.send("bridge", "request", "device", "options", {id: ieee, options: {description}});
+        $('div.list', () => {
+            onEach(groupInputs[groupId] || {}, (device, ieee) => {
+                $("div.item", () => {
+                    drawBulbCircle(device, ieee);
+                    $("h2#", device.name);
+                    icons.remove('.link click=', () => {
+                        const description = buildDescriptionWithGroupIds(device.description, (getGroupIdsFromDescription(device.description) || []).filter(id => id !== groupId));
+                        api.send("bridge", "request", "device", "options", {id: ieee, options: {description}});
+                    });
                 });
             });
+            if (isEmpty(groupInputs[groupId] || {})) {
+                $('div.empty#None yet');
+            }
         });
-        if (isEmpty(groupInputs[groupId] || {})) {
-            drawEmpty("None yet");
-        }
     }
 
     $('h1#Settings');
     
     // Group name
-    $('div.item', () => {
-        $('h2#Name');
-        $('input type=text placeholder="Group name" bind=', ref(groupState, 'name'));
-    });
-    
-    if (automationEnabled) {
-        // Lights off timer checkbox
-        $('label.item', () => {
-            $('input type=checkbox', 'checked=', !!groupState.timeout, 'change=', (e: Event) => {
-                const target = e.target as HTMLInputElement;
-                if (target.checked) {
-                    groupState.timeout = { value: 30, unit: 'm' };
-                } else {
-                    groupState.timeout = null;
-                }
-            });
-            $('h2#Lights off timer');
-        });
+    $('div.list', () => {
 
-        // Timer configuration (only show if checkbox is set)
-        $(() => {
-            if (!groupState.timeout) return;
-            $('label.item', 'create=', grow, 'destroy=', shrink, () => {
-                $('h2#Turn off lights after');
-                $('input type=number min=1 bind=', ref(groupState.timeout!, 'value'));
-                $('select bind=', ref(groupState.timeout!, 'unit'), () => {
-                    $('option value=s #seconds');
-                    $('option value=m #minutes');
-                    $('option value=h #hours');
-                    $('option value=d #days');
+        $('div.item', () => {
+            $('h2#Name');
+            $('input type=text placeholder="Group name" bind=', ref(groupState, 'name'));
+        });
+        
+        if (automationEnabled) {
+            // Lights off timer checkbox
+            $('label.item', () => {
+                $('input type=checkbox', 'checked=', !!groupState.timeout, 'change=', (e: Event) => {
+                    const target = e.target as HTMLInputElement;
+                    if (target.checked) {
+                        groupState.timeout = { value: 30, unit: 'm' };
+                    } else {
+                        groupState.timeout = null;
+                    }
+                });
+                $('h2#Lights off timer');
+            });
+
+            // Timer configuration (only show if checkbox is set)
+            $(() => {
+                if (!groupState.timeout) return;
+                $('label.item', 'create=', grow, 'destroy=', shrink, () => {
+                    $('h2#Turn off lights after');
+                    $('input type=number min=1 bind=', ref(groupState.timeout!, 'value'));
+                    $('select bind=', ref(groupState.timeout!, 'unit'), () => {
+                        $('option value=s #seconds');
+                        $('option value=m #minutes');
+                        $('option value=h #hours');
+                        $('option value=d #days');
+                    });
                 });
             });
-        });
-    }
+        }
+    });
 
     $('h1#Actions');
-    $('div.item.link', icons.remove, '#Delete group', 'click=', async () => {
+    $('div.list div.item.link', icons.remove, '#Delete group', 'click=', async () => {
         if (!await askConfirm(`Are you sure you want to delete group '${group.name}'?`)) return;
         api.send("bridge", "request", "group", "remove", {id: group.name});
         route.back('/');
@@ -287,10 +298,8 @@ export function buildDescriptionWithGroupIds(description: string | undefined, gr
 }
 
 export function getGroupTimeoutFromDescription(description: string | undefined): GroupTimeout | null {
-    console.log('Parsing timeout from description:', description);
     if (!description) return null;
     const m = description.match(TIMEOUT_REGEXP);
-    console.log(m);
     if (!m) return null;
     return {
         value: parseFloat(m[1]!),

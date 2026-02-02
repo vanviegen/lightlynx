@@ -66,9 +66,9 @@ interface MockGroup {
 // --- Mock Z2M Environment ---
 
 class MockLogger {
-    info(msg: string) { console.log(`[INFO] ${msg}`); }
-    warn(msg: string) { console.warn(`[WARN] ${msg}`); }
-    error(msg: string) { console.error(`[ERROR] ${msg}`); }
+    info(msg: string) { process.stderr.write(`[INFO] ${msg}\n`); }
+    warn(msg: string) { process.stderr.write(`[WARN] ${msg}\n`); }
+    error(msg: string) { process.stderr.write(`[ERROR] ${msg}\n`); }
     debug(_msg: string) { /* console.log(`[DEBUG] ${msg}`); */ }
 }
 
@@ -79,6 +79,9 @@ class MockEventBus extends EventEmitter {
     onStateChange(_key: any, cb: any) { this.on('stateChange', cb); }
     onScenesChanged(_key: any, cb: any) { this.on('scenesChanged', cb); }
     onGroupMembersChanged(_key: any, cb: any) { this.on('groupMembersChanged', cb); }
+    onEntityOptionsChanged(_key: any, cb: any) { this.on('entityOptionsChanged', cb); }
+    onEntityRenamed(_key: any, cb: any) { this.on('entityRenamed', cb); }
+    onDevicesChanged(_key: any, cb: any) { this.on('devicesChanged', cb); }
     
     emitMQTTMessage(topic: string, message: string) {
         this.emit('mqttMessage', { topic, message });
@@ -328,7 +331,7 @@ class ExtensionManager {
         for (const ext of this.extensionsList) {
             await this.start(ext.name, ext.code);
         }
-        eventBus.emitMQTTMessagePublished('zigbee2mqtt/bridge/extensions', JSON.stringify(this.list()));
+        await mqtt.publish('zigbee2mqtt/bridge/extensions', this.list(), { clientOptions: { retain: true } });
     }
 
     async start(name: string, code: string) {
@@ -430,9 +433,9 @@ async function init() {
     }
 
     const base = 'zigbee2mqtt';
-    mqtt.retainedMessages[`${base}/bridge/devices`] = { payload: JSON.stringify([...zigbee.devicesIterator()].map(d => d.toJSON())) } as any;
-    mqtt.retainedMessages[`${base}/bridge/groups`] = { payload: JSON.stringify([...zigbee.groupsIterator()].map(g => g.toJSON())) } as any;
-    mqtt.retainedMessages[`${base}/bridge/extensions`] = { payload: JSON.stringify([]) } as any;
+    await mqtt.publish(`${base}/bridge/devices`, [...zigbee.devicesIterator()].map(d => d.toJSON()), { clientOptions: { retain: true } });
+    await mqtt.publish(`${base}/bridge/groups`, [...zigbee.groupsIterator()].map(g => g.toJSON()), { clientOptions: { retain: true } });
+    await mqtt.publish(`${base}/bridge/extensions`, [], { clientOptions: { retain: true } });
 
     // Load extensions from command line arguments, or default to lightlynx extension
     const extensionsToLoad = process.argv.slice(2).length > 0 
@@ -460,9 +463,14 @@ async function init() {
 class MockMQTT {
     public retainedMessages: Record<string, { payload: string }> = {};
 
-    publish(topic: string, message: string, options?: any) {
-        console.log(`MockZ2M: MQTT OUT: ${topic} -> ${message}`);
-        eventBus.emitMQTTMessagePublished(topic, message, options);
+    async publish(topic: string, message: string | object, options?: any) {
+        const messageStr = typeof message === 'string' ? message : JSON.stringify(message);
+        console.log(`MockZ2M: MQTT OUT: ${topic} -> ${messageStr.substr(0,200)}`);
+        if (options?.clientOptions?.retain) {
+            this.retainedMessages[topic] = { payload: messageStr } as any;
+        }
+        eventBus.emitMQTTMessagePublished(topic, messageStr, options);
+        return Promise.resolve();
     }
 
     onMessage(topic: string, message: any) {
@@ -506,7 +514,7 @@ class MockMQTT {
                         }
                         
                         process.stderr.write(`MockZ2M: Scene stored: ${sceneId} (${sceneName})\n`);
-                        eventBus.emitMQTTMessagePublished(`${base}/bridge/groups`, JSON.stringify([...zigbee.groupsIterator()].map(g => g.toJSON())));
+                        mqtt.publish(`${base}/bridge/groups`, [...zigbee.groupsIterator()].map(g => g.toJSON()), { clientOptions: { retain: true } });
                     }
                     if (payload.scene_rename !== undefined) {
                         const { ID, name } = payload.scene_rename;
@@ -515,7 +523,7 @@ class MockMQTT {
                         if (scene) scene.name = name;
                         else entity.zh.scenes.push({ id: ID, name });
                         process.stderr.write(`MockZ2M: Scene renamed: ${ID} -> ${name}\n`);
-                        eventBus.emitMQTTMessagePublished(`${base}/bridge/groups`, JSON.stringify([...zigbee.groupsIterator()].map(g => g.toJSON())));
+                        mqtt.publish(`${base}/bridge/groups`, [...zigbee.groupsIterator()].map(g => g.toJSON()), { clientOptions: { retain: true } });
                     }
                     if (payload.scene_recall !== undefined && entity.isGroup()) {
                         const sceneId = payload.scene_recall;
@@ -536,7 +544,7 @@ class MockMQTT {
                                 state.set(member, { state: 'ON', brightness: 200 });
                                 process.stderr.write(`MockZ2M: No stored state for ${member.name}, using default\n`);
                             }
-                            eventBus.emitMQTTMessagePublished(`${base}/${member.name}`, JSON.stringify(state.get(member)));
+                            mqtt.publish(`${base}/${member.name}`, state.get(member));
                         }
                     }
                     if (payload.scene_add !== undefined) {
@@ -551,7 +559,7 @@ class MockMQTT {
                         entity.zh.scenes = entity.zh.scenes || [];
                         entity.zh.scenes = entity.zh.scenes.filter((s: any) => s.id !== sceneId);
                         process.stderr.write(`MockZ2M: Scene removed: ${sceneId}\n`);
-                        eventBus.emitMQTTMessagePublished(`${base}/bridge/groups`, JSON.stringify([...zigbee.groupsIterator()].map(g => g.toJSON())));
+                        mqtt.publish(`${base}/bridge/groups`, [...zigbee.groupsIterator()].map(g => g.toJSON()), { clientOptions: { retain: true } });
                     }
                     // Don't set scene_* payloads as state
                     const statePayload = { ...payload };
@@ -568,12 +576,12 @@ class MockMQTT {
                             for (const member of entity.members) {
                                 const memberState = state.get(member);
                                 state.set(member, { ...memberState, ...statePayload });
-                                eventBus.emitMQTTMessagePublished(`${base}/${member.name}`, JSON.stringify(state.get(member)));
+                                mqtt.publish(`${base}/${member.name}`, state.get(member));
                             }
                         }
                     }
                     // Echo back state
-                    eventBus.emitMQTTMessagePublished(`${base}/${entityName}`, JSON.stringify(state.get(entity)));
+                    mqtt.publish(`${base}/${entityName}`, state.get(entity));
                 } else {
                     process.stderr.write(`MockZ2M: Entity not found: ${entityName}\n`);
                 }
@@ -597,14 +605,14 @@ function handleBridgeRequest(cmd: string, payload: any) {
         const device = typeof payload.from === 'string' ? zigbee.deviceByFriendlyName(payload.from) : undefined;
         if (device) {
             device.options.friendlyName = payload.to;
-            eventBus.emitMQTTMessagePublished(`${base}/bridge/devices`, JSON.stringify([...zigbee.devicesIterator()].map(d => d.toJSON())));
+            mqtt.publish(`${base}/bridge/devices`, [...zigbee.devicesIterator()].map(d => d.toJSON()), { clientOptions: { retain: true } });
         }
     } else if (cmd === 'request/group/add') {
         const id = Math.max(0, ...zigbee.groups.keys()) + 1;
         const entity = new MockEntity(id, { friendlyName: payload.friendly_name }, { description: '' });
         zigbee.groups.set(id, entity);
         state.set(entity, { state: 'OFF' });
-        eventBus.emitMQTTMessagePublished(`${base}/bridge/groups`, JSON.stringify([...zigbee.groupsIterator()].map(g => g.toJSON())));
+        mqtt.publish(`${base}/bridge/groups`, [...zigbee.groupsIterator()].map(g => g.toJSON()), { clientOptions: { retain: true } });
         responseData = { id, friendly_name: payload.friendly_name };
     } else if (cmd === 'request/group/members/add') {
         const group = typeof payload.group === 'number' ? zigbee.groupByID(payload.group) : zigbee.groupByName(payload.group);
@@ -618,13 +626,28 @@ function handleBridgeRequest(cmd: string, payload: any) {
                 if (!(group as any)._members) (group as any)._members = [];
                 (group as any)._members.push(ieee);
                 
-                eventBus.emitMQTTMessagePublished(`${base}/bridge/groups`, JSON.stringify([...zigbee.groupsIterator()].map(g => g.toJSON())));
+                mqtt.publish(`${base}/bridge/groups`, [...zigbee.groupsIterator()].map(g => g.toJSON()), { clientOptions: { retain: true } });
                 eventBus.emit('groupMembersChanged', { group, device: { ieeeAddr: ieee }, action: 'add' });
             }
         }
     } else if (cmd === 'request/group/remove') {
         zigbee.groups.delete(payload.id);
-        eventBus.emitMQTTMessagePublished(`${base}/bridge/groups`, JSON.stringify([...zigbee.groupsIterator()].map(g => g.toJSON())));
+        mqtt.publish(`${base}/bridge/groups`, [...zigbee.groupsIterator()].map(g => g.toJSON()), { clientOptions: { retain: true } });
+    } else if (cmd === 'request/group/options') {
+        // Persist group options (e.g., description) and notify clients
+        const group = typeof payload.id === 'number' ? zigbee.groupByID(payload.id) : zigbee.groupByName(payload.id);
+        if (group && payload.options && payload.options.description !== undefined) {
+            group.options = group.options || {};
+            group.options.description = payload.options.description;
+
+            // Publish updated groups list and also emit 'info' so clients update description cache
+            mqtt.publish(`${base}/bridge/groups`, [...zigbee.groupsIterator()].map(g => g.toJSON()), { clientOptions: { retain: true } });
+
+            const infoPayload = {
+                config: { groups: { [String(group.id)]: { description: group.options.description } } }
+            };
+            mqtt.publish(`${base}/bridge/info`, infoPayload, { clientOptions: { retain: true } });
+        }
     } else if (cmd === 'request/options') {
         if (payload.options && payload.options.frontend !== undefined) {
              settings.set('frontend.enabled', payload.options.frontend.enabled);
@@ -643,11 +666,7 @@ function handleBridgeRequest(cmd: string, payload: any) {
 
     // Echo back success
     const responseTopic = `${base}/bridge/response/${cmd.replace('request/', '')}`;
-    eventBus.emitMQTTMessagePublished(responseTopic, JSON.stringify({ 
-        status: 'ok', 
-        data: responseData, 
-        transaction: payload.transaction 
-    }));
+    mqtt.publish(responseTopic, { status: 'ok', data: responseData, transaction: payload.transaction });
 }
 
 // --- Pairing Procedure ---

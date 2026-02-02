@@ -1,26 +1,33 @@
 /// <reference types="vite/client" />
 import './global-style';
-import {$, proxy, copy, clone, onEach, isEmpty, derive, insertCss, peek} from 'aberdeen';
+import {$, proxy, copy, clone, onEach, isEmpty, derive, insertCss, peek, disableCreateDestroy} from 'aberdeen';
 import * as route from 'aberdeen/route';
 import api from './api';
+
 import * as icons from './icons';
 import * as colors from './colors';
 import { drawBulbCircle } from "./components/color-picker";
-import { drawToasts } from './components/toasts';
+import { drawToasts, createToast } from './components/toasts';
 import { drawHeader } from './components/header';
 import { drawLandingPage } from './pages/landing-page';
 import { drawBulbPage } from './pages/bulb-page';
-import { drawGroupPage, drawDeviceItem } from './pages/group-page';
+import { drawGroupPage } from './pages/group-page';
 import { drawConnectionPage } from './pages/connection-page';
 import { drawUsersSection, drawUserEditor } from './pages/users-page';
 import { drawRemoteInfoPage, drawAutomationInfoPage, drawBatteriesPage, drawDumpPage } from './pages/info-pages';
-import { routeState, admin, toasts, notify, askPrompt } from './ui';
-import { drawPromptPage } from './pages/prompt-page';
+import { routeState, admin } from './ui';
+import { askPrompt, drawPromptPage } from './components/prompt';
 import swUrl from './sw.ts?worker&url';
-import { drawEmpty } from './components/list-items';
+import { preventFormNavigation } from './utils';
 
+// Configure Aberdeen
 route.setLog(true);
 route.interceptLinks();
+// Disable transitions in Playwright)
+if ((navigator as any).webdriver) {
+    disableCreateDestroy();
+}
+preventFormNavigation();
 
 const updateAvailable = proxy(false);
 
@@ -38,7 +45,7 @@ if (!import.meta.env.DEV && 'serviceWorker' in navigator) {
 }
 
 // Register notify handler to show API messages as toasts
-api.notifyHandlers.push(notify);
+api.notifyHandlers.push(createToast);
 
 export const deviceGroups: Record<string, number[]> = {};
 $(() => {
@@ -112,7 +119,7 @@ function drawTopPage(): void {
 		if (api.store.connectionState === 'idle') {
 			api.store.servers[0]!.status = 'try';
 		}
-		drawEmpty('Connecting...');
+		$('div.empty#Connecting...');
 	}
 
 	routeState.title = '';
@@ -120,12 +127,16 @@ function drawTopPage(): void {
 
 	$("div.list mt:$2", groupListClass, () => {
 		onEach(api.store.groups, (group, groupId) => {
+			const gid = parseInt(groupId);
+			
 			$('div.item.group', () => {
-				// Add 'on' class if any lights are on
+				// Add 'off' class if lights are off
 				$('.off=', derive(() => !group.lightState?.on));
+				// Add 'disabled' class if user cannot control this group (CSS handles pointer-events:none)
+				$('.disabled=', derive(() => !api.canControlGroup(gid)));
 
 				// Toggle button
-				drawBulbCircle(group, parseInt(groupId));
+				drawBulbCircle(group, gid);
 				
 				// Name and chevron (includes spacer, min 20px padding)
 				$('h2.link flex:1 click=', () => route.go(['group', groupId]), () => {
@@ -146,7 +157,7 @@ function drawTopPage(): void {
 					},  scene => `${scene.suffix || 'x'}#${scene.name}`);
 					
 					if (!group.scenes || group.scenes.length === 0) {
-						icons.scenes.normal('click=', () => api.setLightState(parseInt(groupId), {on: false, brightness: 140, color: colors.CT_DEFAULT}));
+						icons.scenes.normal('click=', () => api.setLightState(gid, {on: false, brightness: 140, color: colors.CT_DEFAULT}));
 					}
 				});
 			});
@@ -154,7 +165,14 @@ function drawTopPage(): void {
 	});
 	
 	$("div.list", () => {
-		onEach(api.store.devices, drawDeviceItem, (device, ieee) => {
+		onEach(api.store.devices, (device, ieee) => {
+			$('div.item', () => {
+				// Add 'disabled' class if user is not admin (CSS handles pointer-events:none)
+				$('.disabled=', derive(() => !api.store.isAdmin));
+				drawBulbCircle(device, ieee);
+				$('h2.link#', device.name, 'click=', () => route.go(['bulb', ieee]));
+			});
+		}, (device, ieee) => {
 			let inGroups = deviceGroups[ieee];
 			return (!inGroups && device.lightCaps) ? device.name : undefined;
 		});
@@ -181,16 +199,20 @@ function drawRemoteAccessToggle(): void {
 				try {
 					await api.setRemoteAccess(checked);
 					if (checked) {
-						notify('info', "Remote access enabled. Ensure your router supports UPnP or you have manually forwarded port 43597.");
+						createToast('info', "Remote access enabled!");
 					}
 				} catch (e: any) {
-					notify('error', "Failed to toggle remote access: " + e.message);
+					createToast('error', "Failed to toggle remote access: " + e.message);
 				} finally {
 					remoteBusy.value = false;
 				}
 			}
 		});
 		$('h2#Remote access');
+		if (api.store.remoteAccessEnabled) {
+			const address = api.store.servers[0]?.externalAddress || "No address yet";
+			$('span opacity:0.6 #'+address);
+		}
 		icons.info('margin-left:auto click=', (e: Event) => {
 			e.stopPropagation();
 			e.preventDefault();
@@ -250,38 +272,41 @@ $('div', rootStyle, () => {
 		
 		const nav = peek(() => route.current.nav);
 		$('main', mainStyle, 'destroy=fadeOut create=', nav, () => {
-			routeState.title = '';
-			routeState.subTitle = '';
-			delete routeState.drawIcons;
+			$(() => {
+				routeState.title = '';
+				routeState.subTitle = '';
+				delete routeState.drawIcons;
 
-			// Show Landing page if no server active
-			if (p[0] === 'connect') {
-				drawConnectionPage();
-			} else if (p[0]==='group' && p[1]) {
-				drawGroupPage(parseInt(p[1]));
-			} else if (p[0] === 'bulb' && p[1]) {
-				drawBulbPage(p[1]);
-			} else if (p[0] === 'batteries') {
-				drawBatteriesPage();
-			} else if (p[0] === 'user' && p[1]) {
-				drawUserEditor();
-			} else if (p[0] === 'dump') {
-				drawDumpPage();
-			} else if (p[0] === 'remote-info') {
-				drawRemoteInfoPage();
-			} else if (p[0] === 'automation-info') {
-				drawAutomationInfoPage();
-			} else {
-				drawTopPage();
-			}
+				// Show Landing page if no server active
+				if (p[0] === 'connect') {
+					drawConnectionPage();
+				} else if (p[0]==='group' && p[1]) {
+					drawGroupPage(parseInt(p[1]));
+				} else if (p[0] === 'bulb' && p[1]) {
+					drawBulbPage(p[1]);
+				} else if (p[0] === 'batteries') {
+					drawBatteriesPage();
+				} else if (p[0] === 'user' && p[1]) {
+					drawUserEditor();
+				} else if (p[0] === 'dump') {
+					drawDumpPage();
+				} else if (p[0] === 'remote-info') {
+					drawRemoteInfoPage();
+				} else if (p[0] === 'automation-info') {
+					drawAutomationInfoPage();
+				} else {
+					drawTopPage();
+				}
+			});
 			route.persistScroll();
-		}, {destroy: 'fadeOut', create: route.current.nav});
+		});
 	}); // end mainContainer
 
-	drawToasts(toasts);
+	drawToasts();
 }); // end root
 
 
+// Show prompt modal, if any
 $(() => {
 	if (route.current.state.prompt) {
 		drawPromptPage(route.current.state.prompt);

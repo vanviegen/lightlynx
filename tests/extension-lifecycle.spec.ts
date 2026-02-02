@@ -22,11 +22,11 @@ test.describe('Automation Features', () => {
     
     // Go to a group page and verify "Buttons and sensors" section exists
     const groupName = 'Living Room';
-    await page.locator('.list h2.link', { hasText: groupName }).filter({ visible: true }).click();
-    await expect(page.locator('span.subTitle', { hasText: 'group' }).filter({ visible: true })).toBeVisible();
+    await page.locator('.list h2.link', { hasText: groupName }).click();
+    await expect(page.locator('span.subTitle', { hasText: 'group' })).toBeVisible();
     
     // "Buttons and sensors" heading should be visible
-    const buttonsHeading = page.locator('h1', { hasText: 'Buttons and sensors' }).filter({ visible: true });
+    const buttonsHeading = page.locator('h1', { hasText: 'Buttons and sensors' });
     await expect(buttonsHeading).toBeVisible();
     
     // Note: Whether the create icon appears depends on automation being enabled,

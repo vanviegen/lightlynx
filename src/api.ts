@@ -153,6 +153,10 @@ class Api {
         connectionState: 'idle',
         users: {},
         activeScenes: {},
+        automationEnabled: false,
+        remoteAccessEnabled: false,
+        isAdmin: true, // Default to true until user data is loaded
+        allowedGroupIds: {},
     });
     groupDescriptionsCache: Record<string, string | undefined> = {};
     notifyHandlers: Array<(type: 'error' | 'info' | 'warning', msg: string) => void> = [];
@@ -201,6 +205,20 @@ class Api {
         // Persist servers list to localStorage on changes
         $(() => {
             setLocalStorage(CREDENTIALS_LOCAL_STORAGE_ITEM_NAME, this.store.servers);
+        });
+        
+        // Reactively update isAdmin and allowedGroupIds based on current user
+        $(() => {
+            const username = this.store.servers[0]?.username;
+            const user = username ? this.store.users[username] : undefined;
+            this.store.isAdmin = !user || user.isAdmin;
+            const newAllowed: Record<number, true> = {};
+            if (user && !user.isAdmin) {
+                for (const gid of user.allowedGroups) {
+                    newAllowed[gid] = true;
+                }
+            }
+            copy(this.store.allowedGroupIds, newAllowed);
         });
         
         // Reactive connection management
@@ -290,7 +308,7 @@ class Api {
             this.tryingSockets.push(socket);
             
             socket.addEventListener("error", (e) => {
-                console.error("WebSocket error", (e.target as WebSocket)?.url);
+                console.error("WebSocket error", e);
             });
             
             socket.addEventListener("open", () => {
@@ -443,7 +461,7 @@ class Api {
             const transaction = `${this.transactionRndPrefix}-${this.transactionNumber++}`;
             payload = { ...payload, transaction };
         }
-        this.socket.send(JSON.stringify({ topic, payload }, (_, v) => v === undefined ? null : v));
+        this.socket.send(JSON.stringify({ topic, payload }));
         if (payload.transaction) {
             await new Promise<void>((resolve, reject) => {
                 this.requests.set(payload.transaction, { resolve, reject });
@@ -644,6 +662,13 @@ class Api {
         return this.send('bridge/request/lightlynx/config/deleteUser', { username });
     }
 
+    /**
+     * Check if the current user can control a group (reactive)
+     */
+    canControlGroup(groupId: number): boolean {
+        return this.store.isAdmin || !!this.store.allowedGroupIds[groupId];
+    }
+
     private onMessage = (event: MessageEvent): void => {
         const socket = event.target as WebSocket;
         if (socket && socket !== this.socket) return;
@@ -806,7 +831,6 @@ class Api {
                         newGroupIds.push(id);
                     }
                 }
-                console.log(groups);
                 copy(this.store.groups, groups);
                 for(let groupId of newGroupIds) {
                     this.streamGroupState(groupId);
