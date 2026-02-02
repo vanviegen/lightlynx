@@ -1565,12 +1565,12 @@ class LightLynx {
 
     private onMQTTPublish(data: any) {
         if (data.options.meta?.isEntityState || !data.topic.startsWith(`${this.mqttBaseTopic}/`)) return;
-        // For v2, we don't need to broadcast individual MQTT messages
+        // We don't need to broadcast individual MQTT messages
         // State updates are handled through buildState and specific broadcast methods
     }
 
     private onEntityState(data: any) {
-        // For v2, we don't need to broadcast individual entity state changes
+        // We don't need to broadcast individual entity state changes
         // State updates are handled through buildState and specific broadcast methods
     }
 
