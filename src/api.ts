@@ -417,12 +417,6 @@ class Api {
         // TODO: Extension auto-upgrade disabled until extension.save command is implemented in v2 protocol
         // For now, extension must be upgraded manually via Z2M UI
         return;
-        
-        // if (!this.store.extensionHash) return; // No extension installed yet
-        // if (EXTENSION_HASH && this.store.extensionHash !== EXTENSION_HASH) {
-        //     console.log(`Extension hash mismatch: installed=${this.store.extensionHash}, expected=${EXTENSION_HASH}`);
-        //     await this.upgradeExtension();
-        // }
     }
 
     public async upgradeExtension(): Promise<void> {
