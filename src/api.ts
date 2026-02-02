@@ -144,6 +144,7 @@ class Api {
     private reconnectTimeout?: ReturnType<typeof setTimeout>;
     private connectTimeout?: ReturnType<typeof setTimeout>;
     private reconnectAttempts = 0;
+    private protocolVersion: 'v1' | 'v2' = 'v1';
 
     store: Store = proxy({
         devices: {},
@@ -170,6 +171,15 @@ class Api {
     
     constructor() {
         this.transactionRndPrefix = (Math.random() + 1).toString(36).substring(2,7);
+
+        // Check if v2 protocol is requested
+        peek(() => {
+            const protocol = route.current.search.protocol;
+            if (protocol === 'v2') {
+                this.protocolVersion = 'v2';
+                console.log('Using protocol v2');
+            }
+        });
 
         // Load cached data from localStorage
         for (const topic of ['bridge/devices', 'bridge/groups']) {
@@ -304,6 +314,9 @@ class Api {
             if (creds.username) {
                 url.searchParams.append("user", creds.username);
                 url.searchParams.append("secret", creds.secret || '');
+            }
+            if (this.protocolVersion === 'v2') {
+                url.searchParams.append("protocol", "v2");
             }
             const socket = new WebSocket(url.toString(), ["lightlynx"]);
             this.tryingSockets.push(socket);
@@ -712,6 +725,16 @@ class Api {
         if (socket && socket !== this.socket) return;
 
         const message = JSON.parse(event.data);
+        
+        // Route to appropriate protocol handler
+        if (this.protocolVersion === 'v2') {
+            this.onMessageV2(message);
+        } else {
+            this.onMessageV1(message);
+        }
+    }
+
+    private onMessageV1(message: any): void {
         let topic = message.topic;
         let payload = message.payload;        
 
@@ -742,7 +765,7 @@ class Api {
         if (!topic) return;
 
         if (topic === 'bridge/devices' || topic === 'bridge/groups') {
-            localStorage.setItem(topic, event.data);
+            localStorage.setItem(topic, JSON.stringify(message));
         }
 
         if (topic.startsWith("bridge/")) {
@@ -915,6 +938,206 @@ class Api {
                 }
             }
         }
+    }
+
+    private onMessageV2(message: any): void {
+        console.log("api/onMessageV2", message.type);
+        
+        if (message.type === 'error') {
+            this.handleConnectionFailure(message.error);
+            return;
+        }
+
+        if (message.type === 'response') {
+            const { id, ok, error, data } = message;
+            if (this.requests.has(id)) {
+                const { resolve, reject } = this.requests.get(id)!;
+                ok ? resolve() : reject(new Error(error || 'Unknown error'));
+                this.requests.delete(id);
+            }
+            return;
+        }
+
+        if (message.type === 'state') {
+            const { data } = message;
+            
+            // Handle full state on first message
+            if (data.full) {
+                this.handleFullStateV2(data.full);
+            } else {
+                // Handle delta updates
+                this.handleStateDeltaV2(data);
+            }
+            
+            // First message confirms authentication succeeded
+            if (this.store.connectionState === 'authenticating') {
+                console.log("api/onMessageV2 - Authentication confirmed");
+                clearTimeout(this.connectTimeout);
+                this.connectTimeout = undefined;
+                this.store.connected = true;
+                this.store.connectionState = 'connected';
+                delete this.store.lastConnectError;
+                this.reconnectAttempts = 0;
+                
+                // If status was 'try', upgrade to 'enabled' on success
+                const server = this.store.servers[0];
+                if (server?.status === 'try') {
+                    server.status = 'enabled';
+                }
+            }
+        }
+    }
+
+    private handleFullStateV2(state: any): void {
+        console.log("api/handleFullStateV2", state);
+        
+        // Clear existing state
+        copy(this.store.devices, {});
+        copy(this.store.groups, {});
+        this.nameToIeeeMap.clear();
+        
+        // Process lights into devices
+        if (state.lights) {
+            for (const [ieee, light] of Object.entries(state.lights as any)) {
+                this.nameToIeeeMap.set(light.name, ieee);
+                this.store.devices[ieee] = {
+                    name: light.name,
+                    description: light.description,
+                    model: light.model,
+                    lightState: this.convertV2StateToV1(light.state),
+                    lightCaps: light.caps,
+                    meta: light.meta
+                };
+            }
+        }
+        
+        // Process groups
+        if (state.groups) {
+            for (const [groupId, group] of Object.entries(state.groups as any)) {
+                const id = parseInt(groupId);
+                this.store.groups[id] = {
+                    name: group.name,
+                    members: group.members,
+                    scenes: this.convertV2Scenes(state.scenes?.[id] || {}),
+                    lightState: this.convertV2StateToV1(group.state),
+                    lightCaps: group.caps,
+                    description: group.description
+                };
+            }
+        }
+        
+        // Process config
+        if (state.config) {
+            this.store.permitJoin = state.config.permitJoin;
+            this.store.remoteAccessEnabled = state.config.remoteAccess;
+            this.store.automationEnabled = state.config.automation;
+            this.store.latitude = state.config.location?.latitude;
+            this.store.longitude = state.config.location?.longitude;
+            this.store.localAddress = state.config.addresses?.local;
+            this.store.externalAddress = state.config.addresses?.external;
+        }
+        
+        // Process users
+        if (state.users) {
+            copy(this.store.users, state.users);
+        }
+        
+        // Process active scenes
+        if (state.activeScenes) {
+            for (const [groupId, sceneId] of Object.entries(state.activeScenes as any)) {
+                const group = this.store.groups[parseInt(groupId)];
+                if (group && sceneId != null) {
+                    this.store.activeScenes[group.name] = sceneId;
+                }
+            }
+        }
+    }
+
+    private handleStateDeltaV2(data: any): void {
+        // Handle incremental state updates
+        if (data.lights) {
+            for (const [ieee, light] of Object.entries(data.lights as any)) {
+                if (light === null) {
+                    delete this.store.devices[ieee];
+                    continue;
+                }
+                const existing = this.store.devices[ieee];
+                if (existing) {
+                    if (light.state) {
+                        copy(existing.lightState, this.convertV2StateToV1(light.state));
+                    }
+                    if (light.meta) {
+                        Object.assign(existing.meta ||= {}, light.meta);
+                    }
+                }
+            }
+        }
+        
+        if (data.groups) {
+            for (const [groupId, group] of Object.entries(data.groups as any)) {
+                if (group === null) {
+                    delete this.store.groups[parseInt(groupId)];
+                    continue;
+                }
+                const existing = this.store.groups[parseInt(groupId)];
+                if (existing && group.state) {
+                    copy(existing.lightState, this.convertV2StateToV1(group.state));
+                }
+            }
+        }
+        
+        if (data.config) {
+            if (data.config.permitJoin !== undefined) this.store.permitJoin = data.config.permitJoin;
+            if (data.config.remoteAccess !== undefined) this.store.remoteAccessEnabled = data.config.remoteAccess;
+            if (data.config.automation !== undefined) this.store.automationEnabled = data.config.automation;
+            if (data.config.location) {
+                this.store.latitude = data.config.location.latitude;
+                this.store.longitude = data.config.location.longitude;
+            }
+            if (data.config.addresses) {
+                this.store.localAddress = data.config.addresses.local;
+                this.store.externalAddress = data.config.addresses.external;
+            }
+        }
+        
+        if (data.users) {
+            for (const [username, user] of Object.entries(data.users as any)) {
+                if (user === null) {
+                    delete this.store.users[username];
+                } else {
+                    this.store.users[username] = user;
+                }
+            }
+        }
+    }
+
+    private convertV2StateToV1(v2State: any): LightState {
+        const v1State: LightState = {};
+        if (v2State.on !== undefined) v1State.on = v2State.on;
+        if (v2State.brightness !== undefined) v1State.brightness = v2State.brightness;
+        if (v2State.color !== undefined) {
+            if (typeof v2State.color === 'number') {
+                v1State.color = v2State.color; // color temp
+            } else if (v2State.color.hue !== undefined) {
+                v1State.color = { hue: v2State.color.hue, saturation: v2State.color.saturation };
+            } else if (v2State.color.x !== undefined) {
+                v1State.color = { x: v2State.color.x, y: v2State.color.y };
+            }
+        }
+        return v1State;
+    }
+
+    private convertV2Scenes(v2Scenes: any): Scene[] {
+        const scenes: Scene[] = [];
+        for (const [sceneId, scene] of Object.entries(v2Scenes)) {
+            scenes.push({
+                id: parseInt(sceneId),
+                name: scene.name,
+                shortName: scene.name.replace(/ \(.*?\)$/, ''),
+                suffix: scene.name.match(/ \((.*?)\)$/)?.[1]
+            });
+        }
+        return scenes;
     }
 }
 
