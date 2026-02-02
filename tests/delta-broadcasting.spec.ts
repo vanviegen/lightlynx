@@ -14,13 +14,13 @@ test.describe('Delta Broadcasting', () => {
         expect(body).toBeTruthy();
         
         // Check that the app's store has been populated with initial state
-        const hasLights = await page.evaluate(() => {
+        const storePopulated = await page.evaluate(() => {
             const api = (window as any).api;
             if (!api || !api.store) return false;
             return Object.keys(api.store.devices || {}).length > 0;
         });
         
-        expect(hasLights).toBe(true);
+        expect(storePopulated).toBe(true);
         
         // Verify groups exist
         const groupCount = await page.evaluate(() => {

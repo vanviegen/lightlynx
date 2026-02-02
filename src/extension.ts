@@ -1532,6 +1532,12 @@ class LightLynx {
         return `${description} (${vendor})`;
     }
 
+    private extractColorFromDeviceState(deviceState: any): any {
+        if (deviceState.color_temp) return deviceState.color_temp;
+        if (deviceState.color) return deviceState.color;
+        return undefined;
+    }
+
     private buildLightState(device: any, definition: any): any {
         const deviceState = this.state.get(device) || {};
         const features = definition?.exposes?.find((e: any) => e.type === 'light' || e.type === 'switch')?.features || [];
@@ -1544,8 +1550,7 @@ class LightLynx {
             state: {
                 on: deviceState.state === 'ON',
                 brightness: deviceState.brightness,
-                color: deviceState.color_temp ? deviceState.color_temp :
-                       deviceState.color ? deviceState.color : undefined
+                color: this.extractColorFromDeviceState(deviceState)
             },
             caps: {
                 brightness: brightnessFeat ? {
@@ -1824,8 +1829,7 @@ class LightLynx {
             const lightState: any = {
                 on: deviceState.state === 'ON',
                 brightness: deviceState.brightness,
-                color: deviceState.color_temp ? deviceState.color_temp :
-                       deviceState.color ? deviceState.color : undefined
+                color: this.extractColorFromDeviceState(deviceState)
             };
             
             const delta = {
