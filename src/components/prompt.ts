@@ -3,15 +3,20 @@ import * as route from 'aberdeen/route';
 import { routeState } from '../ui';
 
 const dialogResolvers: Record<number, (value: any) => void> = {};
+const dialogContents: Record<number, () => void> = {};
 
 function askDialog(type: 'confirm' | 'prompt' | 'info', message: string, options: {defaultValue?: string, title?: string, content?: () => void} = {}): Promise<any> {
     const resolveId = 0 | (Math.random() * 1000000);
     const result = new Promise(resolve => {
         dialogResolvers[resolveId] = resolve;
-        route.push({state: {prompt: {type, message, resolveId, value: options.defaultValue, title: options.title, content: options.content}}});
+        if (options.content) dialogContents[resolveId] = options.content;
+        route.push({state: {prompt: {type, message, resolveId, value: options.defaultValue, title: options.title, hasContent: !!options.content}}});
     });
     // Remove resolver after dialog closes to avoid leaks
-    result.finally(() => { delete dialogResolvers[resolveId]; });
+    result.finally(() => { 
+        delete dialogResolvers[resolveId];
+        delete dialogContents[resolveId];
+    });
     return result as any;
 }
 
@@ -33,10 +38,12 @@ const backdropClass = insertCss({
     form: "background-color:$surface p:$3 r:8px min-width:300px max-width:90vw box-shadow: 0 4px 12px rgba(0,0,0,0.3) display:flex flex-direction:column gap:$2",
 });
 
-export function drawPromptPage(state: {resolveId: number, type: string, message: string, title?: string, value?: string, content?: () => void}): void {
+export function drawPromptPage(state: {resolveId: number, type: string, message: string, title?: string, value?: string, hasContent?: boolean}): void {
     
     let resolve = dialogResolvers[state.resolveId];
     if (!resolve) return route.back('/');
+    
+    const content = dialogContents[state.resolveId];
     
     // Hide main content from the accessibility tree while dialog is visible
     const mains = Array.from(document.querySelectorAll('main')) as HTMLElement[];
@@ -61,8 +68,8 @@ export function drawPromptPage(state: {resolveId: number, type: string, message:
             }
             
             $(() => {
-                if (isInfo && state.content) {
-                    $('div line-height:1.6 fg:$textLight', state.content);
+                if (isInfo && content) {
+                    $('div line-height:1.6 fg:$textLight', content);
                 } else if (!isConfirm && !isInfo) {
                     $('input type=text w:100% bind=', value, 'keydown=', (e: KeyboardEvent) => {
                         if (e.key === 'Enter') {

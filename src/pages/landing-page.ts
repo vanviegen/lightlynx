@@ -2,7 +2,6 @@ import { $, insertCss, proxy, onEach } from 'aberdeen';
 import * as route from 'aberdeen/route';
 import * as icons from '../icons';
 import { routeState } from '../ui';
-import { showInfo } from '../components/prompt';
 import api from '../api';
 
 const landingStyle = insertCss('p: $4 $3; display:flex flex-direction:column gap:$4');
@@ -13,14 +12,13 @@ const heroStyle = insertCss({
 	p: 'font-size:1rem fg:$textMuted max-width:600px m: 0 auto; line-height:1.5'
 });
 
-const featuresStyle = insertCss('display:grid grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:$3');
+const featuresStyle = insertCss('display:grid grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap:$3');
 
 const featureStyle = insertCss({
-	'&': 'text-align:center display:flex flex-direction:column align-items:center gap:$2 p:$3 bg:#ffffff05 r:12px border: 1px solid #ffffff08;',
-	'.icon': 'fg:$primary w:36px h:36px',
-	h3: 'font-size:1rem fg:$primary m:0',
+	'&': 'display:flex flex-direction:column gap:$2 p:$3 bg:#ffffff05 r:12px border: 1px solid #ffffff08;',
+	'.icon': 'fg:$primary w:32px h:32px',
+	h3: 'font-size:1rem fg:$text m:0 display:flex align-items:center gap:$2',
 	p: 'font-size:0.85rem fg:$textMuted m:0 line-height:1.5',
-	'.more': 'font-size:0.8rem fg:$primaryLight cursor:pointer mt:$1'
 });
 
 const buttonRowStyle = insertCss('display:flex flex-direction:column gap:$2 align-items:center mt:$2');
@@ -39,12 +37,22 @@ const sectionStyle = insertCss({
 	h2: 'font-size:1.2rem fg:$primary mb:$2 text-align:center',
 });
 
-const contentStyle = insertCss({
-	'&': 'line-height:1.6 fg:$textLight',
-	'ol, ul': 'pl:1.5em m:0',
-	'li': 'mb:$2',
-	'strong': 'fg:$text',
-	'code': 'bg:$surfaceLight p: 2px 6px; r:4px font-size:0.9em'
+const infoCardStyle = insertCss({
+	'&': 'display:flex flex-direction:column gap:$1 p:$3 bg:#ffffff05 r:12px border: 1px solid #ffffff08;',
+	h3: 'font-size:0.95rem fg:$text m:0',
+	p: 'font-size:0.85rem fg:$textMuted m:0 line-height:1.5',
+	'code': 'bg:$surfaceLight p: 1px 4px; r:3px font-size:0.9em',
+	'a': 'fg:$primaryLight'
+});
+
+const stepCardStyle = insertCss({
+	'&': 'display:flex flex-direction:column gap:$1 p:$3 bg:#ffffff05 r:12px border: 1px solid #ffffff08;',
+	'.title-row': 'display:flex align-items:center gap:$2',
+	'.num': 'font-size:1.5rem font-weight:800 fg:$primary line-height:1',
+	h3: 'font-size:0.95rem fg:$text m:0',
+	p: 'font-size:0.85rem fg:$textMuted m:0 line-height:1.5',
+	'code': 'bg:$surfaceLight p: 1px 4px; r:3px font-size:0.9em',
+	'a': 'fg:$primaryLight'
 });
 
 const carouselStyle = insertCss({
@@ -88,67 +96,41 @@ export function drawLandingPage(): void {
         drawScreenshotCarousel();
 
         // Feature cards
-        $('div', featuresStyle, () => {
-            drawFeatureCard(icons.zap, 'Instant Response',
-                'Optimistic updates and native Zigbee groups for instant light control.',
-                'Instant Response', () => {
-                    $('p#Light Lynx uses several techniques to feel fast:');
-                    $('ul', () => {
-                        $('li rich=', '**Optimistic updates:** The UI updates immediately when you tap, before confirmation from the server.');
-                        $('li rich=', '**Native Zigbee groups:** Lights in a group receive commands simultaneously via multicast, rather than one-by-one.');
-                        $('li rich=', "**Zigbee scenes:** Scene activations are single commands — the coordinator doesn't need to send individual brightness/color values.");
-                        $('li rich=', '**Debounced updates:** Rapid changes (like dragging a slider) are batched to avoid flooding the network.');
-                    });
+        $('div', sectionStyle, () => {
+            $('h2#Features');
+            $('div', featuresStyle, () => {
+                $('div', featureStyle, () => {
+                    $('h3', () => { icons.zap(); $('#Fast Web App'); });
+                    $('p#Single-tap light control. Loads instantly from cache, works offline. Manage groups, scenes, and devices.');
                 });
 
-            drawFeatureCard(icons.palette, 'Groups & Scenes',
-                'Organize lights, create scenes, set up button and sensor triggers.',
-                'Groups & Scenes', () => {
-                    $('p#Organize your lights the way you want:');
-                    $('ul', () => {
-                        $('li rich=', '**Groups:** Combine multiple lights to control together. Uses native Zigbee groups for speed.');
-                        $('li rich=', '**Scenes:** Save lighting presets with custom colors and brightness levels.');
-                        $('li rich=', '**Triggers:** Assign buttons, motion sensors, or time schedules to activate scenes.');
-                        $('li rich=', '**Tap patterns:** Single press toggles on/off. Double or triple press can activate different scenes.');
-                        $('li rich=', '**Auto-off timers:** Automatically turn off groups after a period of inactivity.');
-                    });
+                $('div', featureStyle, () => {
+                    $('h3', () => { icons.sensor(); $('#Integrated Automation'); });
+                    $('p#Connect buttons, motion sensors, and timers to scenes. Tap patterns, auto-off timers, sunrise/sunset triggers.');
                 });
 
-            drawFeatureCard(icons.extension, 'Z2M Extension',
-                'Runs inside Zigbee2MQTT. No separate server needed.',
-                'How the Extension Works', () => {
-                    $('p#Light Lynx runs as an extension inside your Zigbee2MQTT instance:');
-                    $('ul', () => {
-                        $('li rich=', '**WebSocket API:** The extension exposes a secure WebSocket server (WSS) on a random high port for this web app to connect to.');
-                        $('li rich=', "**SSL certificates:** Automatic Let's Encrypt certificates via lightlynx.eu DNS challenge. Your browser gets a valid HTTPS connection without manual setup.");
-                        $('li rich=', "**Data storage:** All configuration (users, automation rules) is stored in Z2M's data directory. Groups/scenes/triggers are stored in device/group descriptions.");
-                        $('li rich=', '**Auto-upgrade:** When you connect, the app checks if your extension needs updating and can install new versions automatically.');
-                    });
+                $('div', featureStyle, () => {
+                    $('h3', () => { icons.shield(); $('#Secure Multi-User'); });
+                    $('p#Per-user permissions for guests and kids. Auto-SSL, optional remote access on random port. No third-party intermediates.');
                 });
-
-            drawFeatureCard(icons.cloud, 'Optional Remote Access',
-                'Control from anywhere via UPnP and encrypted connections.',
-                'Remote Access', () => {
-                    $('p#Access your lights from outside your home network:');
-                    $('ul', () => {
-                        $('li rich=', '**UPnP port forwarding:** The extension automatically requests a port forward from your router (if supported).');
-                        $('li rich=', '**IP-encoded domains:** Your server gets a unique subdomain like `x192168001005.lightlynx.eu` that resolves to your IP.');
-                        $('li rich=', '**Race-to-connect:** The app tries both local and remote addresses simultaneously, using whichever responds first. Seamless WiFi/mobile transitions.');
-                        $('li rich=', '**Encrypted always:** All connections use WSS/HTTPS with valid certificates, even on your local network.');
-                        $('li rich=', '**Per-user permissions:** Enable remote access system-wide, then grant it to specific users.');
-                    });
-                    $('p mt:$2 rich=', 'Note: Remote access requires a small cloud dependency for SSL certificates and DNS. The app works LAN-only indefinitely once initially loaded.');
-                });
+            });
         });
 
-        // How it works (technical)
+        // How it works
         $('div', sectionStyle, () => {
-            $('h2#Technical Overview');
-            $('div', contentStyle, () => {
-                $('ul', () => {
-                    $('li rich=', '**Extension:** Light Lynx provides a Zigbee2MQTT extension that exposes a secure WebSocket API. It obtains a Let\'s Encrypt certificate through lightlynx.eu.');
-                    $('li rich=', '**Service worker caching:** You open the web app through *lightlynx.eu*. It caches itself via a service worker. After first load, it opens instantly — even offline.');
-                    $('li rich=', '**Optional remote access:** When enabled on the extension, it sets up UPnP port forwarding and add the external IP to the SSL certificate. Clients will attempt to connect both the internal and external addresses simultaneously.');
+            $('h2#How It Works');
+            $('div', featuresStyle, () => {
+                $('div', infoCardStyle, () => {
+                    $('h3#Z2M Extension');
+                    $('p#A single JS file runs inside Zigbee2MQTT. It exposes a WebSocket API with automatic Let\'s Encrypt SSL via lightlynx.eu DNS challenge.');
+                });
+                $('div', infoCardStyle, () => {
+                    $('h3#Web App');
+                    $('p#Hosted on lightlynx.eu, cached locally via service worker. Device state is also cached — the app opens instantly and works offline.');
+                });
+                $('div', infoCardStyle, () => {
+                    $('h3#Remote Access');
+                    $('p#When enabled, uses UPnP to forward a random external port. The app races both local and external connections, picking whichever responds first.');
                 });
             });
         });
@@ -156,27 +138,36 @@ export function drawLandingPage(): void {
         // Get started
         $('div', sectionStyle, () => {
             $('h2#Get Started');
-            $('div', contentStyle, () => {
-                $('ol', () => {
-                    $('li', () => {
-                        $('strong#Download the extension: ');
-                        $('a href=/extension.js download=lightlynx.js #lightlynx.js');
+            $('div', featuresStyle, () => {
+                $('div', stepCardStyle, () => {
+                    $('div.title-row', () => {
+                        $('span.num #1');
+                        $('h3#Install Extension');
                     });
-                    $('li rich=', "**Install it:** Copy to your Zigbee2MQTT `data/extension` folder (restart required), or upload via Z2M's frontend (Settings → Extensions).");
-                    $('li rich=', "**Connect:** [Connect](/connect) using your server's IP address. User `admin`, no initial password.");
-                    $('li rich=', '**Configure:** Press the wrench icon to toggle admin-mode and setup your users, devices, groups, scenes, and triggers.');
+                    $('p', () => {
+                        $('#Download ');
+                        $('a href=/extension.js download=lightlynx.js #lightlynx.js');
+                        $('#, copy to Z2M ');
+                        $('code#data/extension');
+                        $('#folder, restart.');
+                    });
+                });
+                $('div', stepCardStyle, () => {
+                    $('div.title-row', () => {
+                        $('span.num #2');
+                        $('h3#Connect');
+                    });
+                    $('p rich=', "Enter your server's IP. User `admin`, no password.");
+                });
+                $('div', stepCardStyle, () => {
+                    $('div.title-row', () => {
+                        $('span.num #3');
+                        $('h3#Configure');
+                    });
+                    $('p#Tap the wrench for admin mode. Set up users, groups, scenes, triggers.');
                 });
             });
         });
-    });
-}
-
-function drawFeatureCard(icon: () => void, title: string, description: string, moreTitle: string, moreContent: () => void): void {
-    $('div', featureStyle, () => {
-        icon();
-        $('h3#', title);
-        $('p#', description);
-        $('span.more #More...', 'click=', () => showInfo(moreTitle, moreContent));
     });
 }
 
