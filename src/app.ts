@@ -47,6 +47,11 @@ if (!import.meta.env.DEV && 'serviceWorker' in navigator) {
 // Register notify handler to show API messages as toasts
 api.notifyHandlers.push(createToast);
 
+// Expose API to window for testing
+if (import.meta.env.DEV || (navigator as any).webdriver) {
+    (window as any).api = api;
+}
+
 export const deviceGroups: Record<string, number[]> = {};
 $(() => {
 	let result: Record<string, number[]> = {};

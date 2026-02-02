@@ -1,0 +1,3426 @@
+
+> lightlynx@1.0.0 test
+> rm -rf tests-out/* && playwright test
+
+[1A[2K[WebServer] [INFO] LightLynx: Created default 'admin' user with no password
+
+[1A[2K[WebServer] [INFO] LightLynx: Starting insecure WebSocket server (no TLS)
+
+
+Running 31 tests using 1 worker
+
+[1A[2K[1/31] [chromium] › tests/active-scene.spec.ts:4:3 › Active Scene › should highlight active scene in list view
+[1A[2K[chromium] › tests/active-scene.spec.ts:4:3 › Active Scene › should highlight active scene in list view
+Browser: [vite] connecting...
+
+[1A[2KBrowser: [vite] connected.
+
+[1A[2KBrowser: Auto-connecting from URL parameters: localhost:43598 admin
+
+[1A[2KBrowser: api/connect localhost:43598
+
+[1A[2K[WebServer] [INFO] LightLynx: Client connected: admin
+
+[1A[2KBrowser: aberdeen router replaceState {path: /, hash: , p: Array(0), nav: load, search: Object} {state: Object, stack: Array(0)} /?admin=y
+
+[1A[2KBrowser: Aberdeen queue took 11ms
+
+[1A[2KBrowser: api/onOpen ws://localhost:43598/api?lightlynx=1&user=admin&secret=
+
+[1A[2KBrowser: Extension hash loaded: 1293f4cd
+
+[1A[2KBrowser: api/onMessage state
+
+[1A[2KBrowser: api/handleFullState {lights: Object, groups: Object, scenes: Object, devices: Object, activeScenes: Object}
+
+[1A[2KBrowser: api/onMessage - Authentication confirmed
+
+[1A[2Kgoto /?host=localhost:43598&username=admin&admin=y
+
+[1A[2KCaptured tests-out/active-scene-0004/0005a.*
+
+[1A[2KCaptured tests-out/active-scene-0004/0008a.*
+
+[1A[2KBrowser: aberdeen router go {path: /group/1, hash: , p: Array(2), nav: go, search: Object}
+
+[1A[2KBrowser: aberdeen router replaceState {path: /group/1, hash: , p: Array(2), nav: go, search: Object} {state: Object, stack: Array(1)} /group/1?admin=y
+
+[1A[2KCaptured tests-out/active-scene-0004/0009a.*
+
+[1A[2KCaptured tests-out/active-scene-0004/0013a.*
+
+[1A[2KBrowser: api/setLightState 1 {on: true}
+
+[1A[2KBrowser: api/send group.set {"groupId":1,"state":{"state":"ON"}}
+
+[1A[2K[WebServer] [ERROR] LightLynx: Command error for admin: Group not found
+
+[1A[2KBrowser: api/onMessage response
+
+[1A[2KBROWSER ERROR: Group not found
+
+[1A[2KCaptured tests-out/active-scene-0004/0016a.*
+
+[1A[2KBrowser: aberdeen router go {path: /group/1, hash: , p: Array(2), nav: go, search: Object}
+
+[1A[2KCaptured tests-out/active-scene-0004/0017a.*
+
+[1A[2KCaptured tests-out/active-scene-0004/0018a.*
+
+[1A[2K[WebServer] [ERROR] LightLynx: Command error for admin: Unknown command category: Living Room
+
+[1A[2KBrowser: aberdeen router back -1 {path: /group/1, hash: , p: Array(2), nav: go, search: Object}
+
+[1A[2KBrowser: api/send Living Room "set"
+
+[1A[2KBrowser: aberdeen router popstate {path: /group/1, hash: , p: Array(2), nav: back, search: Object}
+
+[1A[2KBrowser: api/onMessage response
+
+[1A[2KBROWSER ERROR: Unknown command category: Living Room
+
+[1A[2KCaptured tests-out/active-scene-0004/0022a.*
+
+[1A[2K[2/31] [chromium] › tests/active-scene.spec.ts:4:3 › Active Scene › should highlight active scene in list view (retry #1)
+[1A[2KBrowser: [vite] connecting...
+
+[1A[2KBrowser: Auto-connecting from URL parameters: localhost:43598 admin
+
+[1A[2KBrowser: api/connect localhost:43598
+
+[1A[2K[WebServer] [INFO] LightLynx: Client connected: admin
+
+[1A[2KBrowser: [vite] connected.
+
+[1A[2KBrowser: aberdeen router replaceState {path: /, hash: , p: Array(0), nav: load, search: Object} {state: Object, stack: Array(0)} /?admin=y
+
+[1A[2KBrowser: Aberdeen queue took 10ms
+
+[1A[2KBrowser: api/onOpen ws://localhost:43598/api?lightlynx=1&user=admin&secret=
+
+[1A[2KBrowser: Extension hash loaded: 1293f4cd
+
+[1A[2KBrowser: api/onMessage state
+
+[1A[2KBrowser: api/handleFullState {lights: Object, groups: Object, scenes: Object, devices: Object, activeScenes: Object}
+
+[1A[2KBrowser: api/onMessage - Authentication confirmed
+
+[1A[2Kgoto /?host=localhost:43598&username=admin&admin=y
+
+[1A[2KCaptured tests-out/active-scene-0004/0005a.*
+
+[1A[2KCaptured tests-out/active-scene-0004/0008a.*
+
+[1A[2KBrowser: aberdeen router go {path: /group/1, hash: , p: Array(2), nav: go, search: Object}
+
+[1A[2KBrowser: aberdeen router replaceState {path: /group/1, hash: , p: Array(2), nav: go, search: Object} {state: Object, stack: Array(1)} /group/1?admin=y
+
+[1A[2KCaptured tests-out/active-scene-0004/0009a.*
+
+[1A[2KCaptured tests-out/active-scene-0004/0013a.*
+
+[1A[2K[WebServer] [ERROR] LightLynx: Command error for admin: Group not found
+
+[1A[2KBrowser: api/setLightState 1 {on: true}
+
+[1A[2KBrowser: api/send group.set {"groupId":1,"state":{"state":"ON"}}
+
+[1A[2KBrowser: api/onMessage response
+
+[1A[2KBROWSER ERROR: Group not found
+
+[1A[2KCaptured tests-out/active-scene-0004/0016a.*
+
+[1A[2KBrowser: aberdeen router go {path: /group/1, hash: , p: Array(2), nav: go, search: Object}
+
+[1A[2KCaptured tests-out/active-scene-0004/0017a.*
+
+[1A[2KCaptured tests-out/active-scene-0004/0018a.*
+
+[1A[2K[WebServer] [ERROR] LightLynx: Command error for admin: Unknown command category: Living Room
+
+[1A[2KBrowser: aberdeen router back -1 {path: /group/1, hash: , p: Array(2), nav: go, search: Object}
+
+[1A[2KBrowser: api/send Living Room "set"
+
+[1A[2KBrowser: aberdeen router popstate {path: /group/1, hash: , p: Array(2), nav: back, search: Object}
+
+[1A[2KBrowser: api/onMessage response
+
+[1A[2KBROWSER ERROR: Unknown command category: Living Room
+
+[1A[2KCaptured tests-out/active-scene-0004/0022a.*
+
+[1A[2K[3/31] [chromium] › tests/active-scene.spec.ts:4:3 › Active Scene › should highlight active scene in list view (retry #2)
+[1A[2KBrowser: [vite] connecting...
+
+[1A[2KBrowser: [vite] connected.
+
+[1A[2KBrowser: Auto-connecting from URL parameters: localhost:43598 admin
+
+[1A[2KBrowser: api/connect localhost:43598
+
+[1A[2K[WebServer] [INFO] LightLynx: Client connected: admin
+
+[1A[2KBrowser: aberdeen router replaceState {path: /, hash: , p: Array(0), nav: load, search: Object} {state: Object, stack: Array(0)} /?admin=y
+
+[1A[2KBrowser: api/onOpen ws://localhost:43598/api?lightlynx=1&user=admin&secret=
+
+[1A[2KBrowser: Extension hash loaded: 1293f4cd
+
+[1A[2KBrowser: api/onMessage state
+
+[1A[2KBrowser: api/handleFullState {lights: Object, groups: Object, scenes: Object, devices: Object, activeScenes: Object}
+
+[1A[2KBrowser: api/onMessage - Authentication confirmed
+
+[1A[2Kgoto /?host=localhost:43598&username=admin&admin=y
+
+[1A[2KCaptured tests-out/active-scene-0004/0005a.*
+
+[1A[2KCaptured tests-out/active-scene-0004/0008a.*
+
+[1A[2KBrowser: aberdeen router go {path: /group/1, hash: , p: Array(2), nav: go, search: Object}
+
+[1A[2KBrowser: aberdeen router replaceState {path: /group/1, hash: , p: Array(2), nav: go, search: Object} {state: Object, stack: Array(1)} /group/1?admin=y
+
+[1A[2KCaptured tests-out/active-scene-0004/0009a.*
+
+[1A[2KCaptured tests-out/active-scene-0004/0013a.*
+
+[1A[2K[WebServer] [ERROR] LightLynx: Command error for admin: Group not found
+
+[1A[2KBrowser: api/setLightState 1 {on: true}
+
+[1A[2KBrowser: api/send group.set {"groupId":1,"state":{"state":"ON"}}
+
+[1A[2KBrowser: api/onMessage response
+
+[1A[2KBROWSER ERROR: Group not found
+
+[1A[2KCaptured tests-out/active-scene-0004/0016a.*
+
+[1A[2KBrowser: aberdeen router go {path: /group/1, hash: , p: Array(2), nav: go, search: Object}
+
+[1A[2KCaptured tests-out/active-scene-0004/0017a.*
+
+[1A[2KCaptured tests-out/active-scene-0004/0018a.*
+
+[1A[2K[WebServer] [ERROR] LightLynx: Command error for admin: Unknown command category: Living Room
+
+[1A[2KBrowser: aberdeen router back -1 {path: /group/1, hash: , p: Array(2), nav: go, search: Object}
+
+[1A[2KBrowser: api/send Living Room "set"
+
+[1A[2KBrowser: aberdeen router popstate {path: /group/1, hash: , p: Array(2), nav: back, search: Object}
+
+[1A[2KBrowser: api/onMessage response
+
+[1A[2KBROWSER ERROR: Unknown command category: Living Room
+
+[1A[2KCaptured tests-out/active-scene-0004/0022a.*
+
+[1A[2K  1) [chromium] › tests/active-scene.spec.ts:4:3 › Active Scene › should highlight active scene in list view 
+
+    Error: [2mexpect([22m[31mlocator[39m[2m).[22mtoBeVisible[2m([22m[2m)[22m failed
+
+    Locator: locator('.list').locator('.item.link').filter({ hasText: 'Test Scene' })
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+    [2m  - Expect "toBeVisible" with timeout 5000ms[22m
+    [2m  - waiting for locator('.list').locator('.item.link').filter({ hasText: 'Test Scene' })[22m
+
+
+      20 |     // Wait for scene to appear
+      21 |     const sceneItem = page.locator('.list').locator('.item.link', { hasText: 'Test Scene' });
+    > 22 |     await expect(sceneItem).toBeVisible();
+         |                             ^
+      23 |
+      24 |     // Initially, scene should NOT be active
+      25 |     await expect(sceneItem).not.toHaveClass(/active-scene/);
+        at /home/runner/work/lightlynx/lightlynx/tests/active-scene.spec.ts:22:29
+
+    Error Context: tests-out/active-scene-0004/error.md
+
+    Retry #1 ───────────────────────────────────────────────────────────────────────────────────────
+
+    Error: [2mexpect([22m[31mlocator[39m[2m).[22mtoBeVisible[2m([22m[2m)[22m failed
+
+    Locator: locator('.list').locator('.item.link').filter({ hasText: 'Test Scene' })
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+    [2m  - Expect "toBeVisible" with timeout 5000ms[22m
+    [2m  - waiting for locator('.list').locator('.item.link').filter({ hasText: 'Test Scene' })[22m
+
+
+      20 |     // Wait for scene to appear
+      21 |     const sceneItem = page.locator('.list').locator('.item.link', { hasText: 'Test Scene' });
+    > 22 |     await expect(sceneItem).toBeVisible();
+         |                             ^
+      23 |
+      24 |     // Initially, scene should NOT be active
+      25 |     await expect(sceneItem).not.toHaveClass(/active-scene/);
+        at /home/runner/work/lightlynx/lightlynx/tests/active-scene.spec.ts:22:29
+
+    Error Context: tests-out/active-scene-0004/error.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    tests-out/active-scene-0004/error.md
+    Usage:
+
+        npx playwright show-trace tests-out/active-scene-0004/error.md
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Retry #2 ───────────────────────────────────────────────────────────────────────────────────────
+
+    Error: [2mexpect([22m[31mlocator[39m[2m).[22mtoBeVisible[2m([22m[2m)[22m failed
+
+    Locator: locator('.list').locator('.item.link').filter({ hasText: 'Test Scene' })
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+    [2m  - Expect "toBeVisible" with timeout 5000ms[22m
+    [2m  - waiting for locator('.list').locator('.item.link').filter({ hasText: 'Test Scene' })[22m
+
+
+      20 |     // Wait for scene to appear
+      21 |     const sceneItem = page.locator('.list').locator('.item.link', { hasText: 'Test Scene' });
+    > 22 |     await expect(sceneItem).toBeVisible();
+         |                             ^
+      23 |
+      24 |     // Initially, scene should NOT be active
+      25 |     await expect(sceneItem).not.toHaveClass(/active-scene/);
+        at /home/runner/work/lightlynx/lightlynx/tests/active-scene.spec.ts:22:29
+
+    Error Context: tests-out/active-scene-0004/error.md
+
+
+[1A[2K[4/31] [chromium] › tests/active-scene.spec.ts:34:3 › Active Scene › should show active scene in list view on main page
+[1A[2K[chromium] › tests/active-scene.spec.ts:34:3 › Active Scene › should show active scene in list view on main page
+Browser: [vite] connecting...
+
+[1A[2KBrowser: Auto-connecting from URL parameters: localhost:43598 admin
+
+[1A[2KBrowser: api/connect localhost:43598
+
+[1A[2K[WebServer] [INFO] LightLynx: Client connected: admin
+
+[1A[2KBrowser: aberdeen router replaceState {path: /, hash: , p: Array(0), nav: load, search: Object} {state: Object, stack: Array(0)} /?admin=y
+
+[1A[2KBrowser: Aberdeen queue took 10ms
+
+[1A[2KBrowser: [vite] connected.
+
+[1A[2KBrowser: api/onOpen ws://localhost:43598/api?lightlynx=1&user=admin&secret=
+
+[1A[2KBrowser: Extension hash loaded: 1293f4cd
+
+[1A[2KBrowser: api/onMessage state
+
+[1A[2KBrowser: api/handleFullState {lights: Object, groups: Object, scenes: Object, devices: Object, activeScenes: Object}
+
+[1A[2KBrowser: api/onMessage - Authentication confirmed
+
+[1A[2Kgoto /?host=localhost:43598&username=admin&admin=y
+
+[1A[2KCaptured tests-out/active-scene-0034/0035a.*
+
+[1A[2KCaptured tests-out/active-scene-0034/0038a.*
+
+[1A[2KBrowser: aberdeen router go {path: /group/1, hash: , p: Array(2), nav: go, search: Object}
+
+[1A[2KBrowser: aberdeen router replaceState {path: /group/1, hash: , p: Array(2), nav: go, search: Object} {state: Object, stack: Array(1)} /group/1?admin=y
+
+[1A[2KCaptured tests-out/active-scene-0034/0039a.*
+
+[1A[2KCaptured tests-out/active-scene-0034/0046a.*
+
+[1A[2K[WebServer] [ERROR] LightLynx: Command error for admin: Group not found
+
+[1A[2KBrowser: api/setLightState 1 {on: true}
+
+[1A[2KBrowser: api/send group.set {"groupId":1,"state":{"state":"ON"}}
+
+[1A[2KBrowser: api/onMessage response
+
+[1A[2KBROWSER ERROR: Group not found
+
+[1A[2KCaptured tests-out/active-scene-0034/0050a.*
+
+[1A[2KBrowser: aberdeen router go {path: /group/1, hash: , p: Array(2), nav: go, search: Object}
+
+[1A[2KCaptured tests-out/active-scene-0034/0052a.*
+
+[1A[2KCaptured tests-out/active-scene-0034/0053a.*
+
+[1A[2K[WebServer] [ERROR] LightLynx: Command error for admin: Unknown command category: Living Room
+
+[1A[2KBrowser: aberdeen router back -1 {path: /group/1, hash: , p: Array(2), nav: go, search: Object}
+
+[1A[2KBrowser: api/send Living Room "set"
+
+[1A[2KBrowser: aberdeen router popstate {path: /group/1, hash: , p: Array(2), nav: back, search: Object}
+
+[1A[2KBrowser: api/onMessage response
+
+[1A[2KBROWSER ERROR: Unknown command category: Living Room
+
+[1A[2KCaptured tests-out/active-scene-0034/0055a.*
+
+[1A[2KBrowser: aberdeen router back {path: /group/1, hash: , p: Array(2), nav: back, search: Object}
+
+[1A[2KCaptured tests-out/active-scene-0034/0056a.*
+
+[1A[2KCaptured tests-out/active-scene-0034/0057a.*
+
+[1A[2K[WebServer] [ERROR] LightLynx: Command error for admin: Unknown command category: Living Room
+
+[1A[2KBrowser: aberdeen router back -1 {path: /group/1, hash: , p: Array(2), nav: back, search: Object}
+
+[1A[2KBrowser: api/send Living Room "set"
+
+[1A[2KBrowser: aberdeen router popstate {path: /group/1, hash: , p: Array(2), nav: back, search: Object}
+
+[1A[2KBrowser: api/onMessage response
+
+[1A[2KBROWSER ERROR: Unknown command category: Living Room
+
+[1A[2KCaptured tests-out/active-scene-0034/0061a.*
+
+[1A[2K[5/31] [chromium] › tests/active-scene.spec.ts:34:3 › Active Scene › should show active scene in list view on main page (retry #1)
+[1A[2KBrowser: [vite] connecting...
+
+[1A[2KBrowser: Auto-connecting from URL parameters: localhost:43598 admin
+
+[1A[2KBrowser: api/connect localhost:43598
+
+[1A[2K[WebServer] [INFO] LightLynx: Client connected: admin
+
+[1A[2KBrowser: aberdeen router replaceState {path: /, hash: , p: Array(0), nav: load, search: Object} {state: Object, stack: Array(0)} /?admin=y
+
+[1A[2KBrowser: Aberdeen queue took 10ms
+
+[1A[2KBrowser: [vite] connected.
+
+[1A[2KBrowser: api/onOpen ws://localhost:43598/api?lightlynx=1&user=admin&secret=
+
+[1A[2KBrowser: Extension hash loaded: 1293f4cd
+
+[1A[2KBrowser: api/onMessage state
+
+[1A[2KBrowser: api/handleFullState {lights: Object, groups: Object, scenes: Object, devices: Object, activeScenes: Object}
+
+[1A[2KBrowser: api/onMessage - Authentication confirmed
+
+[1A[2Kgoto /?host=localhost:43598&username=admin&admin=y
+
+[1A[2KCaptured tests-out/active-scene-0034/0035a.*
+
+[1A[2KCaptured tests-out/active-scene-0034/0038a.*
+
+[1A[2KBrowser: aberdeen router go {path: /group/1, hash: , p: Array(2), nav: go, search: Object}
+
+[1A[2KBrowser: aberdeen router replaceState {path: /group/1, hash: , p: Array(2), nav: go, search: Object} {state: Object, stack: Array(1)} /group/1?admin=y
+
+[1A[2KCaptured tests-out/active-scene-0034/0039a.*
+
+[1A[2KCaptured tests-out/active-scene-0034/0046a.*
+
+[1A[2K[WebServer] [ERROR] LightLynx: Command error for admin: Group not found
+
+[1A[2KBrowser: api/setLightState 1 {on: true}
+
+[1A[2KBrowser: api/send group.set {"groupId":1,"state":{"state":"ON"}}
+
+[1A[2KBrowser: api/onMessage response
+
+[1A[2KBROWSER ERROR: Group not found
+
+[1A[2KCaptured tests-out/active-scene-0034/0050a.*
+
+[1A[2KBrowser: aberdeen router go {path: /group/1, hash: , p: Array(2), nav: go, search: Object}
+
+[1A[2KCaptured tests-out/active-scene-0034/0052a.*
+
+[1A[2KCaptured tests-out/active-scene-0034/0053a.*
+
+[1A[2K[WebServer] [ERROR] LightLynx: Command error for admin: Unknown command category: Living Room
+
+[1A[2KBrowser: aberdeen router back -1 {path: /group/1, hash: , p: Array(2), nav: go, search: Object}
+
+[1A[2KBrowser: api/send Living Room "set"
+
+[1A[2KBrowser: aberdeen router popstate {path: /group/1, hash: , p: Array(2), nav: back, search: Object}
+
+[1A[2KBrowser: api/onMessage response
+
+[1A[2KBROWSER ERROR: Unknown command category: Living Room
+
+[1A[2KCaptured tests-out/active-scene-0034/0055a.*
+
+[1A[2KBrowser: aberdeen router back {path: /group/1, hash: , p: Array(2), nav: back, search: Object}
+
+[1A[2KCaptured tests-out/active-scene-0034/0056a.*
+
+[1A[2KCaptured tests-out/active-scene-0034/0057a.*
+
+[1A[2K[WebServer] [ERROR] LightLynx: Command error for admin: Unknown command category: Living Room
+
+[1A[2KBrowser: aberdeen router back -1 {path: /group/1, hash: , p: Array(2), nav: back, search: Object}
+
+[1A[2KBrowser: api/send Living Room "set"
+
+[1A[2KBrowser: aberdeen router popstate {path: /group/1, hash: , p: Array(2), nav: back, search: Object}
+
+[1A[2KBrowser: api/onMessage response
+
+[1A[2KBROWSER ERROR: Unknown command category: Living Room
+
+[1A[2KCaptured tests-out/active-scene-0034/0061a.*
+
+[1A[2K[6/31] [chromium] › tests/active-scene.spec.ts:34:3 › Active Scene › should show active scene in list view on main page (retry #2)
+[1A[2KBrowser: [vite] connecting...
+
+[1A[2KBrowser: Auto-connecting from URL parameters: localhost:43598 admin
+
+[1A[2KBrowser: api/connect localhost:43598
+
+[1A[2K[WebServer] [INFO] LightLynx: Client connected: admin
+
+[1A[2KBrowser: aberdeen router replaceState {path: /, hash: , p: Array(0), nav: load, search: Object} {state: Object, stack: Array(0)} /?admin=y
+
+[1A[2KBrowser: Aberdeen queue took 10ms
+
+[1A[2KBrowser: [vite] connected.
+
+[1A[2KBrowser: api/onOpen ws://localhost:43598/api?lightlynx=1&user=admin&secret=
+
+[1A[2KBrowser: Extension hash loaded: 1293f4cd
+
+[1A[2KBrowser: api/onMessage state
+
+[1A[2KBrowser: api/handleFullState {lights: Object, groups: Object, scenes: Object, devices: Object, activeScenes: Object}
+
+[1A[2KBrowser: api/onMessage - Authentication confirmed
+
+[1A[2Kgoto /?host=localhost:43598&username=admin&admin=y
+
+[1A[2KCaptured tests-out/active-scene-0034/0035a.*
+
+[1A[2KCaptured tests-out/active-scene-0034/0038a.*
+
+[1A[2KBrowser: aberdeen router go {path: /group/1, hash: , p: Array(2), nav: go, search: Object}
+
+[1A[2KBrowser: aberdeen router replaceState {path: /group/1, hash: , p: Array(2), nav: go, search: Object} {state: Object, stack: Array(1)} /group/1?admin=y
+
+[1A[2KCaptured tests-out/active-scene-0034/0039a.*
+
+[1A[2KCaptured tests-out/active-scene-0034/0046a.*
+
+[1A[2KBrowser: api/setLightState 1 {on: true}
+
+[1A[2K[WebServer] [ERROR] LightLynx: Command error for admin: Group not found
+
+[1A[2KBrowser: api/send group.set {"groupId":1,"state":{"state":"ON"}}
+
+[1A[2KBrowser: api/onMessage response
+
+[1A[2KBROWSER ERROR: Group not found
+
+[1A[2KCaptured tests-out/active-scene-0034/0050a.*
+
+[1A[2KBrowser: aberdeen router go {path: /group/1, hash: , p: Array(2), nav: go, search: Object}
+
+[1A[2KCaptured tests-out/active-scene-0034/0052a.*
+
+[1A[2KCaptured tests-out/active-scene-0034/0053a.*
+
+[1A[2K[WebServer] [ERROR] LightLynx: Command error for admin: Unknown command category: Living Room
+
+[1A[2KBrowser: aberdeen router back -1 {path: /group/1, hash: , p: Array(2), nav: go, search: Object}
+
+[1A[2KBrowser: api/send Living Room "set"
+
+[1A[2KBrowser: aberdeen router popstate {path: /group/1, hash: , p: Array(2), nav: back, search: Object}
+
+[1A[2KBrowser: api/onMessage response
+
+[1A[2KBROWSER ERROR: Unknown command category: Living Room
+
+[1A[2KCaptured tests-out/active-scene-0034/0055a.*
+
+[1A[2KBrowser: aberdeen router back {path: /group/1, hash: , p: Array(2), nav: back, search: Object}
+
+[1A[2KCaptured tests-out/active-scene-0034/0056a.*
+
+[1A[2KCaptured tests-out/active-scene-0034/0057a.*
+
+[1A[2K[WebServer] [ERROR] LightLynx: Command error for admin: Unknown command category: Living Room
+
+[1A[2KBrowser: aberdeen router back -1 {path: /group/1, hash: , p: Array(2), nav: back, search: Object}
+
+[1A[2KBrowser: api/send Living Room "set"
+
+[1A[2KBrowser: aberdeen router popstate {path: /group/1, hash: , p: Array(2), nav: back, search: Object}
+
+[1A[2KBrowser: api/onMessage response
+
+[1A[2KBROWSER ERROR: Unknown command category: Living Room
+
+[1A[2KCaptured tests-out/active-scene-0034/0061a.*
+
+[1A[2K  2) [chromium] › tests/active-scene.spec.ts:34:3 › Active Scene › should show active scene in list view on main page 
+
+    Error: [2mexpect([22m[31mlocator[39m[2m).[22mtoBeVisible[2m([22m[2m)[22m failed
+
+    Locator: locator('.list').locator('.item.link').filter({ hasText: 'Evening' })
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+    [2m  - Expect "toBeVisible" with timeout 5000ms[22m
+    [2m  - waiting for locator('.list').locator('.item.link').filter({ hasText: 'Evening' })[22m
+
+
+      59 |     const eveningScene = page.locator('.list').locator('.item.link', { hasText: 'Evening' });
+      60 |     const morningScene = page.locator('.list').locator('.item.link', { hasText: 'Morning' });
+    > 61 |     await expect(eveningScene).toBeVisible();
+         |                                ^
+      62 |     await expect(morningScene).toBeVisible();
+      63 |
+      64 |     // Neither scene should be active initially
+        at /home/runner/work/lightlynx/lightlynx/tests/active-scene.spec.ts:61:32
+
+    Error Context: tests-out/active-scene-0034/error.md
+
+    Retry #1 ───────────────────────────────────────────────────────────────────────────────────────
+
+    Error: [2mexpect([22m[31mlocator[39m[2m).[22mtoBeVisible[2m([22m[2m)[22m failed
+
+    Locator: locator('.list').locator('.item.link').filter({ hasText: 'Evening' })
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+    [2m  - Expect "toBeVisible" with timeout 5000ms[22m
+    [2m  - waiting for locator('.list').locator('.item.link').filter({ hasText: 'Evening' })[22m
+
+
+      59 |     const eveningScene = page.locator('.list').locator('.item.link', { hasText: 'Evening' });
+      60 |     const morningScene = page.locator('.list').locator('.item.link', { hasText: 'Morning' });
+    > 61 |     await expect(eveningScene).toBeVisible();
+         |                                ^
+      62 |     await expect(morningScene).toBeVisible();
+      63 |
+      64 |     // Neither scene should be active initially
+        at /home/runner/work/lightlynx/lightlynx/tests/active-scene.spec.ts:61:32
+
+    Error Context: tests-out/active-scene-0034/error.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    tests-out/active-scene-0034/error.md
+    Usage:
+
+        npx playwright show-trace tests-out/active-scene-0034/error.md
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Retry #2 ───────────────────────────────────────────────────────────────────────────────────────
+
+    Error: [2mexpect([22m[31mlocator[39m[2m).[22mtoBeVisible[2m([22m[2m)[22m failed
+
+    Locator: locator('.list').locator('.item.link').filter({ hasText: 'Evening' })
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+    [2m  - Expect "toBeVisible" with timeout 5000ms[22m
+    [2m  - waiting for locator('.list').locator('.item.link').filter({ hasText: 'Evening' })[22m
+
+
+      59 |     const eveningScene = page.locator('.list').locator('.item.link', { hasText: 'Evening' });
+      60 |     const morningScene = page.locator('.list').locator('.item.link', { hasText: 'Morning' });
+    > 61 |     await expect(eveningScene).toBeVisible();
+         |                                ^
+      62 |     await expect(morningScene).toBeVisible();
+      63 |
+      64 |     // Neither scene should be active initially
+        at /home/runner/work/lightlynx/lightlynx/tests/active-scene.spec.ts:61:32
+
+    Error Context: tests-out/active-scene-0034/error.md
+
+
+[1A[2K[7/31] [chromium] › tests/extension-lifecycle.spec.ts:5:3 › Automation Features › should show automation UI elements in admin mode
+[1A[2K[chromium] › tests/extension-lifecycle.spec.ts:5:3 › Automation Features › should show automation UI elements in admin mode
+Browser: [vite] connecting...
+
+[1A[2KBrowser: Auto-connecting from URL parameters: localhost:43598 admin
+
+[1A[2KBrowser: api/connect localhost:43598
+
+[1A[2K[WebServer] [INFO] LightLynx: Client connected: admin
+
+[1A[2KBrowser: aberdeen router replaceState {path: /, hash: , p: Array(0), nav: load, search: Object} {state: Object, stack: Array(0)} /?admin=y
+
+[1A[2KBrowser: Aberdeen queue took 11ms
+
+[1A[2KBrowser: [vite] connected.
+
+[1A[2KBrowser: api/onOpen ws://localhost:43598/api?lightlynx=1&user=admin&secret=
+
+[1A[2KBrowser: Extension hash loaded: 1293f4cd
+
+[1A[2KBrowser: api/onMessage state
+
+[1A[2KBrowser: api/handleFullState {lights: Object, groups: Object, scenes: Object, devices: Object, activeScenes: Object}
+
+[1A[2KBrowser: api/onMessage - Authentication confirmed
+
+[1A[2Kgoto /?host=localhost:43598&username=admin&admin=y
+
+[1A[2KCaptured tests-out/extension-lifecycle-0005/0006a.*
+
+[1A[2KBrowser: [vite] connecting...
+
+[1A[2KBrowser: [vite] connected.
+
+[1A[2KBrowser: api/connect localhost:43598
+
+[1A[2K[WebServer] [INFO] LightLynx: Client connected: admin
+
+[1A[2KBrowser: api/onOpen ws://localhost:43598/api?lightlynx=1&user=admin&secret=
+
+[1A[2KBrowser: Extension hash loaded: 1293f4cd
+
+[1A[2KBrowser: api/onMessage state
+
+[1A[2KBrowser: api/handleFullState {lights: Object, groups: Object, scenes: Object, devices: Object, activeScenes: Object}
+
+[1A[2KBrowser: api/onMessage - Authentication confirmed
+
+[1A[2Kgoto /?admin=y
+
+[1A[2KCaptured tests-out/extension-lifecycle-0005/0009a.*
+
+[1A[2KCaptured tests-out/extension-lifecycle-0005/0012a.*
+
+[1A[2KCaptured tests-out/extension-lifecycle-0005/0016a.*
+
+[1A[2KCaptured tests-out/extension-lifecycle-0005/0019a.*
+
+[1A[2KCaptured tests-out/extension-lifecycle-0005/0025a.*
+
+[1A[2KBrowser: aberdeen router go {path: /group/1, hash: , p: Array(2), nav: go, search: Object}
+
+[1A[2KBrowser: aberdeen router replaceState {path: /group/1, hash: , p: Array(2), nav: go, search: Object} {state: Object, stack: Array(1)} /group/1?admin=y
+
+[1A[2KCaptured tests-out/extension-lifecycle-0005/0026a.*
+
+[1A[2KCaptured tests-out/extension-lifecycle-0005/0030a.*
+
+[1A[2K[8/31] [chromium] › tests/group-ui.spec.ts:4:3 › Group configuration UI › should show Lights off timer controls and persist changes
+[1A[2K[chromium] › tests/group-ui.spec.ts:4:3 › Group configuration UI › should show Lights off timer controls and persist changes
+Browser: [vite] connecting...
+
+[1A[2KBrowser: [vite] connected.
+
+[1A[2KBrowser: Auto-connecting from URL parameters: localhost:43598 admin
+
+[1A[2KBrowser: api/connect localhost:43598
+
+[1A[2K[WebServer] [INFO] LightLynx: Client connected: admin
+
+[1A[2KBrowser: aberdeen router replaceState {path: /, hash: , p: Array(0), nav: load, search: Object} {state: Object, stack: Array(0)} /?admin=y
+
+[1A[2KBrowser: Aberdeen queue took 10ms
+
+[1A[2KBrowser: api/onOpen ws://localhost:43598/api?lightlynx=1&user=admin&secret=
+
+[1A[2KBrowser: Extension hash loaded: 1293f4cd
+
+[1A[2KBrowser: api/onMessage state
+
+[1A[2KBrowser: api/handleFullState {lights: Object, groups: Object, scenes: Object, devices: Object, activeScenes: Object}
+
+[1A[2KBrowser: api/onMessage - Authentication confirmed
+
+[1A[2Kgoto /?host=localhost:43598&username=admin&admin=y
+
+[1A[2KCaptured tests-out/group-ui-0004/0005a.*
+
+[1A[2KCaptured tests-out/group-ui-0004/0011a.*
+
+[1A[2KBrowser: api/send config.setAutomation {"enabled":true}
+
+[1A[2KBrowser: api/onMessage state
+
+[1A[2KBrowser: api/onMessage response
+
+[1A[2KCaptured tests-out/group-ui-0004/0012a.*
+
+[1A[2KCaptured tests-out/group-ui-0004/0015a.*
+
+[1A[2KBrowser: aberdeen router go {path: /group/1, hash: , p: Array(2), nav: go, search: Object}
+
+[1A[2KBrowser: aberdeen router replaceState {path: /group/1, hash: , p: Array(2), nav: go, search: Object} {state: Object, stack: Array(1)} /group/1?admin=y
+
+[1A[2KCaptured tests-out/group-ui-0004/0016a.*
+
+[1A[2KCaptured tests-out/group-ui-0004/0019a.*
+
+[1A[2KCaptured tests-out/group-ui-0004/0023a.*
+
+[1A[2KCaptured tests-out/group-ui-0004/0026a.*
+
+[1A[2KCaptured tests-out/group-ui-0004/0029a.*
+
+[1A[2KBrowser: aberdeen router replaceState {path: /group/1, hash: , p: Array(2), nav: go, search: Object} {state: Object, stack: Array(1)} /group/1?admin=y
+
+[1A[2KCaptured tests-out/group-ui-0004/0035a.*
+
+[1A[2KCaptured tests-out/group-ui-0004/0036a.*
+
+[1A[2KCaptured tests-out/group-ui-0004/0039a.*
+
+[1A[2KCaptured tests-out/group-ui-0004/0040a.*
+
+[1A[2KCaptured tests-out/group-ui-0004/0043a.*
+
+[1A[2KCaptured tests-out/group-ui-0004/0044a.*
+
+[1A[2K[WebServer] [ERROR] LightLynx: Command error for admin: Unknown command category: bridge
+
+[1A[2KBrowser: api/send bridge "request"
+
+[1A[2KBrowser: api/onMessage response
+
+[1A[2KBROWSER ERROR: Unknown command category: bridge
+
+[1A[2KCaptured tests-out/group-ui-0004/0050a.*
+
+[1A[2KBrowser: aberdeen router back -1 {path: /, hash: , p: Array(0), nav: load, search: Object}
+
+[1A[2KBrowser: aberdeen router popstate {path: /, hash: , p: Array(0), nav: back, search: Object}
+
+[1A[2KCaptured tests-out/group-ui-0004/0051a.*
+
+[1A[2KCaptured tests-out/group-ui-0004/0054a.*
+
+[1A[2KBrowser: aberdeen router go {path: /group/1, hash: , p: Array(2), nav: go, search: Object}
+
+[1A[2KBrowser: aberdeen router replaceState {path: /group/1, hash: , p: Array(2), nav: go, search: Object} {state: Object, stack: Array(1)} /group/1?admin=y
+
+[1A[2KCaptured tests-out/group-ui-0004/0055a.*
+
+[1A[2KCaptured tests-out/group-ui-0004/0061a.*
+
+[1A[2K[9/31] [chromium] › tests/group-ui.spec.ts:4:3 › Group configuration UI › should show Lights off timer controls and persist changes (retry #1)
+[1A[2KBrowser: [vite] connecting...
+
+[1A[2KBrowser: Auto-connecting from URL parameters: localhost:43598 admin
+
+[1A[2KBrowser: api/connect localhost:43598
+
+[1A[2K[WebServer] [INFO] LightLynx: Client connected: admin
+
+[1A[2KBrowser: aberdeen router replaceState {path: /, hash: , p: Array(0), nav: load, search: Object} {state: Object, stack: Array(0)} /?admin=y
+
+[1A[2KBrowser: Aberdeen queue took 10ms
+
+[1A[2KBrowser: [vite] connected.
+
+[1A[2KBrowser: api/onOpen ws://localhost:43598/api?lightlynx=1&user=admin&secret=
+
+[1A[2KBrowser: Extension hash loaded: 1293f4cd
+
+[1A[2KBrowser: api/onMessage state
+
+[1A[2KBrowser: api/handleFullState {lights: Object, groups: Object, scenes: Object, devices: Object, activeScenes: Object}
+
+[1A[2KBrowser: api/onMessage - Authentication confirmed
+
+[1A[2Kgoto /?host=localhost:43598&username=admin&admin=y
+
+[1A[2KCaptured tests-out/group-ui-0004/0005a.*
+
+[1A[2KCaptured tests-out/group-ui-0004/0011a.*
+
+[1A[2KCaptured tests-out/group-ui-0004/0012a.*
+
+[1A[2KCaptured tests-out/group-ui-0004/0015a.*
+
+[1A[2KBrowser: aberdeen router go {path: /group/1, hash: , p: Array(2), nav: go, search: Object}
+
+[1A[2KBrowser: aberdeen router replaceState {path: /group/1, hash: , p: Array(2), nav: go, search: Object} {state: Object, stack: Array(1)} /group/1?admin=y
+
+[1A[2KCaptured tests-out/group-ui-0004/0016a.*
+
+[1A[2KCaptured tests-out/group-ui-0004/0019a.*
+
+[1A[2KCaptured tests-out/group-ui-0004/0023a.*
+
+[1A[2KCaptured tests-out/group-ui-0004/0026a.*
+
+[1A[2KCaptured tests-out/group-ui-0004/0029a.*
+
+[1A[2KBrowser: aberdeen router replaceState {path: /group/1, hash: , p: Array(2), nav: go, search: Object} {state: Object, stack: Array(1)} /group/1?admin=y
+
+[1A[2KCaptured tests-out/group-ui-0004/0035a.*
+
+[1A[2KCaptured tests-out/group-ui-0004/0036a.*
+
+[1A[2KCaptured tests-out/group-ui-0004/0039a.*
+
+[1A[2KCaptured tests-out/group-ui-0004/0040a.*
+
+[1A[2KCaptured tests-out/group-ui-0004/0043a.*
+
+[1A[2KCaptured tests-out/group-ui-0004/0044a.*
+
+[1A[2K[WebServer] [ERROR] LightLynx: Command error for admin: Unknown command category: bridge
+
+[1A[2KBrowser: api/send bridge "request"
+
+[1A[2KBrowser: api/onMessage response
+
+[1A[2KBROWSER ERROR: Unknown command category: bridge
+
+[1A[2KCaptured tests-out/group-ui-0004/0050a.*
+
+[1A[2KBrowser: aberdeen router back -1 {path: /, hash: , p: Array(0), nav: load, search: Object}
+
+[1A[2KBrowser: aberdeen router popstate {path: /, hash: , p: Array(0), nav: back, search: Object}
+
+[1A[2KCaptured tests-out/group-ui-0004/0051a.*
+
+[1A[2KCaptured tests-out/group-ui-0004/0054a.*
+
+[1A[2KBrowser: aberdeen router go {path: /group/1, hash: , p: Array(2), nav: go, search: Object}
+
+[1A[2KBrowser: aberdeen router replaceState {path: /group/1, hash: , p: Array(2), nav: go, search: Object} {state: Object, stack: Array(1)} /group/1?admin=y
+
+[1A[2KCaptured tests-out/group-ui-0004/0055a.*
+
+[1A[2KCaptured tests-out/group-ui-0004/0061a.*
+
+[1A[2K[10/31] [chromium] › tests/group-ui.spec.ts:4:3 › Group configuration UI › should show Lights off timer controls and persist changes (retry #2)
+[1A[2KBrowser: [vite] connecting...
+
+[1A[2KBrowser: Auto-connecting from URL parameters: localhost:43598 admin
+
+[1A[2KBrowser: api/connect localhost:43598
+
+[1A[2K[WebServer] [INFO] LightLynx: Client connected: admin
+
+[1A[2KBrowser: aberdeen router replaceState {path: /, hash: , p: Array(0), nav: load, search: Object} {state: Object, stack: Array(0)} /?admin=y
+
+[1A[2KBrowser: Aberdeen queue took 13ms
+
+[1A[2KBrowser: [vite] connected.
+
+[1A[2KBrowser: api/onOpen ws://localhost:43598/api?lightlynx=1&user=admin&secret=
+
+[1A[2KBrowser: Extension hash loaded: 1293f4cd
+
+[1A[2KBrowser: api/onMessage state
+
+[1A[2KBrowser: api/handleFullState {lights: Object, groups: Object, scenes: Object, devices: Object, activeScenes: Object}
+
+[1A[2KBrowser: api/onMessage - Authentication confirmed
+
+[1A[2Kgoto /?host=localhost:43598&username=admin&admin=y
+
+[1A[2KCaptured tests-out/group-ui-0004/0005a.*
+
+[1A[2KCaptured tests-out/group-ui-0004/0011a.*
+
+[1A[2KCaptured tests-out/group-ui-0004/0012a.*
+
+[1A[2KCaptured tests-out/group-ui-0004/0015a.*
+
+[1A[2KBrowser: aberdeen router go {path: /group/1, hash: , p: Array(2), nav: go, search: Object}
+
+[1A[2KBrowser: aberdeen router replaceState {path: /group/1, hash: , p: Array(2), nav: go, search: Object} {state: Object, stack: Array(1)} /group/1?admin=y
+
+[1A[2KCaptured tests-out/group-ui-0004/0016a.*
+
+[1A[2KCaptured tests-out/group-ui-0004/0019a.*
+
+[1A[2KCaptured tests-out/group-ui-0004/0023a.*
+
+[1A[2KCaptured tests-out/group-ui-0004/0026a.*
+
+[1A[2KCaptured tests-out/group-ui-0004/0029a.*
+
+[1A[2KBrowser: aberdeen router replaceState {path: /group/1, hash: , p: Array(2), nav: go, search: Object} {state: Object, stack: Array(1)} /group/1?admin=y
+
+[1A[2KCaptured tests-out/group-ui-0004/0035a.*
+
+[1A[2KCaptured tests-out/group-ui-0004/0036a.*
+
+[1A[2KCaptured tests-out/group-ui-0004/0039a.*
+
+[1A[2KCaptured tests-out/group-ui-0004/0040a.*
+
+[1A[2KCaptured tests-out/group-ui-0004/0043a.*
+
+[1A[2KCaptured tests-out/group-ui-0004/0044a.*
+
+[1A[2K[WebServer] [ERROR] LightLynx: Command error for admin: Unknown command category: bridge
+
+[1A[2KBrowser: api/send bridge "request"
+
+[1A[2KBrowser: api/onMessage response
+
+[1A[2KBROWSER ERROR: Unknown command category: bridge
+
+[1A[2KCaptured tests-out/group-ui-0004/0050a.*
+
+[1A[2KBrowser: aberdeen router back -1 {path: /, hash: , p: Array(0), nav: load, search: Object}
+
+[1A[2KBrowser: aberdeen router popstate {path: /, hash: , p: Array(0), nav: back, search: Object}
+
+[1A[2KCaptured tests-out/group-ui-0004/0051a.*
+
+[1A[2KCaptured tests-out/group-ui-0004/0054a.*
+
+[1A[2KBrowser: aberdeen router go {path: /group/1, hash: , p: Array(2), nav: go, search: Object}
+
+[1A[2KBrowser: aberdeen router replaceState {path: /group/1, hash: , p: Array(2), nav: go, search: Object} {state: Object, stack: Array(1)} /group/1?admin=y
+
+[1A[2KCaptured tests-out/group-ui-0004/0055a.*
+
+[1A[2KCaptured tests-out/group-ui-0004/0061a.*
+
+[1A[2K  3) [chromium] › tests/group-ui.spec.ts:4:3 › Group configuration UI › should show Lights off timer controls and persist changes 
+
+    Error: [2mexpect([22m[31mlocator[39m[2m).[22mtoHaveValue[2m([22m[32mexpected[39m[2m)[22m failed
+
+    Locator: locator('input[type="number"]')
+    Expected: [32m"15"[39m
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+    [2m  - Expect "toHaveValue" with timeout 5000ms[22m
+    [2m  - waiting for locator('input[type="number"]')[22m
+
+
+      59 |     const unitSelect2 = page.locator('select');
+      60 |
+    > 61 |     await expect(numberInput2).toHaveValue('15');
+         |                                ^
+      62 |     await expect(unitSelect2).toHaveValue('h');
+      63 |   });
+      64 |
+        at /home/runner/work/lightlynx/lightlynx/tests/group-ui.spec.ts:61:32
+
+    Error Context: tests-out/group-ui-0004/error.md
+
+    Retry #1 ───────────────────────────────────────────────────────────────────────────────────────
+
+    Error: [2mexpect([22m[31mlocator[39m[2m).[22mtoHaveValue[2m([22m[32mexpected[39m[2m)[22m failed
+
+    Locator: locator('input[type="number"]')
+    Expected: [32m"15"[39m
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+    [2m  - Expect "toHaveValue" with timeout 5000ms[22m
+    [2m  - waiting for locator('input[type="number"]')[22m
+
+
+      59 |     const unitSelect2 = page.locator('select');
+      60 |
+    > 61 |     await expect(numberInput2).toHaveValue('15');
+         |                                ^
+      62 |     await expect(unitSelect2).toHaveValue('h');
+      63 |   });
+      64 |
+        at /home/runner/work/lightlynx/lightlynx/tests/group-ui.spec.ts:61:32
+
+    Error Context: tests-out/group-ui-0004/error.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    tests-out/group-ui-0004/error.md
+    Usage:
+
+        npx playwright show-trace tests-out/group-ui-0004/error.md
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Retry #2 ───────────────────────────────────────────────────────────────────────────────────────
+
+    Error: [2mexpect([22m[31mlocator[39m[2m).[22mtoHaveValue[2m([22m[32mexpected[39m[2m)[22m failed
+
+    Locator: locator('input[type="number"]')
+    Expected: [32m"15"[39m
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+    [2m  - Expect "toHaveValue" with timeout 5000ms[22m
+    [2m  - waiting for locator('input[type="number"]')[22m
+
+
+      59 |     const unitSelect2 = page.locator('select');
+      60 |
+    > 61 |     await expect(numberInput2).toHaveValue('15');
+         |                                ^
+      62 |     await expect(unitSelect2).toHaveValue('h');
+      63 |   });
+      64 |
+        at /home/runner/work/lightlynx/lightlynx/tests/group-ui.spec.ts:61:32
+
+    Error Context: tests-out/group-ui-0004/error.md
+
+
+[1A[2K[11/31] [chromium] › tests/group-ui.spec.ts:65:3 › Group configuration UI › should delete group after confirmation
+[1A[2K[chromium] › tests/group-ui.spec.ts:65:3 › Group configuration UI › should delete group after confirmation
+Browser: [vite] connecting...
+
+[1A[2KBrowser: [vite] connected.
+
+[1A[2KBrowser: Auto-connecting from URL parameters: localhost:43598 admin
+
+[1A[2KBrowser: api/connect localhost:43598
+
+[1A[2K[WebServer] [INFO] LightLynx: Client connected: admin
+
+[1A[2KBrowser: aberdeen router replaceState {path: /, hash: , p: Array(0), nav: load, search: Object} {state: Object, stack: Array(0)} /?admin=y
+
+[1A[2KBrowser: Aberdeen queue took 10ms
+
+[1A[2KBrowser: api/onOpen ws://localhost:43598/api?lightlynx=1&user=admin&secret=
+
+[1A[2KBrowser: Extension hash loaded: 1293f4cd
+
+[1A[2KBrowser: api/onMessage state
+
+[1A[2KBrowser: api/handleFullState {lights: Object, groups: Object, scenes: Object, devices: Object, activeScenes: Object}
+
+[1A[2KBrowser: api/onMessage - Authentication confirmed
+
+[1A[2Kgoto /?host=localhost:43598&username=admin&admin=y
+
+[1A[2KCaptured tests-out/group-ui-0065/0066a.*
+
+[1A[2KCaptured tests-out/group-ui-0065/0070a.*
+
+[1A[2KBrowser: aberdeen router go {path: /group/2, hash: , p: Array(2), nav: go, search: Object}
+
+[1A[2KBrowser: aberdeen router replaceState {path: /group/2, hash: , p: Array(2), nav: go, search: Object} {state: Object, stack: Array(1)} /group/2?admin=y
+
+[1A[2KCaptured tests-out/group-ui-0065/0071a.*
+
+[1A[2KCaptured tests-out/group-ui-0065/0075a.*
+
+[1A[2KCaptured tests-out/group-ui-0065/0076a.*
+
+[1A[2KBrowser: aberdeen router go {path: /group/2, hash: , p: Array(2), nav: go, search: Object}
+
+[1A[2KCaptured tests-out/group-ui-0065/0079a.*
+
+[1A[2KCaptured tests-out/group-ui-0065/0080a.*
+
+[1A[2K[WebServer] [ERROR] LightLynx: Command error for admin: Unknown command category: bridge
+
+[1A[2KBrowser: aberdeen router back -1 {path: /group/2, hash: , p: Array(2), nav: go, search: Object}
+
+[1A[2KBrowser: api/send bridge "request"
+
+[1A[2KBrowser: aberdeen router back -2 {path: /, hash: , p: Array(0), nav: load, search: Object}
+
+[1A[2KBrowser: aberdeen router popstate {path: /group/2, hash: , p: Array(2), nav: back, search: Object}
+
+[1A[2KBrowser: api/onMessage response
+
+[1A[2KBROWSER ERROR: Unknown command category: bridge
+
+[1A[2KCaptured tests-out/group-ui-0065/0083a.*
+
+[1A[2K[12/31] [chromium] › tests/group-ui.spec.ts:86:3 › Group configuration UI › should open scene editor when clicking configure for a scene
+[1A[2K[chromium] › tests/group-ui.spec.ts:86:3 › Group configuration UI › should open scene editor when clicking configure for a scene
+Browser: [vite] connecting...
+
+[1A[2KBrowser: [vite] connected.
+
+[1A[2KBrowser: Auto-connecting from URL parameters: localhost:43598 admin
+
+[1A[2KBrowser: api/connect localhost:43598
+
+[1A[2K[WebServer] [INFO] LightLynx: Client connected: admin
+
+[1A[2KBrowser: aberdeen router replaceState {path: /, hash: , p: Array(0), nav: load, search: Object} {state: Object, stack: Array(0)} /?admin=y
+
+[1A[2KBrowser: Aberdeen queue took 10ms
+
+[1A[2KBrowser: api/onOpen ws://localhost:43598/api?lightlynx=1&user=admin&secret=
+
+[1A[2KBrowser: Extension hash loaded: 1293f4cd
+
+[1A[2KBrowser: api/onMessage state
+
+[1A[2KBrowser: api/handleFullState {lights: Object, groups: Object, scenes: Object, devices: Object, activeScenes: Object}
+
+[1A[2KBrowser: api/onMessage - Authentication confirmed
+
+[1A[2Kgoto /?host=localhost:43598&username=admin&admin=y
+
+[1A[2KCaptured tests-out/group-ui-0086/0087a.*
+
+[1A[2KCaptured tests-out/group-ui-0086/0090a.*
+
+[1A[2KBrowser: aberdeen router go {path: /group/1, hash: , p: Array(2), nav: go, search: Object}
+
+[1A[2KBrowser: aberdeen router replaceState {path: /group/1, hash: , p: Array(2), nav: go, search: Object} {state: Object, stack: Array(1)} /group/1?admin=y
+
+[1A[2KCaptured tests-out/group-ui-0086/0091a.*
+
+[1A[2KCaptured tests-out/group-ui-0086/0095a.*
+
+[1A[2K[13/31] [chromium] › tests/group-ui.spec.ts:86:3 › Group configuration UI › should open scene editor when clicking configure for a scene (retry #1)
+[1A[2KBrowser: [vite] connecting...
+
+[1A[2KBrowser: Auto-connecting from URL parameters: localhost:43598 admin
+
+[1A[2KBrowser: api/connect localhost:43598
+
+[1A[2K[WebServer] [INFO] LightLynx: Client connected: admin
+
+[1A[2KBrowser: aberdeen router replaceState {path: /, hash: , p: Array(0), nav: load, search: Object} {state: Object, stack: Array(0)} /?admin=y
+
+[1A[2KBrowser: Aberdeen queue took 10ms
+
+[1A[2KBrowser: [vite] connected.
+
+[1A[2KBrowser: api/onOpen ws://localhost:43598/api?lightlynx=1&user=admin&secret=
+
+[1A[2KBrowser: Extension hash loaded: 1293f4cd
+
+[1A[2KBrowser: api/onMessage state
+
+[1A[2KBrowser: api/handleFullState {lights: Object, groups: Object, scenes: Object, devices: Object, activeScenes: Object}
+
+[1A[2KBrowser: api/onMessage - Authentication confirmed
+
+[1A[2Kgoto /?host=localhost:43598&username=admin&admin=y
+
+[1A[2KCaptured tests-out/group-ui-0086/0087a.*
+
+[1A[2KCaptured tests-out/group-ui-0086/0090a.*
+
+[1A[2KBrowser: aberdeen router go {path: /group/1, hash: , p: Array(2), nav: go, search: Object}
+
+[1A[2KBrowser: aberdeen router replaceState {path: /group/1, hash: , p: Array(2), nav: go, search: Object} {state: Object, stack: Array(1)} /group/1?admin=y
+
+[1A[2KCaptured tests-out/group-ui-0086/0091a.*
+
+[1A[2KCaptured tests-out/group-ui-0086/0095a.*
+
+[1A[2K[14/31] [chromium] › tests/group-ui.spec.ts:86:3 › Group configuration UI › should open scene editor when clicking configure for a scene (retry #2)
+[1A[2KBrowser: [vite] connecting...
+
+[1A[2KBrowser: Auto-connecting from URL parameters: localhost:43598 admin
+
+[1A[2KBrowser: api/connect localhost:43598
+
+[1A[2K[WebServer] [INFO] LightLynx: Client connected: admin
+
+[1A[2KBrowser: aberdeen router replaceState {path: /, hash: , p: Array(0), nav: load, search: Object} {state: Object, stack: Array(0)} /?admin=y
+
+[1A[2KBrowser: api/onOpen ws://localhost:43598/api?lightlynx=1&user=admin&secret=
+
+[1A[2KBrowser: [vite] connected.
+
+[1A[2KBrowser: Extension hash loaded: 1293f4cd
+
+[1A[2KBrowser: api/onMessage state
+
+[1A[2KBrowser: api/handleFullState {lights: Object, groups: Object, scenes: Object, devices: Object, activeScenes: Object}
+
+[1A[2KBrowser: api/onMessage - Authentication confirmed
+
+[1A[2Kgoto /?host=localhost:43598&username=admin&admin=y
+
+[1A[2KCaptured tests-out/group-ui-0086/0087a.*
+
+[1A[2KCaptured tests-out/group-ui-0086/0090a.*
+
+[1A[2KBrowser: aberdeen router go {path: /group/1, hash: , p: Array(2), nav: go, search: Object}
+
+[1A[2KBrowser: aberdeen router replaceState {path: /group/1, hash: , p: Array(2), nav: go, search: Object} {state: Object, stack: Array(1)} /group/1?admin=y
+
+[1A[2KCaptured tests-out/group-ui-0086/0091a.*
+
+[1A[2KCaptured tests-out/group-ui-0086/0095a.*
+
+[1A[2K  4) [chromium] › tests/group-ui.spec.ts:86:3 › Group configuration UI › should open scene editor when clicking configure for a scene 
+
+    Error: [2mexpect([22m[31mlocator[39m[2m).[22mtoBeVisible[2m([22m[2m)[22m failed
+
+    Locator: locator('.list').locator('.item.link').filter({ hasText: 'Bright' })
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+    [2m  - Expect "toBeVisible" with timeout 5000ms[22m
+    [2m  - waiting for locator('.list').locator('.item.link').filter({ hasText: 'Bright' })[22m
+
+
+      93 |     // Find the Bright scene and click its configure icon (by aria-label 'configure')
+      94 |     const sceneItem = page.locator('.list').locator('.item.link', { hasText: 'Bright' });
+    > 95 |     await expect(sceneItem).toBeVisible();
+         |                             ^
+      96 |
+      97 |     // Click the configure icon by its aria-label
+      98 |     await sceneItem.getByRole('img', { name: 'configure' }).click({ force: true });
+        at /home/runner/work/lightlynx/lightlynx/tests/group-ui.spec.ts:95:29
+
+    Error Context: tests-out/group-ui-0086/error.md
+
+    Retry #1 ───────────────────────────────────────────────────────────────────────────────────────
+
+    Error: [2mexpect([22m[31mlocator[39m[2m).[22mtoBeVisible[2m([22m[2m)[22m failed
+
+    Locator: locator('.list').locator('.item.link').filter({ hasText: 'Bright' })
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+    [2m  - Expect "toBeVisible" with timeout 5000ms[22m
+    [2m  - waiting for locator('.list').locator('.item.link').filter({ hasText: 'Bright' })[22m
+
+
+      93 |     // Find the Bright scene and click its configure icon (by aria-label 'configure')
+      94 |     const sceneItem = page.locator('.list').locator('.item.link', { hasText: 'Bright' });
+    > 95 |     await expect(sceneItem).toBeVisible();
+         |                             ^
+      96 |
+      97 |     // Click the configure icon by its aria-label
+      98 |     await sceneItem.getByRole('img', { name: 'configure' }).click({ force: true });
+        at /home/runner/work/lightlynx/lightlynx/tests/group-ui.spec.ts:95:29
+
+    Error Context: tests-out/group-ui-0086/error.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    tests-out/group-ui-0086/error.md
+    Usage:
+
+        npx playwright show-trace tests-out/group-ui-0086/error.md
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Retry #2 ───────────────────────────────────────────────────────────────────────────────────────
+
+    Error: [2mexpect([22m[31mlocator[39m[2m).[22mtoBeVisible[2m([22m[2m)[22m failed
+
+    Locator: locator('.list').locator('.item.link').filter({ hasText: 'Bright' })
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+    [2m  - Expect "toBeVisible" with timeout 5000ms[22m
+    [2m  - waiting for locator('.list').locator('.item.link').filter({ hasText: 'Bright' })[22m
+
+
+      93 |     // Find the Bright scene and click its configure icon (by aria-label 'configure')
+      94 |     const sceneItem = page.locator('.list').locator('.item.link', { hasText: 'Bright' });
+    > 95 |     await expect(sceneItem).toBeVisible();
+         |                             ^
+      96 |
+      97 |     // Click the configure icon by its aria-label
+      98 |     await sceneItem.getByRole('img', { name: 'configure' }).click({ force: true });
+        at /home/runner/work/lightlynx/lightlynx/tests/group-ui.spec.ts:95:29
+
+    Error Context: tests-out/group-ui-0086/error.md
+
+
+[1A[2K[15/31] [chromium] › tests/integration.spec.ts:5:3 › Light Lynx Integration › should connect, create group, add lights, and create scene
+[1A[2K[chromium] › tests/integration.spec.ts:5:3 › Light Lynx Integration › should connect, create group, add lights, and create scene
+Browser: [vite] connecting...
+
+[1A[2KBrowser: Auto-connecting from URL parameters: localhost:43598 admin
+
+[1A[2KBrowser: api/connect localhost:43598
+
+[1A[2K[WebServer] [INFO] LightLynx: Client connected: admin
+
+[1A[2KBrowser: aberdeen router replaceState {path: /, hash: , p: Array(0), nav: load, search: Object} {state: Object, stack: Array(0)} /?admin=y
+
+[1A[2KBrowser: [vite] connected.
+
+[1A[2KBrowser: api/onOpen ws://localhost:43598/api?lightlynx=1&user=admin&secret=
+
+[1A[2KBrowser: Extension hash loaded: 1293f4cd
+
+[1A[2KBrowser: api/onMessage state
+
+[1A[2KBrowser: api/handleFullState {lights: Object, groups: Object, scenes: Object, devices: Object, activeScenes: Object}
+
+[1A[2KBrowser: api/onMessage - Authentication confirmed
+
+[1A[2Kgoto /?host=localhost:43598&username=admin&admin=y
+
+[1A[2KCaptured tests-out/integration-0005/0007a.*
+
+[1A[2KBrowser: aberdeen router load {path: /, hash: , p: Array(0), nav: load, search: Object}
+
+[1A[2KCaptured tests-out/integration-0005/0016a.*
+
+[1A[2KCaptured tests-out/integration-0005/0017a.*
+
+[1A[2K[WebServer] [ERROR] LightLynx: Command error for admin: Unknown command category: bridge
+
+[1A[2KBrowser: aberdeen router back -1 {path: /, hash: , p: Array(0), nav: load, search: Object}
+
+[1A[2KBrowser: api/send bridge "request"
+
+[1A[2KBrowser: aberdeen router popstate {path: /, hash: , p: Array(0), nav: back, search: Object}
+
+[1A[2KBrowser: api/onMessage response
+
+[1A[2KBROWSER ERROR: Unknown command category: bridge
+
+[1A[2KCaptured tests-out/integration-0005/0020a.*
+
+[1A[2K[16/31] [chromium] › tests/integration.spec.ts:5:3 › Light Lynx Integration › should connect, create group, add lights, and create scene (retry #1)
+[1A[2KBrowser: [vite] connecting...
+
+[1A[2KBrowser: Auto-connecting from URL parameters: localhost:43598 admin
+
+[1A[2KBrowser: api/connect localhost:43598
+
+[1A[2K[WebServer] [INFO] LightLynx: Client connected: admin
+
+[1A[2KBrowser: [vite] connected.
+
+[1A[2KBrowser: aberdeen router replaceState {path: /, hash: , p: Array(0), nav: load, search: Object} {state: Object, stack: Array(0)} /?admin=y
+
+[1A[2KBrowser: Aberdeen queue took 11ms
+
+[1A[2KBrowser: api/onOpen ws://localhost:43598/api?lightlynx=1&user=admin&secret=
+
+[1A[2KBrowser: Extension hash loaded: 1293f4cd
+
+[1A[2KBrowser: api/onMessage state
+
+[1A[2KBrowser: api/handleFullState {lights: Object, groups: Object, scenes: Object, devices: Object, activeScenes: Object}
+
+[1A[2KBrowser: api/onMessage - Authentication confirmed
+
+[1A[2Kgoto /?host=localhost:43598&username=admin&admin=y
+
+[1A[2KCaptured tests-out/integration-0005/0007a.*
+
+[1A[2KBrowser: aberdeen router load {path: /, hash: , p: Array(0), nav: load, search: Object}
+
+[1A[2KCaptured tests-out/integration-0005/0016a.*
+
+[1A[2KCaptured tests-out/integration-0005/0017a.*
+
+[1A[2K[WebServer] [ERROR] LightLynx: Command error for admin: Unknown command category: bridge
+
+[1A[2KBrowser: aberdeen router back -1 {path: /, hash: , p: Array(0), nav: load, search: Object}
+
+[1A[2KBrowser: api/send bridge "request"
+
+[1A[2KBrowser: aberdeen router popstate {path: /, hash: , p: Array(0), nav: back, search: Object}
+
+[1A[2KBrowser: api/onMessage response
+
+[1A[2KBROWSER ERROR: Unknown command category: bridge
+
+[1A[2KCaptured tests-out/integration-0005/0020a.*
+
+[1A[2K[17/31] [chromium] › tests/integration.spec.ts:5:3 › Light Lynx Integration › should connect, create group, add lights, and create scene (retry #2)
+[1A[2KBrowser: [vite] connecting...
+
+[1A[2KBrowser: Auto-connecting from URL parameters: localhost:43598 admin
+
+[1A[2KBrowser: api/connect localhost:43598
+
+[1A[2K[WebServer] [INFO] LightLynx: Client connected: admin
+
+[1A[2KBrowser: aberdeen router replaceState {path: /, hash: , p: Array(0), nav: load, search: Object} {state: Object, stack: Array(0)} /?admin=y
+
+[1A[2KBrowser: Aberdeen queue took 10ms
+
+[1A[2KBrowser: [vite] connected.
+
+[1A[2KBrowser: api/onOpen ws://localhost:43598/api?lightlynx=1&user=admin&secret=
+
+[1A[2KBrowser: Extension hash loaded: 1293f4cd
+
+[1A[2KBrowser: api/onMessage state
+
+[1A[2KBrowser: api/handleFullState {lights: Object, groups: Object, scenes: Object, devices: Object, activeScenes: Object}
+
+[1A[2KBrowser: api/onMessage - Authentication confirmed
+
+[1A[2Kgoto /?host=localhost:43598&username=admin&admin=y
+
+[1A[2KCaptured tests-out/integration-0005/0007a.*
+
+[1A[2KBrowser: aberdeen router load {path: /, hash: , p: Array(0), nav: load, search: Object}
+
+[1A[2KCaptured tests-out/integration-0005/0016a.*
+
+[1A[2KCaptured tests-out/integration-0005/0017a.*
+
+[1A[2K[WebServer] [ERROR] LightLynx: Command error for admin: Unknown command category: bridge
+
+[1A[2KBrowser: aberdeen router back -1 {path: /, hash: , p: Array(0), nav: load, search: Object}
+
+[1A[2KBrowser: api/send bridge "request"
+
+[1A[2KBrowser: aberdeen router popstate {path: /, hash: , p: Array(0), nav: back, search: Object}
+
+[1A[2KBrowser: api/onMessage response
+
+[1A[2KBROWSER ERROR: Unknown command category: bridge
+
+[1A[2KCaptured tests-out/integration-0005/0020a.*
+
+[1A[2K  5) [chromium] › tests/integration.spec.ts:5:3 › Light Lynx Integration › should connect, create group, add lights, and create scene 
+
+    Error: [2mexpect([22m[31mlocator[39m[2m).[22mtoBeVisible[2m([22m[2m)[22m failed
+
+    Locator: locator('h2').filter({ hasText: 'Test Group' })
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+    [2m  - Expect "toBeVisible" with timeout 5000ms[22m
+    [2m  - waiting for locator('h2').filter({ hasText: 'Test Group' })[22m
+
+
+      18 |
+      19 |     // Verify group appears in the list
+    > 20 |     await expect(page.locator('h2', { hasText: groupName })).toBeVisible();
+         |                                                              ^
+      21 |
+      22 |     // 6. Navigate into the group
+      23 |     await page.locator('h2', { hasText: groupName }).click();
+        at /home/runner/work/lightlynx/lightlynx/tests/integration.spec.ts:20:62
+
+    Error Context: tests-out/integration-0005/error.md
+
+    Retry #1 ───────────────────────────────────────────────────────────────────────────────────────
+
+    Error: [2mexpect([22m[31mlocator[39m[2m).[22mtoBeVisible[2m([22m[2m)[22m failed
+
+    Locator: locator('h2').filter({ hasText: 'Test Group' })
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+    [2m  - Expect "toBeVisible" with timeout 5000ms[22m
+    [2m  - waiting for locator('h2').filter({ hasText: 'Test Group' })[22m
+
+
+      18 |
+      19 |     // Verify group appears in the list
+    > 20 |     await expect(page.locator('h2', { hasText: groupName })).toBeVisible();
+         |                                                              ^
+      21 |
+      22 |     // 6. Navigate into the group
+      23 |     await page.locator('h2', { hasText: groupName }).click();
+        at /home/runner/work/lightlynx/lightlynx/tests/integration.spec.ts:20:62
+
+    Error Context: tests-out/integration-0005/error.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    tests-out/integration-0005/error.md
+    Usage:
+
+        npx playwright show-trace tests-out/integration-0005/error.md
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Retry #2 ───────────────────────────────────────────────────────────────────────────────────────
+
+    Error: [2mexpect([22m[31mlocator[39m[2m).[22mtoBeVisible[2m([22m[2m)[22m failed
+
+    Locator: locator('h2').filter({ hasText: 'Test Group' })
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+    [2m  - Expect "toBeVisible" with timeout 5000ms[22m
+    [2m  - waiting for locator('h2').filter({ hasText: 'Test Group' })[22m
+
+
+      18 |
+      19 |     // Verify group appears in the list
+    > 20 |     await expect(page.locator('h2', { hasText: groupName })).toBeVisible();
+         |                                                              ^
+      21 |
+      22 |     // 6. Navigate into the group
+      23 |     await page.locator('h2', { hasText: groupName }).click();
+        at /home/runner/work/lightlynx/lightlynx/tests/integration.spec.ts:20:62
+
+    Error Context: tests-out/integration-0005/error.md
+
+
+[1A[2K[18/31] [chromium] › tests/protocol-v2.spec.ts:12:3 › Protocol V2 › should connect using v2 protocol and receive state dump
+[1A[2K[chromium] › tests/protocol-v2.spec.ts:12:3 › Protocol V2 › should connect using v2 protocol and receive state dump
+Browser: [vite] connecting...
+
+[1A[2KBrowser: Auto-connecting from URL parameters: localhost:43598 admin
+
+[1A[2KBrowser: api/connect localhost:43598
+
+[1A[2K[WebServer] [INFO] LightLynx: Client connected: admin
+
+[1A[2KBrowser: aberdeen router replaceState {path: /, hash: , p: Array(0), nav: load, search: Object} {state: Object, stack: Array(0)} /?admin=y&protocol=v2
+
+[1A[2KBrowser: Aberdeen queue took 10ms
+
+[1A[2KBrowser: [vite] connected.
+
+[1A[2KBrowser: api/onOpen ws://localhost:43598/api?lightlynx=1&user=admin&secret=
+
+[1A[2KBrowser: Extension hash loaded: 1293f4cd
+
+[1A[2KBrowser: api/onMessage state
+
+[1A[2KBrowser: api/handleFullState {lights: Object, groups: Object, scenes: Object, devices: Object, activeScenes: Object}
+
+[1A[2KBrowser: api/onMessage - Authentication confirmed
+
+[1A[2Kgoto /?host=localhost:43598&username=admin&admin=y&protocol=v2
+
+[1A[2KCaptured tests-out/protocol-v2-0012/0008a.*
+
+[1A[2KCaptured tests-out/protocol-v2-0012/0017a.*
+
+[1A[2K[19/31] [chromium] › tests/protocol-v2.spec.ts:29:8 › Protocol V2 › should send light.set command and receive response
+[1A[2K[20/31] [chromium] › tests/shareable-url.spec.ts:4:3 › Shareable Connection URL › should connect using shareable URL with all parameters
+[1A[2K[chromium] › tests/shareable-url.spec.ts:4:3 › Shareable Connection URL › should connect using shareable URL with all parameters
+Browser: [vite] connecting...
+
+[1A[2KBrowser: Auto-connecting from URL parameters: localhost:43598 admin
+
+[1A[2KBrowser: api/connect localhost:43598
+
+[1A[2K[WebServer] [INFO] LightLynx: Client connected: admin
+
+[1A[2KBrowser: aberdeen router replaceState {path: /, hash: , p: Array(0), nav: load, search: Object} {state: Object, stack: Array(0)} /
+
+[1A[2KBrowser: Aberdeen queue took 11ms
+
+[1A[2KBrowser: api/onOpen ws://localhost:43598/api?lightlynx=1&user=admin&secret=
+
+[1A[2KBrowser: [vite] connected.
+
+[1A[2KBrowser: Extension hash loaded: 1293f4cd
+
+[1A[2KBrowser: api/onMessage state
+
+[1A[2KBrowser: api/handleFullState {lights: Object, groups: Object, scenes: Object, devices: Object, activeScenes: Object}
+
+[1A[2KBrowser: api/onMessage - Authentication confirmed
+
+[1A[2Kgoto /?host=localhost:43598&username=admin
+
+[1A[2KCaptured tests-out/shareable-url-0004/0009a.*
+
+[1A[2KCaptured tests-out/shareable-url-0004/0013a.*
+
+[1A[2KCaptured tests-out/shareable-url-0004/0016a.*
+
+[1A[2KSuccessfully connected via shareable URL!
+
+[1A[2K[21/31] [chromium] › tests/shareable-url.spec.ts:21:3 › Shareable Connection URL › should show copy URL link on connection page
+[1A[2K[chromium] › tests/shareable-url.spec.ts:21:3 › Shareable Connection URL › should show copy URL link on connection page
+Browser: [vite] connecting...
+
+[1A[2KBrowser: [vite] connected.
+
+[1A[2KBrowser: Extension hash loaded: 1293f4cd
+
+[1A[2Kgoto /connect
+
+[1A[2KCaptured tests-out/shareable-url-0021/0022a.*
+
+[1A[2KCaptured tests-out/shareable-url-0021/0030a.*
+
+[1A[2KCaptured tests-out/shareable-url-0021/0034a.*
+
+[1A[2KCaptured tests-out/shareable-url-0021/0039a.*
+
+[1A[2KCopy URL link works and shows toast!
+
+[1A[2K[22/31] [chromium] › tests/shareable-url.spec.ts:44:3 › Shareable Connection URL › should handle shareable URL with existing server
+[1A[2K[chromium] › tests/shareable-url.spec.ts:44:3 › Shareable Connection URL › should handle shareable URL with existing server
+Browser: [vite] connecting...
+
+[1A[2KBrowser: Auto-connecting from URL parameters: localhost:43598 admin
+
+[1A[2KBrowser: api/connect localhost:43598
+
+[1A[2K[WebServer] [INFO] LightLynx: Client connected: admin
+
+[1A[2KBrowser: [vite] connected.
+
+[1A[2KBrowser: aberdeen router replaceState {path: /, hash: , p: Array(0), nav: load, search: Object} {state: Object, stack: Array(0)} /
+
+[1A[2KBrowser: Aberdeen queue took 10ms
+
+[1A[2KBrowser: api/onOpen ws://localhost:43598/api?lightlynx=1&user=admin&secret=
+
+[1A[2KBrowser: Extension hash loaded: 1293f4cd
+
+[1A[2KBrowser: api/onMessage state
+
+[1A[2KBrowser: api/handleFullState {lights: Object, groups: Object, scenes: Object, devices: Object, activeScenes: Object}
+
+[1A[2KBrowser: api/onMessage - Authentication confirmed
+
+[1A[2Kgoto /?host=localhost:43598&username=admin
+
+[1A[2KCaptured tests-out/shareable-url-0044/0046a.*
+
+[1A[2KCaptured tests-out/shareable-url-0044/0047a.*
+
+[1A[2KBrowser: [vite] connecting...
+
+[1A[2KBrowser: [vite] connected.
+
+[1A[2KBrowser: api/connect localhost:43598
+
+[1A[2K[WebServer] [INFO] LightLynx: Client connected: admin
+
+[1A[2KBrowser: api/onOpen ws://localhost:43598/api?lightlynx=1&user=admin&secret=
+
+[1A[2KBrowser: Extension hash loaded: 1293f4cd
+
+[1A[2KBrowser: api/onMessage state
+
+[1A[2KBrowser: api/handleFullState {lights: Object, groups: Object, scenes: Object, devices: Object, activeScenes: Object}
+
+[1A[2KBrowser: api/onMessage - Authentication confirmed
+
+[1A[2Kgoto /
+
+[1A[2KCaptured tests-out/shareable-url-0044/0050a.*
+
+[1A[2KBrowser: [vite] connecting...
+
+[1A[2KBrowser: [vite] connected.
+
+[1A[2KBrowser: Auto-connecting from URL parameters: localhost:43598 admin
+
+[1A[2KBrowser: api/connect localhost:43598
+
+[1A[2K[WebServer] [INFO] LightLynx: Client connected: admin
+
+[1A[2KBrowser: aberdeen router replaceState {path: /, hash: , p: Array(0), nav: load, search: Object} {state: Object, stack: Array(0)} /
+
+[1A[2KBrowser: api/onOpen ws://localhost:43598/api?lightlynx=1&user=admin&secret=
+
+[1A[2KBrowser: Extension hash loaded: 1293f4cd
+
+[1A[2KBrowser: api/onMessage state
+
+[1A[2KBrowser: api/handleFullState {lights: Object, groups: Object, scenes: Object, devices: Object, activeScenes: Object}
+
+[1A[2KBrowser: api/onMessage - Authentication confirmed
+
+[1A[2Kgoto /?host=localhost:43598&username=admin
+
+[1A[2KCaptured tests-out/shareable-url-0044/0053a.*
+
+[1A[2KCaptured tests-out/shareable-url-0044/0056a.*
+
+[1A[2KSuccessfully reconnected to existing server via shareable URL!
+
+[1A[2K[23/31] [chromium] › tests/shareable-url.spec.ts:61:3 › Shareable Connection URL › should connect with pre-hashed secret in URL
+[1A[2K[chromium] › tests/shareable-url.spec.ts:61:3 › Shareable Connection URL › should connect with pre-hashed secret in URL
+Browser: [vite] connecting...
+
+[1A[2KBrowser: Auto-connecting from URL parameters: localhost:43598 admin
+
+[1A[2KBrowser: api/connect localhost:43598
+
+[1A[2K[WebServer] [INFO] LightLynx: Client connected: admin
+
+[1A[2KBrowser: aberdeen router replaceState {path: /, hash: , p: Array(0), nav: load, search: Object} {state: Object, stack: Array(0)} /
+
+[1A[2KBrowser: Aberdeen queue took 10ms
+
+[1A[2KBrowser: [vite] connected.
+
+[1A[2KBrowser: api/onOpen ws://localhost:43598/api?lightlynx=1&user=admin&secret=
+
+[1A[2KBrowser: Extension hash loaded: 1293f4cd
+
+[1A[2KBrowser: api/onMessage state
+
+[1A[2KBrowser: api/handleFullState {lights: Object, groups: Object, scenes: Object, devices: Object, activeScenes: Object}
+
+[1A[2KBrowser: api/onMessage - Authentication confirmed
+
+[1A[2Kgoto /?host=localhost:43598&username=admin
+
+[1A[2KCaptured tests-out/shareable-url-0061/0063a.*
+
+[1A[2KCaptured tests-out/shareable-url-0061/0064a.*
+
+[1A[2KSuccessfully verified hash generation for shareable URLs!
+
+[1A[2K[24/31] [chromium] › tests/user-management.spec.ts:5:3 › User Management › should create a new user with password and remote access
+[1A[2K[chromium] › tests/user-management.spec.ts:5:3 › User Management › should create a new user with password and remote access
+Browser: [vite] connecting...
+
+[1A[2KBrowser: Auto-connecting from URL parameters: localhost:43598 admin
+
+[1A[2KBrowser: api/connect localhost:43598
+
+[1A[2K[WebServer] [INFO] LightLynx: Client connected: admin
+
+[1A[2KBrowser: aberdeen router replaceState {path: /, hash: , p: Array(0), nav: load, search: Object} {state: Object, stack: Array(0)} /?admin=y
+
+[1A[2KBrowser: Aberdeen queue took 10ms
+
+[1A[2KBrowser: [vite] connected.
+
+[1A[2KBrowser: api/onOpen ws://localhost:43598/api?lightlynx=1&user=admin&secret=
+
+[1A[2KBrowser: Extension hash loaded: 1293f4cd
+
+[1A[2KBrowser: api/onMessage state
+
+[1A[2KBrowser: api/handleFullState {lights: Object, groups: Object, scenes: Object, devices: Object, activeScenes: Object}
+
+[1A[2KBrowser: api/onMessage - Authentication confirmed
+
+[1A[2Kgoto /?host=localhost:43598&username=admin&admin=y
+
+[1A[2KCaptured tests-out/user-management-0005/0006a.*
+
+[1A[2KCaptured tests-out/user-management-0005/0009a.*
+
+[1A[2KBrowser: aberdeen router go {path: /user/new, hash: , p: Array(2), nav: go, search: Object}
+
+[1A[2KBrowser: aberdeen router replaceState {path: /user/new, hash: , p: Array(2), nav: go, search: Object} {state: Object, stack: Array(1)} /user/new?admin=y
+
+[1A[2KCaptured tests-out/user-management-0005/0012a.*
+
+[1A[2KCaptured tests-out/user-management-0005/0015a.*
+
+[1A[2KCaptured tests-out/user-management-0005/0018a.*
+
+[1A[2KCaptured tests-out/user-management-0005/0021a.*
+
+[1A[2KCaptured tests-out/user-management-0005/0024a.*
+
+[1A[2KBrowser: api/send user.add {"username":"testuser","isAdmin":false,"allowedGroups":[],"allowRemote":true,"secret":"d8131bef0caf4
+
+[1A[2KBrowser: api/onMessage state
+
+[1A[2KBrowser: api/onMessage response
+
+[1A[2KBrowser: aberdeen router up to 1 / 1 {path: /, hash: , p: Array(0), nav: load, search: Object}
+
+[1A[2KBrowser: aberdeen router popstate {path: /, hash: , p: Array(0), nav: back, search: Object}
+
+[1A[2KCaptured tests-out/user-management-0005/0027a.*
+
+[1A[2KCaptured tests-out/user-management-0005/0031a.*
+
+[1A[2K[25/31] [chromium] › tests/user-management.spec.ts:5:3 › User Management › should create a new user with password and remote access (retry #1)
+[1A[2KBrowser: [vite] connecting...
+
+[1A[2KBrowser: Auto-connecting from URL parameters: localhost:43598 admin
+
+[1A[2KBrowser: api/connect localhost:43598
+
+[1A[2K[WebServer] [INFO] LightLynx: Client connected: admin
+
+[1A[2KBrowser: aberdeen router replaceState {path: /, hash: , p: Array(0), nav: load, search: Object} {state: Object, stack: Array(0)} /?admin=y
+
+[1A[2KBrowser: api/onOpen ws://localhost:43598/api?lightlynx=1&user=admin&secret=
+
+[1A[2KBrowser: [vite] connected.
+
+[1A[2KBrowser: Extension hash loaded: 1293f4cd
+
+[1A[2KBrowser: api/onMessage state
+
+[1A[2KBrowser: api/handleFullState {lights: Object, groups: Object, scenes: Object, devices: Object, activeScenes: Object}
+
+[1A[2KBrowser: api/onMessage - Authentication confirmed
+
+[1A[2Kgoto /?host=localhost:43598&username=admin&admin=y
+
+[1A[2KCaptured tests-out/user-management-0005/0006a.*
+
+[1A[2KCaptured tests-out/user-management-0005/0009a.*
+
+[1A[2KBrowser: aberdeen router go {path: /user/new, hash: , p: Array(2), nav: go, search: Object}
+
+[1A[2KBrowser: aberdeen router replaceState {path: /user/new, hash: , p: Array(2), nav: go, search: Object} {state: Object, stack: Array(1)} /user/new?admin=y
+
+[1A[2KCaptured tests-out/user-management-0005/0012a.*
+
+[1A[2KCaptured tests-out/user-management-0005/0015a.*
+
+[1A[2KCaptured tests-out/user-management-0005/0018a.*
+
+[1A[2KCaptured tests-out/user-management-0005/0021a.*
+
+[1A[2KCaptured tests-out/user-management-0005/0024a.*
+
+[1A[2K[WebServer] [ERROR] LightLynx: Command error for admin: User already exists
+
+[1A[2KBrowser: api/send user.add {"username":"testuser","isAdmin":false,"allowedGroups":[],"allowRemote":true,"secret":"d8131bef0caf4
+
+[1A[2KBrowser: api/onMessage response
+
+[1A[2KCaptured tests-out/user-management-0005/0027a.*
+
+[1A[2K[26/31] [chromium] › tests/user-management.spec.ts:5:3 › User Management › should create a new user with password and remote access (retry #2)
+[1A[2KBrowser: [vite] connecting...
+
+[1A[2KBrowser: Auto-connecting from URL parameters: localhost:43598 admin
+
+[1A[2KBrowser: api/connect localhost:43598
+
+[1A[2K[WebServer] [INFO] LightLynx: Client connected: admin
+
+[1A[2KBrowser: aberdeen router replaceState {path: /, hash: , p: Array(0), nav: load, search: Object} {state: Object, stack: Array(0)} /?admin=y
+
+[1A[2KBrowser: Aberdeen queue took 10ms
+
+[1A[2KBrowser: [vite] connected.
+
+[1A[2KBrowser: api/onOpen ws://localhost:43598/api?lightlynx=1&user=admin&secret=
+
+[1A[2KBrowser: Extension hash loaded: 1293f4cd
+
+[1A[2KBrowser: api/onMessage state
+
+[1A[2KBrowser: api/handleFullState {lights: Object, groups: Object, scenes: Object, devices: Object, activeScenes: Object}
+
+[1A[2KBrowser: api/onMessage - Authentication confirmed
+
+[1A[2Kgoto /?host=localhost:43598&username=admin&admin=y
+
+[1A[2KCaptured tests-out/user-management-0005/0006a.*
+
+[1A[2KCaptured tests-out/user-management-0005/0009a.*
+
+[1A[2KBrowser: aberdeen router go {path: /user/new, hash: , p: Array(2), nav: go, search: Object}
+
+[1A[2KBrowser: aberdeen router replaceState {path: /user/new, hash: , p: Array(2), nav: go, search: Object} {state: Object, stack: Array(1)} /user/new?admin=y
+
+[1A[2KCaptured tests-out/user-management-0005/0012a.*
+
+[1A[2KCaptured tests-out/user-management-0005/0015a.*
+
+[1A[2KCaptured tests-out/user-management-0005/0018a.*
+
+[1A[2KCaptured tests-out/user-management-0005/0021a.*
+
+[1A[2KCaptured tests-out/user-management-0005/0024a.*
+
+[1A[2K[WebServer] [ERROR] LightLynx: Command error for admin: User already exists
+
+[1A[2KBrowser: api/send user.add {"username":"testuser","isAdmin":false,"allowedGroups":[],"allowRemote":true,"secret":"d8131bef0caf4
+
+[1A[2KBrowser: api/onMessage response
+
+[1A[2KCaptured tests-out/user-management-0005/0027a.*
+
+[1A[2K  6) [chromium] › tests/user-management.spec.ts:5:3 › User Management › should create a new user with password and remote access 
+
+    Error: [2mexpect([22m[31mlocator[39m[2m).[22mtoBeVisible[2m([22m[2m)[22m failed
+
+    Locator: locator('div.item:has(h2:text("testuser"))').locator('span.badge').filter({ hasText: 'Remote' })
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+    [2m  - Expect "toBeVisible" with timeout 5000ms[22m
+    [2m  - waiting for locator('div.item:has(h2:text("testuser"))').locator('span.badge').filter({ hasText: 'Remote' })[22m
+
+
+      29 |     // Verify the user has "Remote" badge
+      30 |     const userItem = page.locator('div.item:has(h2:text("testuser"))');
+    > 31 |     await expect(userItem.locator('span.badge', { hasText: 'Remote' })).toBeVisible();
+         |                                                                         ^
+      32 |     
+      33 |     // Click on the user to edit
+      34 |     await page.locator('h2', { hasText: 'testuser' }).click();
+        at /home/runner/work/lightlynx/lightlynx/tests/user-management.spec.ts:31:73
+
+    Error Context: tests-out/user-management-0005/error.md
+
+    Retry #1 ───────────────────────────────────────────────────────────────────────────────────────
+
+    Error: [2mexpect([22m[31mlocator[39m[2m).[22mtoBeVisible[2m([22m[2m)[22m failed
+
+    Locator: locator('h2').filter({ hasText: 'testuser' })
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+    [2m  - Expect "toBeVisible" with timeout 5000ms[22m
+    [2m  - waiting for locator('h2').filter({ hasText: 'testuser' })[22m
+
+
+      25 |     
+      26 |     // We should be back on the users list
+    > 27 |     await expect(page.locator('h2', { hasText: 'testuser' })).toBeVisible();
+         |                                                               ^
+      28 |     
+      29 |     // Verify the user has "Remote" badge
+      30 |     const userItem = page.locator('div.item:has(h2:text("testuser"))');
+        at /home/runner/work/lightlynx/lightlynx/tests/user-management.spec.ts:27:63
+
+    Error Context: tests-out/user-management-0005/error.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    tests-out/user-management-0005/error.md
+    Usage:
+
+        npx playwright show-trace tests-out/user-management-0005/error.md
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Retry #2 ───────────────────────────────────────────────────────────────────────────────────────
+
+    Error: [2mexpect([22m[31mlocator[39m[2m).[22mtoBeVisible[2m([22m[2m)[22m failed
+
+    Locator: locator('h2').filter({ hasText: 'testuser' })
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+    [2m  - Expect "toBeVisible" with timeout 5000ms[22m
+    [2m  - waiting for locator('h2').filter({ hasText: 'testuser' })[22m
+
+
+      25 |     
+      26 |     // We should be back on the users list
+    > 27 |     await expect(page.locator('h2', { hasText: 'testuser' })).toBeVisible();
+         |                                                               ^
+      28 |     
+      29 |     // Verify the user has "Remote" badge
+      30 |     const userItem = page.locator('div.item:has(h2:text("testuser"))');
+        at /home/runner/work/lightlynx/lightlynx/tests/user-management.spec.ts:27:63
+
+    Error Context: tests-out/user-management-0005/error.md
+
+
+[1A[2K[27/31] [chromium] › tests/user-management.spec.ts:41:3 › User Management › should update user remote access without changing password
+[1A[2K[chromium] › tests/user-management.spec.ts:41:3 › User Management › should update user remote access without changing password
+Browser: [vite] connecting...
+
+[1A[2KBrowser: Auto-connecting from URL parameters: localhost:43598 admin
+
+[1A[2KBrowser: api/connect localhost:43598
+
+[1A[2K[WebServer] [INFO] LightLynx: Client connected: admin
+
+[1A[2KBrowser: aberdeen router replaceState {path: /, hash: , p: Array(0), nav: load, search: Object} {state: Object, stack: Array(0)} /?admin=y
+
+[1A[2KBrowser: Aberdeen queue took 10ms
+
+[1A[2KBrowser: [vite] connected.
+
+[1A[2KBrowser: api/onOpen ws://localhost:43598/api?lightlynx=1&user=admin&secret=
+
+[1A[2KBrowser: Extension hash loaded: 1293f4cd
+
+[1A[2KBrowser: api/onMessage state
+
+[1A[2KBrowser: api/handleFullState {lights: Object, groups: Object, scenes: Object, devices: Object, activeScenes: Object}
+
+[1A[2KBrowser: api/onMessage - Authentication confirmed
+
+[1A[2Kgoto /?host=localhost:43598&username=admin&admin=y
+
+[1A[2KCaptured tests-out/user-management-0041/0042a.*
+
+[1A[2KCaptured tests-out/user-management-0041/0045a.*
+
+[1A[2KBrowser: aberdeen router go {path: /user/new, hash: , p: Array(2), nav: go, search: Object}
+
+[1A[2KBrowser: aberdeen router replaceState {path: /user/new, hash: , p: Array(2), nav: go, search: Object} {state: Object, stack: Array(1)} /user/new?admin=y
+
+[1A[2KCaptured tests-out/user-management-0041/0046a.*
+
+[1A[2KCaptured tests-out/user-management-0041/0047a.*
+
+[1A[2KCaptured tests-out/user-management-0041/0048a.*
+
+[1A[2KBrowser: api/send user.add {"username":"updatetest","isAdmin":false,"allowedGroups":[],"allowRemote":false,"secret":"62deec3f6e
+
+[1A[2KBrowser: api/onMessage state
+
+[1A[2KBrowser: api/onMessage response
+
+[1A[2KBrowser: aberdeen router up to 1 / 1 {path: /, hash: , p: Array(0), nav: load, search: Object}
+
+[1A[2KBrowser: aberdeen router popstate {path: /, hash: , p: Array(0), nav: back, search: Object}
+
+[1A[2KCaptured tests-out/user-management-0041/0051a.*
+
+[1A[2KBrowser: aberdeen router go {path: /user/updatetest, hash: , p: Array(2), nav: go, search: Object}
+
+[1A[2KBrowser: aberdeen router replaceState {path: /user/updatetest, hash: , p: Array(2), nav: go, search: Object} {state: Object, stack: Array(1)} /user/updatetest?admin=y
+
+[1A[2KCaptured tests-out/user-management-0041/0052a.*
+
+[1A[2KCaptured tests-out/user-management-0041/0055a.*
+
+[1A[2K[WebServer] [ERROR] LightLynx: Command error for admin: Cannot enable remote access without a password
+
+[1A[2KBrowser: api/send user.update {"username":"updatetest","isAdmin":false,"allowedGroups":[],"allowRemote":true,"secret":""}
+
+[1A[2KBrowser: api/onMessage response
+
+[1A[2KCaptured tests-out/user-management-0041/0058a.*
+
+[1A[2K[28/31] [chromium] › tests/user-management.spec.ts:41:3 › User Management › should update user remote access without changing password (retry #1)
+[1A[2KBrowser: [vite] connecting...
+
+[1A[2K[WebServer] [INFO] LightLynx: Client connected: admin
+
+[1A[2KBrowser: Auto-connecting from URL parameters: localhost:43598 admin
+
+[1A[2KBrowser: api/connect localhost:43598
+
+[1A[2KBrowser: aberdeen router replaceState {path: /, hash: , p: Array(0), nav: load, search: Object} {state: Object, stack: Array(0)} /?admin=y
+
+[1A[2KBrowser: [vite] connected.
+
+[1A[2KBrowser: api/onOpen ws://localhost:43598/api?lightlynx=1&user=admin&secret=
+
+[1A[2KBrowser: Extension hash loaded: 1293f4cd
+
+[1A[2KBrowser: api/onMessage state
+
+[1A[2KBrowser: api/handleFullState {lights: Object, groups: Object, scenes: Object, devices: Object, activeScenes: Object}
+
+[1A[2KBrowser: api/onMessage - Authentication confirmed
+
+[1A[2Kgoto /?host=localhost:43598&username=admin&admin=y
+
+[1A[2KCaptured tests-out/user-management-0041/0042a.*
+
+[1A[2KCaptured tests-out/user-management-0041/0045a.*
+
+[1A[2KBrowser: aberdeen router go {path: /user/new, hash: , p: Array(2), nav: go, search: Object}
+
+[1A[2KBrowser: aberdeen router replaceState {path: /user/new, hash: , p: Array(2), nav: go, search: Object} {state: Object, stack: Array(1)} /user/new?admin=y
+
+[1A[2KCaptured tests-out/user-management-0041/0046a.*
+
+[1A[2KCaptured tests-out/user-management-0041/0047a.*
+
+[1A[2KCaptured tests-out/user-management-0041/0048a.*
+
+[1A[2K[WebServer] [ERROR] LightLynx: Command error for admin: User already exists
+
+[1A[2KBrowser: api/send user.add {"username":"updatetest","isAdmin":false,"allowedGroups":[],"allowRemote":false,"secret":"62deec3f6e
+
+[1A[2KBrowser: api/onMessage response
+
+[1A[2KCannot find locator('h2').filter({ hasText: 'updatetest' }) for click
+
+[1A[2KCaptured tests-out/user-management-0041/0051a.*
+
+[1A[2KLocator locator('h2').filter({ hasText: 'updatetest' }) failed click
+
+[1A[2KCaptured tests-out/user-management-0041/0051b.*
+
+[1A[2K[29/31] [chromium] › tests/user-management.spec.ts:41:3 › User Management › should update user remote access without changing password (retry #2)
+[1A[2KBrowser: [vite] connecting...
+
+[1A[2KBrowser: Auto-connecting from URL parameters: localhost:43598 admin
+
+[1A[2KBrowser: api/connect localhost:43598
+
+[1A[2K[WebServer] [INFO] LightLynx: Client connected: admin
+
+[1A[2KBrowser: aberdeen router replaceState {path: /, hash: , p: Array(0), nav: load, search: Object} {state: Object, stack: Array(0)} /?admin=y
+
+[1A[2KBrowser: Aberdeen queue took 10ms
+
+[1A[2KBrowser: [vite] connected.
+
+[1A[2KBrowser: api/onOpen ws://localhost:43598/api?lightlynx=1&user=admin&secret=
+
+[1A[2KBrowser: Extension hash loaded: 1293f4cd
+
+[1A[2KBrowser: api/onMessage state
+
+[1A[2KBrowser: api/handleFullState {lights: Object, groups: Object, scenes: Object, devices: Object, activeScenes: Object}
+
+[1A[2KBrowser: api/onMessage - Authentication confirmed
+
+[1A[2Kgoto /?host=localhost:43598&username=admin&admin=y
+
+[1A[2KCaptured tests-out/user-management-0041/0042a.*
+
+[1A[2KCaptured tests-out/user-management-0041/0045a.*
+
+[1A[2KBrowser: aberdeen router go {path: /user/new, hash: , p: Array(2), nav: go, search: Object}
+
+[1A[2KBrowser: aberdeen router replaceState {path: /user/new, hash: , p: Array(2), nav: go, search: Object} {state: Object, stack: Array(1)} /user/new?admin=y
+
+[1A[2KCaptured tests-out/user-management-0041/0046a.*
+
+[1A[2KCaptured tests-out/user-management-0041/0047a.*
+
+[1A[2KCaptured tests-out/user-management-0041/0048a.*
+
+[1A[2K[WebServer] [ERROR] LightLynx: Command error for admin: User already exists
+
+[1A[2KBrowser: api/send user.add {"username":"updatetest","isAdmin":false,"allowedGroups":[],"allowRemote":false,"secret":"62deec3f6e
+
+[1A[2KBrowser: api/onMessage response
+
+[1A[2KCannot find locator('h2').filter({ hasText: 'updatetest' }) for click
+
+[1A[2KCaptured tests-out/user-management-0041/0051a.*
+
+[1A[2KLocator locator('h2').filter({ hasText: 'updatetest' }) failed click
+
+[1A[2KCaptured tests-out/user-management-0041/0051b.*
+
+[1A[2K  7) [chromium] › tests/user-management.spec.ts:41:3 › User Management › should update user remote access without changing password 
+
+    Error: [2mexpect([22m[31mlocator[39m[2m).[22mtoBeVisible[2m([22m[2m)[22m failed
+
+    Locator: locator('h2').filter({ hasText: 'updatetest' })
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+    [2m  - Expect "toBeVisible" with timeout 5000ms[22m
+    [2m  - waiting for locator('h2').filter({ hasText: 'updatetest' })[22m
+
+
+      56 |     
+      57 |     // Back to users list
+    > 58 |     await expect(page.locator('h2', { hasText: 'updatetest' })).toBeVisible();
+         |                                                                 ^
+      59 |     
+      60 |     // Verify the user has "Remote" badge
+      61 |     const userItem = page.locator('div.item:has(h2:text("updatetest"))');
+        at /home/runner/work/lightlynx/lightlynx/tests/user-management.spec.ts:58:65
+
+    Error Context: tests-out/user-management-0041/error.md
+
+    Retry #1 ───────────────────────────────────────────────────────────────────────────────────────
+
+    TimeoutError: locator.click: Timeout 5000ms exceeded.
+    Call log:
+    [2m  - waiting for locator('h2').filter({ hasText: 'updatetest' })[22m
+
+
+      49 |     
+      50 |     // Now edit the user to enable remote access
+    > 51 |     await page.locator('h2', { hasText: 'updatetest' }).click();
+         |     ^
+      52 |     await page.locator('label:has-text("Allow remote access") input[type="checkbox"]').check();
+      53 |     
+      54 |     // Save without entering password (should keep existing password)
+        at /home/runner/work/lightlynx/lightlynx/tests/user-management.spec.ts:51:5
+
+    Error Context: tests-out/user-management-0041/error.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    tests-out/user-management-0041/error.md
+    Usage:
+
+        npx playwright show-trace tests-out/user-management-0041/error.md
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Retry #2 ───────────────────────────────────────────────────────────────────────────────────────
+
+    TimeoutError: locator.click: Timeout 5000ms exceeded.
+    Call log:
+    [2m  - waiting for locator('h2').filter({ hasText: 'updatetest' })[22m
+
+
+      49 |     
+      50 |     // Now edit the user to enable remote access
+    > 51 |     await page.locator('h2', { hasText: 'updatetest' }).click();
+         |     ^
+      52 |     await page.locator('label:has-text("Allow remote access") input[type="checkbox"]').check();
+      53 |     
+      54 |     // Save without entering password (should keep existing password)
+        at /home/runner/work/lightlynx/lightlynx/tests/user-management.spec.ts:51:5
+
+    Error Context: tests-out/user-management-0041/error.md
+
+
+[1A[2K[30/31] [chromium] › tests/user-management.spec.ts:70:3 › User Management › should accept password hash in password field
+[1A[2K[chromium] › tests/user-management.spec.ts:70:3 › User Management › should accept password hash in password field
+Browser: [vite] connecting...
+
+[1A[2KBrowser: Auto-connecting from URL parameters: localhost:43598 admin
+
+[1A[2K[WebServer] [INFO] LightLynx: Client connected: admin
+
+[1A[2KBrowser: api/connect localhost:43598
+
+[1A[2KBrowser: aberdeen router replaceState {path: /, hash: , p: Array(0), nav: load, search: Object} {state: Object, stack: Array(0)} /?admin=y
+
+[1A[2KBrowser: Aberdeen queue took 10ms
+
+[1A[2KBrowser: [vite] connected.
+
+[1A[2KBrowser: api/onOpen ws://localhost:43598/api?lightlynx=1&user=admin&secret=
+
+[1A[2KBrowser: Extension hash loaded: 1293f4cd
+
+[1A[2KBrowser: api/onMessage state
+
+[1A[2KBrowser: api/handleFullState {lights: Object, groups: Object, scenes: Object, devices: Object, activeScenes: Object}
+
+[1A[2KBrowser: api/onMessage - Authentication confirmed
+
+[1A[2Kgoto /?host=localhost:43598&username=admin&admin=y
+
+[1A[2KCaptured tests-out/user-management-0070/0071a.*
+
+[1A[2KCaptured tests-out/user-management-0070/0076a.*
+
+[1A[2KBrowser: aberdeen router go {path: /user/new, hash: , p: Array(2), nav: go, search: Object}
+
+[1A[2KBrowser: aberdeen router replaceState {path: /user/new, hash: , p: Array(2), nav: go, search: Object} {state: Object, stack: Array(1)} /user/new?admin=y
+
+[1A[2KCaptured tests-out/user-management-0070/0077a.*
+
+[1A[2KCaptured tests-out/user-management-0070/0080a.*
+
+[1A[2KCaptured tests-out/user-management-0070/0082a.*
+
+[1A[2KBrowser: api/send user.add {"username":"hashuser","isAdmin":false,"allowedGroups":[],"allowRemote":false,"secret":"9f86d081884c
+
+[1A[2KBrowser: api/onMessage state
+
+[1A[2KBrowser: api/onMessage response
+
+[1A[2KBrowser: aberdeen router up to 1 / 1 {path: /, hash: , p: Array(0), nav: load, search: Object}
+
+[1A[2KBrowser: aberdeen router popstate {path: /, hash: , p: Array(0), nav: back, search: Object}
+
+[1A[2KCaptured tests-out/user-management-0070/0085a.*
+
+[1A[2KCaptured tests-out/user-management-0070/0089a.*
+
+[1A[2K[31/31] [chromium] › tests/user-management.spec.ts:70:3 › User Management › should accept password hash in password field (retry #1)
+[1A[2KBrowser: [vite] connecting...
+
+[1A[2KBrowser: [vite] connected.
+
+[1A[2KBrowser: Auto-connecting from URL parameters: localhost:43598 admin
+
+[1A[2KBrowser: api/connect localhost:43598
+
+[1A[2K[WebServer] [INFO] LightLynx: Client connected: admin
+
+[1A[2KBrowser: aberdeen router replaceState {path: /, hash: , p: Array(0), nav: load, search: Object} {state: Object, stack: Array(0)} /?admin=y
+
+[1A[2KBrowser: Aberdeen queue took 10ms
+
+[1A[2KBrowser: api/onOpen ws://localhost:43598/api?lightlynx=1&user=admin&secret=
+
+[1A[2KBrowser: Extension hash loaded: 1293f4cd
+
+[1A[2KBrowser: api/onMessage state
+
+[1A[2KBrowser: api/handleFullState {lights: Object, groups: Object, scenes: Object, devices: Object, activeScenes: Object}
+
+[1A[2KBrowser: api/onMessage - Authentication confirmed
+
+[1A[2Kgoto /?host=localhost:43598&username=admin&admin=y
+
+[1A[2KCaptured tests-out/user-management-0070/0071a.*
+
+[1A[2KCaptured tests-out/user-management-0070/0076a.*
+
+[1A[2KBrowser: aberdeen router go {path: /user/new, hash: , p: Array(2), nav: go, search: Object}
+
+[1A[2KBrowser: aberdeen router replaceState {path: /user/new, hash: , p: Array(2), nav: go, search: Object} {state: Object, stack: Array(1)} /user/new?admin=y
+
+[1A[2KCaptured tests-out/user-management-0070/0077a.*
+
+[1A[2KCaptured tests-out/user-management-0070/0080a.*
+
+[1A[2KCaptured tests-out/user-management-0070/0082a.*
+
+[1A[2K[WebServer] [ERROR] LightLynx: Command error for admin: User already exists
+
+[1A[2KBrowser: api/send user.add {"username":"hashuser","isAdmin":false,"allowedGroups":[],"allowRemote":false,"secret":"9f86d081884c
+
+[1A[2KBrowser: api/onMessage response
+
+[1A[2KCaptured tests-out/user-management-0070/0085a.*
+
+[1A[2K[32/31] (retries) [chromium] › tests/user-management.spec.ts:70:3 › User Management › should accept password hash in password field (retry #2)
+[1A[2KBrowser: [vite] connecting...
+
+[1A[2KBrowser: Auto-connecting from URL parameters: localhost:43598 admin
+
+[1A[2KBrowser: api/connect localhost:43598
+
+[1A[2K[WebServer] [INFO] LightLynx: Client connected: admin
+
+[1A[2KBrowser: aberdeen router replaceState {path: /, hash: , p: Array(0), nav: load, search: Object} {state: Object, stack: Array(0)} /?admin=y
+
+[1A[2KBrowser: Aberdeen queue took 10ms
+
+[1A[2KBrowser: api/onOpen ws://localhost:43598/api?lightlynx=1&user=admin&secret=
+
+[1A[2KBrowser: [vite] connected.
+
+[1A[2KBrowser: Extension hash loaded: 1293f4cd
+
+[1A[2KBrowser: api/onMessage state
+
+[1A[2KBrowser: api/handleFullState {lights: Object, groups: Object, scenes: Object, devices: Object, activeScenes: Object}
+
+[1A[2KBrowser: api/onMessage - Authentication confirmed
+
+[1A[2Kgoto /?host=localhost:43598&username=admin&admin=y
+
+[1A[2KCaptured tests-out/user-management-0070/0071a.*
+
+[1A[2KCaptured tests-out/user-management-0070/0076a.*
+
+[1A[2KBrowser: aberdeen router go {path: /user/new, hash: , p: Array(2), nav: go, search: Object}
+
+[1A[2KBrowser: aberdeen router replaceState {path: /user/new, hash: , p: Array(2), nav: go, search: Object} {state: Object, stack: Array(1)} /user/new?admin=y
+
+[1A[2KCaptured tests-out/user-management-0070/0077a.*
+
+[1A[2KCaptured tests-out/user-management-0070/0080a.*
+
+[1A[2KCaptured tests-out/user-management-0070/0082a.*
+
+[1A[2K[WebServer] [ERROR] LightLynx: Command error for admin: User already exists
+
+[1A[2KBrowser: api/send user.add {"username":"hashuser","isAdmin":false,"allowedGroups":[],"allowRemote":false,"secret":"9f86d081884c
+
+[1A[2KBrowser: api/onMessage response
+
+[1A[2KCaptured tests-out/user-management-0070/0085a.*
+
+[1A[2K  8) [chromium] › tests/user-management.spec.ts:70:3 › User Management › should accept password hash in password field 
+
+    Error: [2mexpect([22m[31mlocator[39m[2m).not.[22mtoBeVisible[2m([22m[2m)[22m failed
+
+    Locator:  locator('div.item').filter({ has: locator('h2').filter({ hasText: 'hashuser' }) }).locator('span.badge.warning').filter({ hasText: 'No password' })
+    Expected: not visible
+    Received: visible
+    Timeout:  5000ms
+
+    Call log:
+    [2m  - Expect "not toBeVisible" with timeout 5000ms[22m
+    [2m  - waiting for locator('div.item').filter({ has: locator('h2').filter({ hasText: 'hashuser' }) }).locator('span.badge.warning').filter({ hasText: 'No password' })[22m
+    [2m    9 × locator resolved to <span class="badge warning">No password</span>[22m
+    [2m      - unexpected value "visible"[22m
+
+
+      87 |     // The user should not have "No password" badge (meaning password was set)
+      88 |     const userItem = page.locator('div.item').filter({ has: page.locator('h2', { hasText: 'hashuser' }) });
+    > 89 |     await expect(userItem.locator('span.badge.warning', { hasText: 'No password' })).not.toBeVisible();
+         |                                                                                          ^
+      90 |   });
+      91 |
+      92 |   test('should disable remote access checkbox when no password', async ({ page }) => {
+        at /home/runner/work/lightlynx/lightlynx/tests/user-management.spec.ts:89:90
+
+    Error Context: tests-out/user-management-0070/error.md
+
+    Retry #1 ───────────────────────────────────────────────────────────────────────────────────────
+
+    Error: [2mexpect([22m[31mlocator[39m[2m).[22mtoBeVisible[2m([22m[2m)[22m failed
+
+    Locator: locator('h2').filter({ hasText: 'hashuser' })
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+    [2m  - Expect "toBeVisible" with timeout 5000ms[22m
+    [2m  - waiting for locator('h2').filter({ hasText: 'hashuser' })[22m
+
+
+      83 |     
+      84 |     // Verify user was created
+    > 85 |     await expect(page.locator('h2', { hasText: 'hashuser' })).toBeVisible();
+         |                                                               ^
+      86 |     
+      87 |     // The user should not have "No password" badge (meaning password was set)
+      88 |     const userItem = page.locator('div.item').filter({ has: page.locator('h2', { hasText: 'hashuser' }) });
+        at /home/runner/work/lightlynx/lightlynx/tests/user-management.spec.ts:85:63
+
+    Error Context: tests-out/user-management-0070/error.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    tests-out/user-management-0070/error.md
+    Usage:
+
+        npx playwright show-trace tests-out/user-management-0070/error.md
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Retry #2 ───────────────────────────────────────────────────────────────────────────────────────
+
+    Error: [2mexpect([22m[31mlocator[39m[2m).[22mtoBeVisible[2m([22m[2m)[22m failed
+
+    Locator: locator('h2').filter({ hasText: 'hashuser' })
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+    [2m  - Expect "toBeVisible" with timeout 5000ms[22m
+    [2m  - waiting for locator('h2').filter({ hasText: 'hashuser' })[22m
+
+
+      83 |     
+      84 |     // Verify user was created
+    > 85 |     await expect(page.locator('h2', { hasText: 'hashuser' })).toBeVisible();
+         |                                                               ^
+      86 |     
+      87 |     // The user should not have "No password" badge (meaning password was set)
+      88 |     const userItem = page.locator('div.item').filter({ has: page.locator('h2', { hasText: 'hashuser' }) });
+        at /home/runner/work/lightlynx/lightlynx/tests/user-management.spec.ts:85:63
+
+    Error Context: tests-out/user-management-0070/error.md
+
+
+[1A[2K[33/31] (retries) [chromium] › tests/user-management.spec.ts:92:3 › User Management › should disable remote access checkbox when no password
+[1A[2K[chromium] › tests/user-management.spec.ts:92:3 › User Management › should disable remote access checkbox when no password
+Browser: [vite] connecting...
+
+[1A[2KBrowser: Auto-connecting from URL parameters: localhost:43598 admin
+
+[1A[2KBrowser: api/connect localhost:43598
+
+[1A[2K[WebServer] [INFO] LightLynx: Client connected: admin
+
+[1A[2KBrowser: aberdeen router replaceState {path: /, hash: , p: Array(0), nav: load, search: Object} {state: Object, stack: Array(0)} /?admin=y
+
+[1A[2KBrowser: Aberdeen queue took 10ms
+
+[1A[2KBrowser: api/onOpen ws://localhost:43598/api?lightlynx=1&user=admin&secret=
+
+[1A[2KBrowser: [vite] connected.
+
+[1A[2KBrowser: Extension hash loaded: 1293f4cd
+
+[1A[2KBrowser: api/onMessage state
+
+[1A[2KBrowser: api/handleFullState {lights: Object, groups: Object, scenes: Object, devices: Object, activeScenes: Object}
+
+[1A[2KBrowser: api/onMessage - Authentication confirmed
+
+[1A[2Kgoto /?host=localhost:43598&username=admin&admin=y
+
+[1A[2KCaptured tests-out/user-management-0092/0093a.*
+
+[1A[2KCaptured tests-out/user-management-0092/0096a.*
+
+[1A[2KBrowser: aberdeen router go {path: /user/new, hash: , p: Array(2), nav: go, search: Object}
+
+[1A[2KBrowser: aberdeen router replaceState {path: /user/new, hash: , p: Array(2), nav: go, search: Object} {state: Object, stack: Array(1)} /user/new?admin=y
+
+[1A[2KCaptured tests-out/user-management-0092/0102a.*
+
+[1A[2KCaptured tests-out/user-management-0092/0105a.*
+
+[1A[2KCaptured tests-out/user-management-0092/0106a.*
+
+[1A[2KCaptured tests-out/user-management-0092/0109a.*
+
+[1A[2KCaptured tests-out/user-management-0092/0110a.*
+
+[1A[2K[34/31] (retries) [chromium] › tests/user-management.spec.ts:113:3 › User Management › should show Cancel button that goes back
+[1A[2K[chromium] › tests/user-management.spec.ts:113:3 › User Management › should show Cancel button that goes back
+Browser: [vite] connecting...
+
+[1A[2KBrowser: Auto-connecting from URL parameters: localhost:43598 admin
+
+[1A[2KBrowser: api/connect localhost:43598
+
+[1A[2K[WebServer] [INFO] LightLynx: Client connected: admin
+
+[1A[2KBrowser: aberdeen router replaceState {path: /, hash: , p: Array(0), nav: load, search: Object} {state: Object, stack: Array(0)} /?admin=y
+
+[1A[2KBrowser: Aberdeen queue took 11ms
+
+[1A[2KBrowser: [vite] connected.
+
+[1A[2KBrowser: api/onOpen ws://localhost:43598/api?lightlynx=1&user=admin&secret=
+
+[1A[2KBrowser: Extension hash loaded: 1293f4cd
+
+[1A[2KBrowser: api/onMessage state
+
+[1A[2KBrowser: api/handleFullState {lights: Object, groups: Object, scenes: Object, devices: Object, activeScenes: Object}
+
+[1A[2KBrowser: api/onMessage - Authentication confirmed
+
+[1A[2Kgoto /?host=localhost:43598&username=admin&admin=y
+
+[1A[2KCaptured tests-out/user-management-0113/0114a.*
+
+[1A[2KCaptured tests-out/user-management-0113/0116a.*
+
+[1A[2KBrowser: aberdeen router go {path: /user/new, hash: , p: Array(2), nav: go, search: Object}
+
+[1A[2KBrowser: aberdeen router replaceState {path: /user/new, hash: , p: Array(2), nav: go, search: Object} {state: Object, stack: Array(1)} /user/new?admin=y
+
+[1A[2KCaptured tests-out/user-management-0113/0119a.*
+
+[1A[2KCaptured tests-out/user-management-0113/0122a.*
+
+[1A[2KBrowser: aberdeen router up to 1 / 1 {path: /, hash: , p: Array(0), nav: load, search: Object}
+
+[1A[2KBrowser: aberdeen router popstate {path: /, hash: , p: Array(0), nav: back, search: Object}
+
+[1A[2KCaptured tests-out/user-management-0113/0125a.*
+
+[1A[2KCaptured tests-out/user-management-0113/0126a.*
+
+[1A[2K[35/31] (retries) [chromium] › tests/user-management.spec.ts:129:3 › User Management › should delete user
+[1A[2K[chromium] › tests/user-management.spec.ts:129:3 › User Management › should delete user
+Browser: [vite] connecting...
+
+[1A[2KBrowser: Auto-connecting from URL parameters: localhost:43598 admin
+
+[1A[2KBrowser: api/connect localhost:43598
+
+[1A[2K[WebServer] [INFO] LightLynx: Client connected: admin
+
+[1A[2KBrowser: aberdeen router replaceState {path: /, hash: , p: Array(0), nav: load, search: Object} {state: Object, stack: Array(0)} /?admin=y
+
+[1A[2KBrowser: Aberdeen queue took 10ms
+
+[1A[2KBrowser: [vite] connected.
+
+[1A[2KBrowser: api/onOpen ws://localhost:43598/api?lightlynx=1&user=admin&secret=
+
+[1A[2KBrowser: Extension hash loaded: 1293f4cd
+
+[1A[2KBrowser: api/onMessage state
+
+[1A[2KBrowser: api/handleFullState {lights: Object, groups: Object, scenes: Object, devices: Object, activeScenes: Object}
+
+[1A[2KBrowser: api/onMessage - Authentication confirmed
+
+[1A[2Kgoto /?host=localhost:43598&username=admin&admin=y
+
+[1A[2KCaptured tests-out/user-management-0129/0130a.*
+
+[1A[2KCaptured tests-out/user-management-0129/0133a.*
+
+[1A[2KBrowser: aberdeen router go {path: /user/new, hash: , p: Array(2), nav: go, search: Object}
+
+[1A[2KBrowser: aberdeen router replaceState {path: /user/new, hash: , p: Array(2), nav: go, search: Object} {state: Object, stack: Array(1)} /user/new?admin=y
+
+[1A[2KCaptured tests-out/user-management-0129/0134a.*
+
+[1A[2KCaptured tests-out/user-management-0129/0135a.*
+
+[1A[2KCaptured tests-out/user-management-0129/0136a.*
+
+[1A[2KBrowser: api/send user.add {"username":"deletetest","isAdmin":false,"allowedGroups":[],"allowRemote":false,"secret":"5821346e71
+
+[1A[2KBrowser: api/onMessage state
+
+[1A[2KBrowser: api/onMessage response
+
+[1A[2KBrowser: aberdeen router up to 1 / 1 {path: /, hash: , p: Array(0), nav: load, search: Object}
+
+[1A[2KBrowser: aberdeen router popstate {path: /, hash: , p: Array(0), nav: back, search: Object}
+
+[1A[2KCaptured tests-out/user-management-0129/0139a.*
+
+[1A[2KCaptured tests-out/user-management-0129/0142a.*
+
+[1A[2KBrowser: aberdeen router go {path: /user/deletetest, hash: , p: Array(2), nav: go, search: Object}
+
+[1A[2KBrowser: aberdeen router replaceState {path: /user/deletetest, hash: , p: Array(2), nav: go, search: Object} {state: Object, stack: Array(1)} /user/deletetest?admin=y
+
+[1A[2KCaptured tests-out/user-management-0129/0145a.*
+
+[1A[2KBrowser: aberdeen router go {path: /user/deletetest, hash: , p: Array(2), nav: go, search: Object}
+
+[1A[2KCaptured tests-out/user-management-0129/0148a.*
+
+[1A[2KBrowser: aberdeen router back -1 {path: /user/deletetest, hash: , p: Array(2), nav: go, search: Object}
+
+[1A[2KBrowser: api/send user.delete {"username":"deletetest"}
+
+[1A[2KBrowser: aberdeen router popstate {path: /user/deletetest, hash: , p: Array(2), nav: back, search: Object}
+
+[1A[2KBrowser: api/onMessage state
+
+[1A[2KBrowser: api/onMessage response
+
+[1A[2KBrowser: aberdeen router up to 1 / 1 {path: /, hash: , p: Array(0), nav: back, search: Object}
+
+[1A[2KBrowser: aberdeen router popstate {path: /, hash: , p: Array(0), nav: back, search: Object}
+
+[1A[2KCaptured tests-out/user-management-0129/0151a.*
+
+[1A[2K[36/31] (retries) [chromium] › tests/user-management.spec.ts:129:3 › User Management › should delete user (retry #1)
+[1A[2KBrowser: [vite] connecting...
+
+[1A[2KBrowser: Auto-connecting from URL parameters: localhost:43598 admin
+
+[1A[2K[WebServer] [INFO] LightLynx: Client connected: admin
+
+[1A[2KBrowser: api/connect localhost:43598
+
+[1A[2KBrowser: aberdeen router replaceState {path: /, hash: , p: Array(0), nav: load, search: Object} {state: Object, stack: Array(0)} /?admin=y
+
+[1A[2KBrowser: [vite] connected.
+
+[1A[2KBrowser: api/onOpen ws://localhost:43598/api?lightlynx=1&user=admin&secret=
+
+[1A[2KBrowser: Extension hash loaded: 1293f4cd
+
+[1A[2KBrowser: api/onMessage state
+
+[1A[2KBrowser: api/handleFullState {lights: Object, groups: Object, scenes: Object, devices: Object, activeScenes: Object}
+
+[1A[2KBrowser: api/onMessage - Authentication confirmed
+
+[1A[2Kgoto /?host=localhost:43598&username=admin&admin=y
+
+[1A[2KCaptured tests-out/user-management-0129/0130a.*
+
+[1A[2KCaptured tests-out/user-management-0129/0133a.*
+
+[1A[2KBrowser: aberdeen router go {path: /user/new, hash: , p: Array(2), nav: go, search: Object}
+
+[1A[2KBrowser: aberdeen router replaceState {path: /user/new, hash: , p: Array(2), nav: go, search: Object} {state: Object, stack: Array(1)} /user/new?admin=y
+
+[1A[2KCaptured tests-out/user-management-0129/0134a.*
+
+[1A[2KCaptured tests-out/user-management-0129/0135a.*
+
+[1A[2KCaptured tests-out/user-management-0129/0136a.*
+
+[1A[2KBrowser: api/send user.add {"username":"deletetest","isAdmin":false,"allowedGroups":[],"allowRemote":false,"secret":"5821346e71
+
+[1A[2KBrowser: api/onMessage state
+
+[1A[2KBrowser: api/onMessage response
+
+[1A[2KBrowser: aberdeen router up to 1 / 1 {path: /, hash: , p: Array(0), nav: load, search: Object}
+
+[1A[2KBrowser: aberdeen router popstate {path: /, hash: , p: Array(0), nav: back, search: Object}
+
+[1A[2KCaptured tests-out/user-management-0129/0139a.*
+
+[1A[2KCaptured tests-out/user-management-0129/0142a.*
+
+[1A[2KBrowser: aberdeen router go {path: /user/deletetest, hash: , p: Array(2), nav: go, search: Object}
+
+[1A[2KBrowser: aberdeen router replaceState {path: /user/deletetest, hash: , p: Array(2), nav: go, search: Object} {state: Object, stack: Array(1)} /user/deletetest?admin=y
+
+[1A[2KCaptured tests-out/user-management-0129/0145a.*
+
+[1A[2KBrowser: aberdeen router go {path: /user/deletetest, hash: , p: Array(2), nav: go, search: Object}
+
+[1A[2KCaptured tests-out/user-management-0129/0148a.*
+
+[1A[2KBrowser: aberdeen router back -1 {path: /user/deletetest, hash: , p: Array(2), nav: go, search: Object}
+
+[1A[2KBrowser: api/send user.delete {"username":"deletetest"}
+
+[1A[2KBrowser: aberdeen router popstate {path: /user/deletetest, hash: , p: Array(2), nav: back, search: Object}
+
+[1A[2KBrowser: api/onMessage state
+
+[1A[2KBrowser: api/onMessage response
+
+[1A[2KBrowser: aberdeen router up to 1 / 1 {path: /, hash: , p: Array(0), nav: back, search: Object}
+
+[1A[2KBrowser: aberdeen router popstate {path: /, hash: , p: Array(0), nav: back, search: Object}
+
+[1A[2KCaptured tests-out/user-management-0129/0151a.*
+
+[1A[2K[37/31] (retries) [chromium] › tests/user-management.spec.ts:129:3 › User Management › should delete user (retry #2)
+[1A[2KBrowser: [vite] connecting...
+
+[1A[2KBrowser: Auto-connecting from URL parameters: localhost:43598 admin
+
+[1A[2KBrowser: api/connect localhost:43598
+
+[1A[2K[WebServer] [INFO] LightLynx: Client connected: admin
+
+[1A[2KBrowser: aberdeen router replaceState {path: /, hash: , p: Array(0), nav: load, search: Object} {state: Object, stack: Array(0)} /?admin=y
+
+[1A[2KBrowser: Aberdeen queue took 10ms
+
+[1A[2KBrowser: [vite] connected.
+
+[1A[2KBrowser: api/onOpen ws://localhost:43598/api?lightlynx=1&user=admin&secret=
+
+[1A[2KBrowser: Extension hash loaded: 1293f4cd
+
+[1A[2KBrowser: api/onMessage state
+
+[1A[2KBrowser: api/handleFullState {lights: Object, groups: Object, scenes: Object, devices: Object, activeScenes: Object}
+
+[1A[2KBrowser: api/onMessage - Authentication confirmed
+
+[1A[2Kgoto /?host=localhost:43598&username=admin&admin=y
+
+[1A[2KCaptured tests-out/user-management-0129/0130a.*
+
+[1A[2KCaptured tests-out/user-management-0129/0133a.*
+
+[1A[2KBrowser: aberdeen router go {path: /user/new, hash: , p: Array(2), nav: go, search: Object}
+
+[1A[2KBrowser: aberdeen router replaceState {path: /user/new, hash: , p: Array(2), nav: go, search: Object} {state: Object, stack: Array(1)} /user/new?admin=y
+
+[1A[2KCaptured tests-out/user-management-0129/0134a.*
+
+[1A[2KCaptured tests-out/user-management-0129/0135a.*
+
+[1A[2KCaptured tests-out/user-management-0129/0136a.*
+
+[1A[2KBrowser: api/send user.add {"username":"deletetest","isAdmin":false,"allowedGroups":[],"allowRemote":false,"secret":"5821346e71
+
+[1A[2KBrowser: api/onMessage state
+
+[1A[2KBrowser: api/onMessage response
+
+[1A[2KBrowser: aberdeen router up to 1 / 1 {path: /, hash: , p: Array(0), nav: load, search: Object}
+
+[1A[2KBrowser: aberdeen router popstate {path: /, hash: , p: Array(0), nav: back, search: Object}
+
+[1A[2KCaptured tests-out/user-management-0129/0139a.*
+
+[1A[2KCaptured tests-out/user-management-0129/0142a.*
+
+[1A[2KBrowser: aberdeen router go {path: /user/deletetest, hash: , p: Array(2), nav: go, search: Object}
+
+[1A[2KBrowser: aberdeen router replaceState {path: /user/deletetest, hash: , p: Array(2), nav: go, search: Object} {state: Object, stack: Array(1)} /user/deletetest?admin=y
+
+[1A[2KCaptured tests-out/user-management-0129/0145a.*
+
+[1A[2KBrowser: aberdeen router go {path: /user/deletetest, hash: , p: Array(2), nav: go, search: Object}
+
+[1A[2KCaptured tests-out/user-management-0129/0148a.*
+
+[1A[2KBrowser: aberdeen router back -1 {path: /user/deletetest, hash: , p: Array(2), nav: go, search: Object}
+
+[1A[2KBrowser: api/send user.delete {"username":"deletetest"}
+
+[1A[2KBrowser: aberdeen router popstate {path: /user/deletetest, hash: , p: Array(2), nav: back, search: Object}
+
+[1A[2KBrowser: api/onMessage state
+
+[1A[2KBrowser: api/onMessage response
+
+[1A[2KBrowser: aberdeen router up to 1 / 1 {path: /, hash: , p: Array(0), nav: back, search: Object}
+
+[1A[2KBrowser: aberdeen router popstate {path: /, hash: , p: Array(0), nav: back, search: Object}
+
+[1A[2KCaptured tests-out/user-management-0129/0151a.*
+
+[1A[2K  9) [chromium] › tests/user-management.spec.ts:129:3 › User Management › should delete user ───────
+
+    Error: [2mexpect([22m[31mlocator[39m[2m).not.[22mtoBeVisible[2m([22m[2m)[22m failed
+
+    Locator:  locator('h2').filter({ hasText: 'deletetest' })
+    Expected: not visible
+    Received: visible
+    Timeout:  5000ms
+
+    Call log:
+    [2m  - Expect "not toBeVisible" with timeout 5000ms[22m
+    [2m  - waiting for locator('h2').filter({ hasText: 'deletetest' })[22m
+    [2m    9 × locator resolved to <h2>deletetest</h2>[22m
+    [2m      - unexpected value "visible"[22m
+
+
+      149 |     
+      150 |     // Should be back on users list, and deletetest should not exist
+    > 151 |     await expect(page.locator('h2', { hasText: 'deletetest' })).not.toBeVisible();
+          |                                                                     ^
+      152 |   });
+      153 |
+      154 |   test('should set admin access for user', async ({ page }) => {
+        at /home/runner/work/lightlynx/lightlynx/tests/user-management.spec.ts:151:69
+
+    Error Context: tests-out/user-management-0129/error.md
+
+    Retry #1 ───────────────────────────────────────────────────────────────────────────────────────
+
+    Error: [2mexpect([22m[31mlocator[39m[2m).not.[22mtoBeVisible[2m([22m[2m)[22m failed
+
+    Locator:  locator('h2').filter({ hasText: 'deletetest' })
+    Expected: not visible
+    Received: visible
+    Timeout:  5000ms
+
+    Call log:
+    [2m  - Expect "not toBeVisible" with timeout 5000ms[22m
+    [2m  - waiting for locator('h2').filter({ hasText: 'deletetest' })[22m
+    [2m    9 × locator resolved to <h2>deletetest</h2>[22m
+    [2m      - unexpected value "visible"[22m
+
+
+      149 |     
+      150 |     // Should be back on users list, and deletetest should not exist
+    > 151 |     await expect(page.locator('h2', { hasText: 'deletetest' })).not.toBeVisible();
+          |                                                                     ^
+      152 |   });
+      153 |
+      154 |   test('should set admin access for user', async ({ page }) => {
+        at /home/runner/work/lightlynx/lightlynx/tests/user-management.spec.ts:151:69
+
+    Error Context: tests-out/user-management-0129/error.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    tests-out/user-management-0129/error.md
+    Usage:
+
+        npx playwright show-trace tests-out/user-management-0129/error.md
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Retry #2 ───────────────────────────────────────────────────────────────────────────────────────
+
+    Error: [2mexpect([22m[31mlocator[39m[2m).not.[22mtoBeVisible[2m([22m[2m)[22m failed
+
+    Locator:  locator('h2').filter({ hasText: 'deletetest' })
+    Expected: not visible
+    Received: visible
+    Timeout:  5000ms
+
+    Call log:
+    [2m  - Expect "not toBeVisible" with timeout 5000ms[22m
+    [2m  - waiting for locator('h2').filter({ hasText: 'deletetest' })[22m
+    [2m    9 × locator resolved to <h2>deletetest</h2>[22m
+    [2m      - unexpected value "visible"[22m
+
+
+      149 |     
+      150 |     // Should be back on users list, and deletetest should not exist
+    > 151 |     await expect(page.locator('h2', { hasText: 'deletetest' })).not.toBeVisible();
+          |                                                                     ^
+      152 |   });
+      153 |
+      154 |   test('should set admin access for user', async ({ page }) => {
+        at /home/runner/work/lightlynx/lightlynx/tests/user-management.spec.ts:151:69
+
+    Error Context: tests-out/user-management-0129/error.md
+
+
+[1A[2K[38/31] (retries) [chromium] › tests/user-management.spec.ts:154:3 › User Management › should set admin access for user
+[1A[2K[chromium] › tests/user-management.spec.ts:154:3 › User Management › should set admin access for user
+Browser: [vite] connecting...
+
+[1A[2KBrowser: Auto-connecting from URL parameters: localhost:43598 admin
+
+[1A[2KBrowser: api/connect localhost:43598
+
+[1A[2K[WebServer] [INFO] LightLynx: Client connected: admin
+
+[1A[2KBrowser: aberdeen router replaceState {path: /, hash: , p: Array(0), nav: load, search: Object} {state: Object, stack: Array(0)} /?admin=y
+
+[1A[2KBrowser: Aberdeen queue took 10ms
+
+[1A[2KBrowser: [vite] connected.
+
+[1A[2KBrowser: api/onOpen ws://localhost:43598/api?lightlynx=1&user=admin&secret=
+
+[1A[2KBrowser: Extension hash loaded: 1293f4cd
+
+[1A[2KBrowser: api/onMessage state
+
+[1A[2KBrowser: api/handleFullState {lights: Object, groups: Object, scenes: Object, devices: Object, activeScenes: Object}
+
+[1A[2KBrowser: api/onMessage - Authentication confirmed
+
+[1A[2Kgoto /?host=localhost:43598&username=admin&admin=y
+
+[1A[2KCaptured tests-out/user-management-0154/0155a.*
+
+[1A[2KCaptured tests-out/user-management-0154/0158a.*
+
+[1A[2KBrowser: aberdeen router go {path: /user/new, hash: , p: Array(2), nav: go, search: Object}
+
+[1A[2KBrowser: aberdeen router replaceState {path: /user/new, hash: , p: Array(2), nav: go, search: Object} {state: Object, stack: Array(1)} /user/new?admin=y
+
+[1A[2KCaptured tests-out/user-management-0154/0159a.*
+
+[1A[2KCaptured tests-out/user-management-0154/0160a.*
+
+[1A[2KCaptured tests-out/user-management-0154/0163a.*
+
+[1A[2KCaptured tests-out/user-management-0154/0165a.*
+
+[1A[2KBrowser: api/send user.add {"username":"admintest","isAdmin":true,"allowedGroups":[],"allowRemote":false,"secret":"5821346e715d
+
+[1A[2KBrowser: api/onMessage state
+
+[1A[2KBrowser: api/onMessage response
+
+[1A[2KBrowser: aberdeen router up to 1 / 1 {path: /, hash: , p: Array(0), nav: load, search: Object}
+
+[1A[2KBrowser: aberdeen router popstate {path: /, hash: , p: Array(0), nav: back, search: Object}
+
+[1A[2KCaptured tests-out/user-management-0154/0169a.*
+
+[1A[2K[39/31] (retries) [chromium] › tests/user-management.spec.ts:172:3 › User Management › should set permissions for non-admin user
+[1A[2K[chromium] › tests/user-management.spec.ts:172:3 › User Management › should set permissions for non-admin user
+Browser: [vite] connecting...
+
+[1A[2KBrowser: Auto-connecting from URL parameters: localhost:43598 admin
+
+[1A[2KBrowser: api/connect localhost:43598
+
+[1A[2K[WebServer] [INFO] LightLynx: Client connected: admin
+
+[1A[2KBrowser: aberdeen router replaceState {path: /, hash: , p: Array(0), nav: load, search: Object} {state: Object, stack: Array(0)} /?admin=y
+
+[1A[2KBrowser: [vite] connected.
+
+[1A[2KBrowser: api/onOpen ws://localhost:43598/api?lightlynx=1&user=admin&secret=
+
+[1A[2KBrowser: Extension hash loaded: 1293f4cd
+
+[1A[2KBrowser: api/onMessage state
+
+[1A[2KBrowser: api/handleFullState {lights: Object, groups: Object, scenes: Object, devices: Object, activeScenes: Object}
+
+[1A[2KBrowser: api/onMessage - Authentication confirmed
+
+[1A[2Kgoto /?host=localhost:43598&username=admin&admin=y
+
+[1A[2KCaptured tests-out/user-management-0172/0173a.*
+
+[1A[2KCaptured tests-out/user-management-0172/0179a.*
+
+[1A[2KBrowser: aberdeen router go {path: /user/new, hash: , p: Array(2), nav: go, search: Object}
+
+[1A[2KBrowser: aberdeen router replaceState {path: /user/new, hash: , p: Array(2), nav: go, search: Object} {state: Object, stack: Array(1)} /user/new?admin=y
+
+[1A[2KCaptured tests-out/user-management-0172/0180a.*
+
+[1A[2KCaptured tests-out/user-management-0172/0181a.*
+
+[1A[2KCaptured tests-out/user-management-0172/0184a.*
+
+[1A[2KCaptured tests-out/user-management-0172/0187a.*
+
+[1A[2KCaptured tests-out/user-management-0172/0190a.*
+
+[1A[2KCaptured tests-out/user-management-0172/0192a.*
+
+[1A[2KBrowser: api/send user.add {"username":"limiteduser","isAdmin":false,"allowedGroups":[2,1],"allowRemote":false,"secret":"582134
+
+[1A[2KBrowser: api/onMessage state
+
+[1A[2KBrowser: api/onMessage response
+
+[1A[2KBrowser: aberdeen router up to 1 / 1 {path: /, hash: , p: Array(0), nav: load, search: Object}
+
+[1A[2KBrowser: aberdeen router popstate {path: /, hash: , p: Array(0), nav: back, search: Object}
+
+[1A[2KCaptured tests-out/user-management-0172/0195a.*
+
+[1A[2KCaptured tests-out/user-management-0172/0198a.*
+
+[1A[2KBrowser: aberdeen router go {path: /user/limiteduser, hash: , p: Array(2), nav: go, search: Object}
+
+[1A[2KBrowser: aberdeen router replaceState {path: /user/limiteduser, hash: , p: Array(2), nav: go, search: Object} {state: Object, stack: Array(1)} /user/limiteduser?admin=y
+
+[1A[2KCaptured tests-out/user-management-0172/0199a.*
+
+[1A[2KCaptured tests-out/user-management-0172/0200a.*
+
+[1A[2K[40/31] (retries) [chromium] › tests/user-management.spec.ts:203:3 › User Management › should show existing secret in password field when editing user
+[1A[2K[chromium] › tests/user-management.spec.ts:203:3 › User Management › should show existing secret in password field when editing user
+Browser: [vite] connecting...
+
+[1A[2KBrowser: Auto-connecting from URL parameters: localhost:43598 admin
+
+[1A[2KBrowser: api/connect localhost:43598
+
+[1A[2K[WebServer] [INFO] LightLynx: Client connected: admin
+
+[1A[2KBrowser: aberdeen router replaceState {path: /, hash: , p: Array(0), nav: load, search: Object} {state: Object, stack: Array(0)} /?admin=y
+
+[1A[2KBrowser: Aberdeen queue took 10ms
+
+[1A[2KBrowser: [vite] connected.
+
+[1A[2KBrowser: api/onOpen ws://localhost:43598/api?lightlynx=1&user=admin&secret=
+
+[1A[2KBrowser: Extension hash loaded: 1293f4cd
+
+[1A[2KBrowser: api/onMessage state
+
+[1A[2KBrowser: api/handleFullState {lights: Object, groups: Object, scenes: Object, devices: Object, activeScenes: Object}
+
+[1A[2KBrowser: api/onMessage - Authentication confirmed
+
+[1A[2Kgoto /?host=localhost:43598&username=admin&admin=y
+
+[1A[2KCaptured tests-out/user-management-0203/0204a.*
+
+[1A[2KCaptured tests-out/user-management-0203/0207a.*
+
+[1A[2KBrowser: aberdeen router go {path: /user/new, hash: , p: Array(2), nav: go, search: Object}
+
+[1A[2KBrowser: aberdeen router replaceState {path: /user/new, hash: , p: Array(2), nav: go, search: Object} {state: Object, stack: Array(1)} /user/new?admin=y
+
+[1A[2KCaptured tests-out/user-management-0203/0208a.*
+
+[1A[2KCaptured tests-out/user-management-0203/0209a.*
+
+[1A[2KCaptured tests-out/user-management-0203/0210a.*
+
+[1A[2KBrowser: api/send user.add {"username":"secrettest","isAdmin":false,"allowedGroups":[],"allowRemote":false,"secret":"4045da7a97
+
+[1A[2KBrowser: api/onMessage state
+
+[1A[2KBrowser: api/onMessage response
+
+[1A[2KBrowser: aberdeen router up to 1 / 1 {path: /, hash: , p: Array(0), nav: load, search: Object}
+
+[1A[2KBrowser: aberdeen router popstate {path: /, hash: , p: Array(0), nav: back, search: Object}
+
+[1A[2KCaptured tests-out/user-management-0203/0213a.*
+
+[1A[2KBrowser: aberdeen router go {path: /user/secrettest, hash: , p: Array(2), nav: go, search: Object}
+
+[1A[2KBrowser: aberdeen router replaceState {path: /user/secrettest, hash: , p: Array(2), nav: go, search: Object} {state: Object, stack: Array(1)} /user/secrettest?admin=y
+
+[1A[2K[41/31] (retries) [chromium] › tests/user-management.spec.ts:203:3 › User Management › should show existing secret in password field when editing user (retry #1)
+[1A[2KBrowser: [vite] connecting...
+
+[1A[2KBrowser: Auto-connecting from URL parameters: localhost:43598 admin
+
+[1A[2KBrowser: api/connect localhost:43598
+
+[1A[2K[WebServer] [INFO] LightLynx: Client connected: admin
+
+[1A[2KBrowser: aberdeen router replaceState {path: /, hash: , p: Array(0), nav: load, search: Object} {state: Object, stack: Array(0)} /?admin=y
+
+[1A[2KBrowser: Aberdeen queue took 10ms
+
+[1A[2KBrowser: [vite] connected.
+
+[1A[2KBrowser: api/onOpen ws://localhost:43598/api?lightlynx=1&user=admin&secret=
+
+[1A[2KBrowser: Extension hash loaded: 1293f4cd
+
+[1A[2KBrowser: api/onMessage state
+
+[1A[2KBrowser: api/handleFullState {lights: Object, groups: Object, scenes: Object, devices: Object, activeScenes: Object}
+
+[1A[2KBrowser: api/onMessage - Authentication confirmed
+
+[1A[2Kgoto /?host=localhost:43598&username=admin&admin=y
+
+[1A[2KCaptured tests-out/user-management-0203/0204a.*
+
+[1A[2KCaptured tests-out/user-management-0203/0207a.*
+
+[1A[2KBrowser: aberdeen router go {path: /user/new, hash: , p: Array(2), nav: go, search: Object}
+
+[1A[2KBrowser: aberdeen router replaceState {path: /user/new, hash: , p: Array(2), nav: go, search: Object} {state: Object, stack: Array(1)} /user/new?admin=y
+
+[1A[2KCaptured tests-out/user-management-0203/0208a.*
+
+[1A[2KCaptured tests-out/user-management-0203/0209a.*
+
+[1A[2KCaptured tests-out/user-management-0203/0210a.*
+
+[1A[2K[WebServer] [ERROR] LightLynx: Command error for admin: User already exists
+
+[1A[2KBrowser: api/send user.add {"username":"secrettest","isAdmin":false,"allowedGroups":[],"allowRemote":false,"secret":"4045da7a97
+
+[1A[2KBrowser: api/onMessage response
+
+[1A[2KCannot find locator('h2').filter({ hasText: 'secrettest' }) for click
+
+[1A[2KCaptured tests-out/user-management-0203/0213a.*
+
+[1A[2KLocator locator('h2').filter({ hasText: 'secrettest' }) failed click
+
+[1A[2KCaptured tests-out/user-management-0203/0213b.*
+
+[1A[2K[42/31] (retries) [chromium] › tests/user-management.spec.ts:203:3 › User Management › should show existing secret in password field when editing user (retry #2)
+[1A[2KBrowser: [vite] connecting...
+
+[1A[2KBrowser: Auto-connecting from URL parameters: localhost:43598 admin
+
+[1A[2KBrowser: api/connect localhost:43598
+
+[1A[2K[WebServer] [INFO] LightLynx: Client connected: admin
+
+[1A[2KBrowser: aberdeen router replaceState {path: /, hash: , p: Array(0), nav: load, search: Object} {state: Object, stack: Array(0)} /?admin=y
+
+[1A[2KBrowser: Aberdeen queue took 11ms
+
+[1A[2KBrowser: api/onOpen ws://localhost:43598/api?lightlynx=1&user=admin&secret=
+
+[1A[2KBrowser: [vite] connected.
+
+[1A[2KBrowser: Extension hash loaded: 1293f4cd
+
+[1A[2KBrowser: api/onMessage state
+
+[1A[2KBrowser: api/handleFullState {lights: Object, groups: Object, scenes: Object, devices: Object, activeScenes: Object}
+
+[1A[2KBrowser: api/onMessage - Authentication confirmed
+
+[1A[2Kgoto /?host=localhost:43598&username=admin&admin=y
+
+[1A[2KCaptured tests-out/user-management-0203/0204a.*
+
+[1A[2KCaptured tests-out/user-management-0203/0207a.*
+
+[1A[2KBrowser: aberdeen router go {path: /user/new, hash: , p: Array(2), nav: go, search: Object}
+
+[1A[2KBrowser: aberdeen router replaceState {path: /user/new, hash: , p: Array(2), nav: go, search: Object} {state: Object, stack: Array(1)} /user/new?admin=y
+
+[1A[2KCaptured tests-out/user-management-0203/0208a.*
+
+[1A[2KCaptured tests-out/user-management-0203/0209a.*
+
+[1A[2KCaptured tests-out/user-management-0203/0210a.*
+
+[1A[2K[WebServer] [ERROR] LightLynx: Command error for admin: User already exists
+
+[1A[2KBrowser: api/send user.add {"username":"secrettest","isAdmin":false,"allowedGroups":[],"allowRemote":false,"secret":"4045da7a97
+
+[1A[2KBrowser: api/onMessage response
+
+[1A[2KCannot find locator('h2').filter({ hasText: 'secrettest' }) for click
+
+[1A[2KCaptured tests-out/user-management-0203/0213a.*
+
+[1A[2KLocator locator('h2').filter({ hasText: 'secrettest' }) failed click
+
+[1A[2KCaptured tests-out/user-management-0203/0213b.*
+
+[1A[2K  10) [chromium] › tests/user-management.spec.ts:203:3 › User Management › should show existing secret in password field when editing user 
+
+    Error: [2mexpect([22m[31mreceived[39m[2m).[22mtoMatch[2m([22m[32mexpected[39m[2m)[22m
+
+    Expected pattern: [32m/^[0-9a-f]{64}$/[39m
+    Received string:  [31m""[39m
+
+      218 |     
+      219 |     // Should be a 64-character hex string
+    > 220 |     expect(passwordValue).toMatch(/^[0-9a-f]{64}$/);
+          |                           ^
+      221 |   });
+      222 |
+      223 |   test('should allow changing password for existing user', async ({ page }) => {
+        at /home/runner/work/lightlynx/lightlynx/tests/user-management.spec.ts:220:27
+
+    Error Context: tests-out/user-management-0203/error.md
+
+    Retry #1 ───────────────────────────────────────────────────────────────────────────────────────
+
+    TimeoutError: locator.click: Timeout 5000ms exceeded.
+    Call log:
+    [2m  - waiting for locator('h2').filter({ hasText: 'secrettest' })[22m
+
+
+      211 |     
+      212 |     // Re-open the user
+    > 213 |     await page.locator('h2', { hasText: 'secrettest' }).click();
+          |     ^
+      214 |     
+      215 |     // The password field should have the secret (64-char hex)
+      216 |     const passwordInput = page.locator('input[type="password"]');
+        at /home/runner/work/lightlynx/lightlynx/tests/user-management.spec.ts:213:5
+
+    Error Context: tests-out/user-management-0203/error.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    tests-out/user-management-0203/error.md
+    Usage:
+
+        npx playwright show-trace tests-out/user-management-0203/error.md
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Retry #2 ───────────────────────────────────────────────────────────────────────────────────────
+
+    TimeoutError: locator.click: Timeout 5000ms exceeded.
+    Call log:
+    [2m  - waiting for locator('h2').filter({ hasText: 'secrettest' })[22m
+
+
+      211 |     
+      212 |     // Re-open the user
+    > 213 |     await page.locator('h2', { hasText: 'secrettest' }).click();
+          |     ^
+      214 |     
+      215 |     // The password field should have the secret (64-char hex)
+      216 |     const passwordInput = page.locator('input[type="password"]');
+        at /home/runner/work/lightlynx/lightlynx/tests/user-management.spec.ts:213:5
+
+    Error Context: tests-out/user-management-0203/error.md
+
+
+[1A[2K[43/31] (retries) [chromium] › tests/user-management.spec.ts:223:3 › User Management › should allow changing password for existing user
+[1A[2K[chromium] › tests/user-management.spec.ts:223:3 › User Management › should allow changing password for existing user
+Browser: [vite] connecting...
+
+[1A[2KBrowser: Auto-connecting from URL parameters: localhost:43598 admin
+
+[1A[2KBrowser: api/connect localhost:43598
+
+[1A[2K[WebServer] [INFO] LightLynx: Client connected: admin
+
+[1A[2KBrowser: aberdeen router replaceState {path: /, hash: , p: Array(0), nav: load, search: Object} {state: Object, stack: Array(0)} /?admin=y
+
+[1A[2KBrowser: Aberdeen queue took 10ms
+
+[1A[2KBrowser: [vite] connected.
+
+[1A[2KBrowser: api/onOpen ws://localhost:43598/api?lightlynx=1&user=admin&secret=
+
+[1A[2KBrowser: Extension hash loaded: 1293f4cd
+
+[1A[2KBrowser: api/onMessage state
+
+[1A[2KBrowser: api/handleFullState {lights: Object, groups: Object, scenes: Object, devices: Object, activeScenes: Object}
+
+[1A[2KBrowser: api/onMessage - Authentication confirmed
+
+[1A[2Kgoto /?host=localhost:43598&username=admin&admin=y
+
+[1A[2KCaptured tests-out/user-management-0223/0224a.*
+
+[1A[2KCaptured tests-out/user-management-0223/0227a.*
+
+[1A[2KBrowser: aberdeen router go {path: /user/new, hash: , p: Array(2), nav: go, search: Object}
+
+[1A[2KBrowser: aberdeen router replaceState {path: /user/new, hash: , p: Array(2), nav: go, search: Object} {state: Object, stack: Array(1)} /user/new?admin=y
+
+[1A[2KCaptured tests-out/user-management-0223/0228a.*
+
+[1A[2KCaptured tests-out/user-management-0223/0229a.*
+
+[1A[2KCaptured tests-out/user-management-0223/0230a.*
+
+[1A[2KBrowser: api/send user.add {"username":"changepass","isAdmin":false,"allowedGroups":[],"allowRemote":false,"secret":"2b0c4cdf21
+
+[1A[2KBrowser: api/onMessage state
+
+[1A[2KBrowser: api/onMessage response
+
+[1A[2KBrowser: aberdeen router up to 1 / 1 {path: /, hash: , p: Array(0), nav: load, search: Object}
+
+[1A[2KBrowser: aberdeen router popstate {path: /, hash: , p: Array(0), nav: back, search: Object}
+
+[1A[2KCaptured tests-out/user-management-0223/0233a.*
+
+[1A[2KBrowser: aberdeen router go {path: /user/changepass, hash: , p: Array(2), nav: go, search: Object}
+
+[1A[2KBrowser: aberdeen router replaceState {path: /user/changepass, hash: , p: Array(2), nav: go, search: Object} {state: Object, stack: Array(1)} /user/changepass?admin=y
+
+[1A[2KCaptured tests-out/user-management-0223/0238a.*
+
+[1A[2KCaptured tests-out/user-management-0223/0239a.*
+
+[1A[2KBrowser: api/send user.update {"username":"changepass","isAdmin":false,"allowedGroups":[],"allowRemote":false,"secret":"f59ef51f8d
+
+[1A[2KBrowser: api/onMessage state
+
+[1A[2KBrowser: api/onMessage response
+
+[1A[2KBrowser: aberdeen router up to 1 / 1 {path: /, hash: , p: Array(0), nav: back, search: Object}
+
+[1A[2KBrowser: aberdeen router popstate {path: /, hash: , p: Array(0), nav: back, search: Object}
+
+[1A[2KCaptured tests-out/user-management-0223/0242a.*
+
+[1A[2KBrowser: aberdeen router go {path: /user/changepass, hash: , p: Array(2), nav: go, search: Object}
+
+[1A[2KBrowser: aberdeen router replaceState {path: /user/changepass, hash: , p: Array(2), nav: go, search: Object} {state: Object, stack: Array(1)} /user/changepass?admin=y
+
+[1A[2K[44/31] (retries) [chromium] › tests/user-management.spec.ts:223:3 › User Management › should allow changing password for existing user (retry #1)
+[1A[2KBrowser: [vite] connecting...
+
+[1A[2KBrowser: Auto-connecting from URL parameters: localhost:43598 admin
+
+[1A[2KBrowser: api/connect localhost:43598
+
+[1A[2K[WebServer] [INFO] LightLynx: Client connected: admin
+
+[1A[2KBrowser: aberdeen router replaceState {path: /, hash: , p: Array(0), nav: load, search: Object} {state: Object, stack: Array(0)} /?admin=y
+
+[1A[2KBrowser: Aberdeen queue took 10ms
+
+[1A[2KBrowser: [vite] connected.
+
+[1A[2KBrowser: api/onOpen ws://localhost:43598/api?lightlynx=1&user=admin&secret=
+
+[1A[2KBrowser: Extension hash loaded: 1293f4cd
+
+[1A[2KBrowser: api/onMessage state
+
+[1A[2KBrowser: api/handleFullState {lights: Object, groups: Object, scenes: Object, devices: Object, activeScenes: Object}
+
+[1A[2KBrowser: api/onMessage - Authentication confirmed
+
+[1A[2Kgoto /?host=localhost:43598&username=admin&admin=y
+
+[1A[2KCaptured tests-out/user-management-0223/0224a.*
+
+[1A[2KCaptured tests-out/user-management-0223/0227a.*
+
+[1A[2KBrowser: aberdeen router go {path: /user/new, hash: , p: Array(2), nav: go, search: Object}
+
+[1A[2KBrowser: aberdeen router replaceState {path: /user/new, hash: , p: Array(2), nav: go, search: Object} {state: Object, stack: Array(1)} /user/new?admin=y
+
+[1A[2KCaptured tests-out/user-management-0223/0228a.*
+
+[1A[2KCaptured tests-out/user-management-0223/0229a.*
+
