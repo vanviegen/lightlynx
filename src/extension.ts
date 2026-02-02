@@ -836,7 +836,6 @@ class LightLynx {
         const username = url.searchParams.get('user');
         if (!username) return this.sendConnectError(req, socket, head, 'No username provided.');
         const password = url.searchParams.get('secret') || '';
-        const protocol = url.searchParams.get('protocol') || 'v1';
         const clientIp = this.getClientIp(req);
 
         const user = this.validateUser(username, password);
@@ -852,67 +851,31 @@ class LightLynx {
         }
 
         this.wss!.handleUpgrade(req, socket, head, (ws) => {
-            this.clients.set(ws, { username, protocol, ...user });
+            this.clients.set(ws, { username, ...user });
             this.wss!.emit('connection', ws, req);
         });
     }
 
     private async onConnection(ws: WebSocket, _req: http.IncomingMessage) {
         const clientInfo = this.clients.get(ws);
-        this.log('info', `Client connected: ${clientInfo?.username} (protocol: ${clientInfo?.protocol || 'v1'})`);
+        this.log('info', `Client connected: ${clientInfo?.username}`);
 
         ws.on('error', (err) => this.log('error', `WebSocket error: ${err.message}`));
         ws.on('close', () => this.clients.delete(ws));
         ws.on('message', (data) => this.onClientMessage(ws, data));
 
-        const protocol = clientInfo?.protocol || 'v1';
-        if (protocol === 'v2') {
-            await this.sendInitialStateV2(ws, clientInfo);
-        } else {
-            await this.sendInitialStateV1(ws, clientInfo);
-        }
+        await this.sendInitialState(ws, clientInfo);
     }
 
-    private async sendInitialStateV1(ws: WebSocket, clientInfo: any) {
-        for (const [topic, msg] of Object.entries(this.mqtt.retainedMessages as Record<string, any>)) {
-            if (!topic.startsWith(`${this.mqttBaseTopic}/`)) continue;
-            const shortTopic = topic.slice(this.mqttBaseTopic.length + 1);
-            let payload: any;
-            try { payload = JSON.parse(msg.payload); } catch { payload = msg.payload; }
-
-            if (payload !== null) {
-                payload = this.filterPayload(shortTopic, payload);
-                ws.send(JSON.stringify({ topic: shortTopic, payload }));
-            }
-        }
-
-        for (const device of this.zigbee.devicesIterator((d: any) => d.type !== 'Coordinator')) {
-            const payload = this.state.get(device);
-            ws.send(JSON.stringify({ topic: device.name, payload }));
-        }
-
-        if (clientInfo.isAdmin) {
-            ws.send(JSON.stringify({ topic: 'bridge/lightlynx/users', payload: this.getUsersForBroadcast() }));
-        } else {
-            // Non-admin users only get their own user info to know their permissions
-            const ownUserData = this.getUsersForBroadcast()[clientInfo.username];
-            if (ownUserData) {
-                ws.send(JSON.stringify({ topic: 'bridge/lightlynx/users', payload: { [clientInfo.username]: ownUserData } }));
-            }
-        }
-        ws.send(JSON.stringify({ topic: 'bridge/lightlynx/config', payload: await this.getPayloadForConfig() }));
-        ws.send(JSON.stringify({ topic: 'bridge/lightlynx/sceneSet', payload: this.activeScenes }));
-    }
-
-    private async sendInitialStateV2(ws: WebSocket, clientInfo: any) {
-        const state = await this.buildStateV2(clientInfo);
+    private async sendInitialState(ws: WebSocket, clientInfo: any) {
+        const state = await this.buildState(clientInfo);
         ws.send(JSON.stringify({ 
             type: 'state', 
             data: { full: state } 
         }));
     }
 
-    private async buildStateV2(clientInfo: any) {
+    private async buildState(clientInfo: any) {
         const state: any = {
             lights: {},
             groups: {},
@@ -1245,29 +1208,6 @@ class LightLynx {
     private onClientMessage(ws: WebSocket, data: any) {
         const clientInfo = this.clients.get(ws);
         if (!clientInfo) return;
-
-        const protocol = clientInfo.protocol || 'v1';
-        if (protocol === 'v2') {
-            this.onClientMessageV2(ws, clientInfo, data);
-        } else {
-            this.onClientMessageV1(ws, clientInfo, data);
-        }
-    }
-
-    private onClientMessageV1(ws: WebSocket, clientInfo: any, data: any) {
-        let msg: any;
-        try { msg = JSON.parse(data.toString()); } catch { return; }
-        const { topic, payload } = msg;
-
-        if (!this.checkPermission(clientInfo, topic, payload)) {
-            this.log('warning', `Permission denied for ${clientInfo.username} on ${topic}`);
-            return;
-        }
-
-        this.mqtt.onMessage(`${this.mqttBaseTopic}/${topic}`, Buffer.from(JSON.stringify(payload)));
-    }
-
-    private onClientMessageV2(ws: WebSocket, clientInfo: any, data: any) {
         let msg: any;
         try { msg = JSON.parse(data.toString()); } catch { return; }
         
@@ -1277,32 +1217,32 @@ class LightLynx {
         }
 
         const { id, cmd, args } = msg;
-        this.handleCommandV2(ws, clientInfo, id, cmd, args);
+        this.handleCommand(ws, clientInfo, id, cmd, args);
     }
 
-    private async handleCommandV2(ws: WebSocket, clientInfo: any, id: string, cmd: string, args: any) {
+    private async handleCommand(ws: WebSocket, clientInfo: any, id: string, cmd: string, args: any) {
         try {
             const [category, action] = cmd.split('.');
             let result: any;
 
             switch (category) {
                 case 'light':
-                    result = await this.handleLightCommandV2(clientInfo, action, args);
+                    result = await this.handleLightCommand(clientInfo, action, args);
                     break;
                 case 'group':
-                    result = await this.handleGroupCommandV2(clientInfo, action, args);
+                    result = await this.handleGroupCommand(clientInfo, action, args);
                     break;
                 case 'scene':
-                    result = await this.handleSceneCommandV2(clientInfo, action, args);
+                    result = await this.handleSceneCommand(clientInfo, action, args);
                     break;
                 case 'config':
-                    result = await this.handleConfigCommandV2(clientInfo, action, args);
+                    result = await this.handleConfigCommand(clientInfo, action, args);
                     break;
                 case 'user':
-                    result = await this.handleUserCommandV2(clientInfo, action, args);
+                    result = await this.handleUserCommand(clientInfo, action, args);
                     break;
                 case 'device':
-                    result = await this.handleDeviceCommandV2(clientInfo, action, args);
+                    result = await this.handleDeviceCommand(clientInfo, action, args);
                     break;
                 default:
                     throw new Error(`Unknown command category: ${category}`);
@@ -1320,7 +1260,7 @@ class LightLynx {
         }
     }
 
-    private async handleLightCommandV2(clientInfo: any, action: string, args: any) {
+    private async handleLightCommand(clientInfo: any, action: string, args: any) {
         if (action === 'set') {
             const { ieee, state, transition } = args;
             const device = this.findDeviceByIeee(ieee);
@@ -1352,7 +1292,7 @@ class LightLynx {
         throw new Error(`Unknown light action: ${action}`);
     }
 
-    private async handleGroupCommandV2(clientInfo: any, action: string, args: any) {
+    private async handleGroupCommand(clientInfo: any, action: string, args: any) {
         if (action === 'set') {
             const { id, state, transition } = args;
             const group = this.zigbee.resolveEntity(id);
@@ -1383,7 +1323,7 @@ class LightLynx {
         throw new Error(`Unknown group action: ${action}`);
     }
 
-    private async handleSceneCommandV2(clientInfo: any, action: string, args: any) {
+    private async handleSceneCommand(clientInfo: any, action: string, args: any) {
         if (action === 'recall') {
             const { groupId, sceneId, transition } = args;
             const group = this.zigbee.resolveEntity(groupId);
@@ -1409,7 +1349,7 @@ class LightLynx {
         throw new Error(`Scene action not implemented: ${action}`);
     }
 
-    private async handleConfigCommandV2(clientInfo: any, action: string, args: any) {
+    private async handleConfigCommand(clientInfo: any, action: string, args: any) {
         if (!clientInfo.isAdmin) throw new Error('Admin permission required');
 
         switch (action) {
@@ -1417,7 +1357,7 @@ class LightLynx {
                 this.config.remoteAccess = !!args.enabled;
                 this.saveConfig();
                 await this.setupSSL();
-                this.broadcastConfigV2();
+                this.broadcastConfig();
                 return undefined;
             
             case 'setAutomation':
@@ -1431,20 +1371,20 @@ class LightLynx {
                     this.automation.stop(this.eventBus);
                     this.automation = undefined;
                 }
-                this.broadcastConfigV2();
+                this.broadcastConfig();
                 return undefined;
             
             case 'setLocation':
                 if (args.latitude !== undefined) this.config.latitude = args.latitude;
                 if (args.longitude !== undefined) this.config.longitude = args.longitude;
                 this.saveConfig();
-                this.broadcastConfigV2();
+                this.broadcastConfig();
                 return undefined;
             
             case 'setPermitJoin':
                 // TODO: Implement permit join control
                 // Requires integration with Z2M's permit_join API to control pairing mode
-                // Should support duration parameter and broadcast config updates to all v2 clients
+                // Should support duration parameter and broadcast config updates to all clients
                 throw new Error('setPermitJoin not yet implemented');
             
             default:
@@ -1452,7 +1392,7 @@ class LightLynx {
         }
     }
 
-    private async handleUserCommandV2(clientInfo: any, action: string, args: any) {
+    private async handleUserCommand(clientInfo: any, action: string, args: any) {
         if (!clientInfo.isAdmin) throw new Error('Admin permission required');
 
         switch (action) {
@@ -1469,7 +1409,7 @@ class LightLynx {
                     allowRemote: !!allowRemote 
                 };
                 this.saveConfig();
-                this.broadcastUsersV2();
+                this.broadcastUsers();
                 return undefined;
             
             case 'update':
@@ -1485,7 +1425,7 @@ class LightLynx {
                     user.allowRemote = args.allowRemote;
                 }
                 this.saveConfig();
-                this.broadcastUsersV2();
+                this.broadcastUsers();
                 return undefined;
             
             case 'delete':
@@ -1495,7 +1435,7 @@ class LightLynx {
                 if (!this.config.users[deleteUsername]) throw new Error('User not found');
                 delete this.config.users[deleteUsername];
                 this.saveConfig();
-                this.broadcastUsersV2();
+                this.broadcastUsers();
                 return undefined;
             
             default:
@@ -1503,7 +1443,7 @@ class LightLynx {
         }
     }
 
-    private async handleDeviceCommandV2(clientInfo: any, action: string, args: any) {
+    private async handleDeviceCommand(clientInfo: any, action: string, args: any) {
         // TODO: Implement device management operations
         // - device.rename: Rename a device in Z2M (requires Z2M rename API)
         // - device.linkGroups: Associate non-light devices with groups via description metadata
@@ -1530,7 +1470,7 @@ class LightLynx {
         return false;
     }
 
-    private broadcastConfigV2() {
+    private broadcastConfig() {
         const payload = {
             config: {
                 remoteAccess: this.config.remoteAccess,
@@ -1547,10 +1487,10 @@ class LightLynx {
                 }
             }
         };
-        this.broadcastV2({ type: 'state', data: payload });
+        this.broadcast({ type: 'state', data: payload });
     }
 
-    private broadcastUsersV2() {
+    private broadcastUsers() {
         const users: any = {};
         for (const [username, user] of Object.entries(this.config.users)) {
             users[username] = {
@@ -1559,42 +1499,14 @@ class LightLynx {
                 allowRemote: user.allowRemote
             };
         }
-        this.broadcastV2({ type: 'state', data: { users } });
+        this.broadcast({ type: 'state', data: { users } });
     }
 
-    private broadcastV2(message: any) {
-        for (const [ws, clientInfo] of this.clients) {
+    private broadcast(message: any) {
+        for (const [ws, _clientInfo] of this.clients) {
             if (ws.readyState !== WebSocket.OPEN) continue;
-            if (clientInfo.protocol === 'v2') {
-                ws.send(JSON.stringify(message));
-            }
+            ws.send(JSON.stringify(message));
         }
-    }
-
-    private checkPermission(clientInfo: any, topic: string, _payload: any) {
-        if (clientInfo.isAdmin) return true;
-
-        const parts = topic.split('/');
-        const name = parts[0];
-        if (name && parts[1] === 'set') {
-            // Check if this is a group and user has permission
-            const groupId = this.findGroupIdByName(name);
-            if (groupId != null && clientInfo.allowedGroups?.includes(groupId)) return true;
-            
-            // Check if this device belongs to a group the user has access to
-            const deviceIeee = this.findDeviceIeeeByName(name);
-            if (deviceIeee) {
-                for (const gid of clientInfo.allowedGroups || []) {
-                    const g = this.zigbee.resolveEntity(gid) as any;
-                    // g.zh.members is an array of Endpoint objects with deviceIeeeAddress property
-                    const members = g?.zh?.members;
-                    if (members?.some((m: any) => m.deviceIeeeAddress === deviceIeee)) {
-                        return true;
-                    }
-                }
-            }
-        }
-        return false;
     }
 
     private findDeviceIeeeByName(name: string): string | null {
@@ -1611,28 +1523,6 @@ class LightLynx {
             if (group.name === name || String(groupId) === name) return groupId;
         }
         return null;
-    }
-
-    private onMQTTPublish(data: any) {
-        if (data.options.meta?.isEntityState || !data.topic.startsWith(`${this.mqttBaseTopic}/`)) return;
-        const topic = data.topic.slice(this.mqttBaseTopic.length + 1);
-        let payload: any;
-        try { payload = JSON.parse(data.payload); } catch { payload = data.payload; }
-        this.broadcast(topic, payload);
-    }
-
-    private onEntityState(data: any) {
-        this.broadcast(data.entity.name, data.message);
-    }
-
-    private broadcast(topic: string, payload: any) {
-        payload = this.filterPayload(topic, payload);
-        for (const [ws, _clientInfo] of this.clients) {
-            if (ws.readyState !== WebSocket.OPEN) continue;
-            if (payload !== null) {
-                ws.send(JSON.stringify({ topic, payload }));
-            }
-        }
     }
 
     private handleSceneTracking(data: any) {
@@ -1671,6 +1561,17 @@ class LightLynx {
                 ws.send(JSON.stringify({ topic: 'bridge/lightlynx/sceneSet', payload }));
             }
         }
+    }
+
+    private onMQTTPublish(data: any) {
+        if (data.options.meta?.isEntityState || !data.topic.startsWith(`${this.mqttBaseTopic}/`)) return;
+        // For v2, we don't need to broadcast individual MQTT messages
+        // State updates are handled through buildState and specific broadcast methods
+    }
+
+    private onEntityState(data: any) {
+        // For v2, we don't need to broadcast individual entity state changes
+        // State updates are handled through buildState and specific broadcast methods
     }
 
     private async onMQTTRequest(data: any) {
@@ -1747,15 +1648,6 @@ class LightLynx {
         await this.mqtt.publish(`bridge/response/lightlynx/${path}`, JSON.stringify(response));
     }
 
-    private async broadcastConfig() {
-        const payload = await this.getPayloadForConfig();
-        for (const [ws, _clientInfo] of this.clients) {
-            if (ws.readyState === WebSocket.OPEN) {
-                ws.send(JSON.stringify({ topic: 'bridge/lightlynx/config', payload }));
-            }
-        }
-    }
-
     private async getPayloadForConfig() {
         return { 
             remoteAccess: this.config.remoteAccess,
@@ -1811,15 +1703,6 @@ class LightLynx {
         delete this.config.users[username];
         this.saveConfig();
         return { status: 'ok' };
-    }
-
-    private broadcastUsers() {
-        const payload = this.getUsersForBroadcast();
-        for (const [ws, clientInfo] of this.clients) {
-            if (ws.readyState === WebSocket.OPEN && clientInfo.isAdmin) {
-                ws.send(JSON.stringify({ topic: 'bridge/lightlynx/users', payload }));
-            }
-        }
     }
 }
 
