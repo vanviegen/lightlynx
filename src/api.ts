@@ -650,6 +650,10 @@ class Api {
         return this.send('bridge/request/lightlynx/config/setAutomation', { enabled });
     }
 
+    setLocation(latitude: number, longitude: number): Promise<void> {
+        return this.send('bridge/request/lightlynx/config/setLocation', { latitude, longitude });
+    }
+
     addUser(payload: any): Promise<void> {
         return this.send('bridge/request/lightlynx/config/addUser', payload);
     }
@@ -744,6 +748,8 @@ class Api {
             else if (topic === "lightlynx/config") {
                 this.store.remoteAccessEnabled = payload.remoteAccess;
                 this.store.automationEnabled = payload.automation;
+                this.store.latitude = payload.latitude;
+                this.store.longitude = payload.longitude;
                 this.store.externalAddress = payload.externalAddress;
                 
                 // Update server credentials with external address

@@ -9,7 +9,7 @@ import { createToast } from '../components/toasts';
 
 export function drawUsersSection(): void {
     $("h1#Users", () => {
-        icons.create('click=', () => route.go(['user', 'new']));
+        icons.create('.link click=', () => route.go(['user', 'new']));
     });
 
     $('div.list', () => {

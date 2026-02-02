@@ -108,6 +108,8 @@ export interface Store {
     users: Record<string, User>;    // Users from lightlynx extension
     remoteAccessEnabled?: boolean;  // From lightlynx extension config
     automationEnabled?: boolean;    // From lightlynx extension config
+    latitude?: number;              // From lightlynx extension config (for sunrise/sunset)
+    longitude?: number;             // From lightlynx extension config
     localAddress?: string;          // From lightlynx extension config
     externalAddress?: string;       // From lightlynx extension config
     activeScenes: Record<string, number | undefined>; // Group name -> active scene ID

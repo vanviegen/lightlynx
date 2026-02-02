@@ -192,7 +192,7 @@ export function drawSceneEditor(group: Group, groupId: number): void {
 	
 	const automationEnabled = api.store.automationEnabled;
 	$('h1#Triggers', () => {
-		if (automationEnabled) icons.create('click=', () => sceneState.triggers.push({type: '1'}));
+		if (automationEnabled) icons.create('.link click=', () => sceneState.triggers.push({type: '1'}));
 	});
 	$('div.list', () => {
 	    if (!automationEnabled) return;

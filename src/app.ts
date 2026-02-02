@@ -14,7 +14,7 @@ import { drawBulbPage } from './pages/bulb-page';
 import { drawGroupPage } from './pages/group-page';
 import { drawConnectionPage } from './pages/connection-page';
 import { drawUsersSection, drawUserEditor } from './pages/users-page';
-import { drawRemoteInfoPage, drawAutomationInfoPage, drawBatteriesPage, drawDumpPage } from './pages/info-pages';
+import { drawRemoteInfoPage, drawAutomationInfoPage, drawLocationInfoPage, drawBatteriesPage, drawDumpPage } from './pages/info-pages';
 import { routeState, admin } from './ui';
 import { askPrompt, drawPromptPage } from './components/prompt';
 import swUrl from './sw.ts?worker&url';
@@ -93,11 +93,61 @@ function drawManagementSection(): void {
 				}
 			});
 			$('h2#Automation');
-			icons.info('margin-left:auto click=', (e: Event) => {
+			icons.info('.link margin-left:auto click=', (e: Event) => {
 				e.stopPropagation();
 				e.preventDefault();
 				route.go(['automation-info']);
 			});
+		});
+
+		drawLocationSetting();
+	});
+}
+
+function drawLocationSetting(): void {
+	$('div.item gap:$2', () => {
+		$('h2 flex:0 #Location:');
+		$('input type=number step=0.01 placeholder=Latitude width:5rem flex:initial', {
+			value: api.store.latitude,
+			change: async (e: Event) => {
+				const lat = parseFloat((e.target as HTMLInputElement).value);
+				const lon = api.store.longitude ?? 6.88;
+				if (!isNaN(lat)) await api.setLocation(lat, lon);
+			}
+		});
+		$('input type=number step=0.01 placeholder=Longitude width:5rem flex:initial', {
+			value: api.store.longitude,
+			change: async (e: Event) => {
+				const lon = parseFloat((e.target as HTMLInputElement).value);
+				const lat = api.store.latitude ?? 52.24;
+				if (!isNaN(lon)) await api.setLocation(lat, lon);
+			}
+		});
+		$('a #Use current', {
+			click: (e: Event) => {
+				e.preventDefault();
+				if (!navigator.geolocation) {
+					createToast('error', 'Geolocation not supported');
+					return;
+				}
+				navigator.geolocation.getCurrentPosition(
+					async (position) => {
+						const lat = Math.round(position.coords.latitude * 100) / 100;
+						const lon = Math.round(position.coords.longitude * 100) / 100;
+						await api.setLocation(lat, lon);
+						createToast('info', `Location set to ${lat}, ${lon}`);
+					},
+					(error) => {
+						createToast('error', `Location error: ${error.message}`);
+					},
+					{ enableHighAccuracy: false, timeout: 10000 }
+				);
+			}
+		});
+		icons.info('.link margin-left:auto click=', (e: Event) => {
+			e.stopPropagation();
+			e.preventDefault();
+			route.go(['location-info']);
 		});
 	});
 }
@@ -213,7 +263,7 @@ function drawRemoteAccessToggle(): void {
 			const address = api.store.servers[0]?.externalAddress || "No address yet";
 			$('span opacity:0.6 #'+address);
 		}
-		icons.info('margin-left:auto click=', (e: Event) => {
+		icons.info('.link margin-left:auto click=', (e: Event) => {
 			e.stopPropagation();
 			e.preventDefault();
 			route.go(['remote-info']);
@@ -294,6 +344,8 @@ $('div', rootStyle, () => {
 					drawRemoteInfoPage();
 				} else if (p[0] === 'automation-info') {
 					drawAutomationInfoPage();
+				} else if (p[0] === 'location-info') {
+					drawLocationInfoPage();
 				} else {
 					drawTopPage();
 				}

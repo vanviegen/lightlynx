@@ -62,7 +62,7 @@ export function drawGroupPage(groupId: number): void {
     drawColorPicker(group, groupId);
     
     $("h1#Scenes", () => {
-        if (admin.value) icons.create('click=', createScene);
+        if (admin.value) icons.create('.link click=', createScene);
     });
     
     $('div.list', () => {
@@ -90,7 +90,7 @@ export function drawGroupPage(groupId: number): void {
     });
 
     $("h1#Bulbs", () => {
-        if (admin.value) icons.create('click=', () => route.go(['group', groupId, 'addLight']));
+        if (admin.value) icons.create('.link click=', () => route.go(['group', groupId, 'addLight']));
     });
     
     $("div.list", () => {
@@ -188,7 +188,7 @@ function drawGroupConfigurationEditor(
 
     $("h1", () => {
         $("#Buttons and sensors");
-        if (automationEnabled) icons.create('click=', () => route.go(['group', groupId, 'addInput']));
+        if (automationEnabled) icons.create('.link click=', () => route.go(['group', groupId, 'addInput']));
     });
 
     if (automationEnabled) {

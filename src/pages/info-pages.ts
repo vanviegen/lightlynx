@@ -80,6 +80,35 @@ export function drawAutomationInfoPage(): void {
     });
 }
 
+export function drawLocationInfoPage(): void {
+    
+    routeState.title = 'Location';
+
+    $('div p:8px line-height:1.6em', () => {
+        $("h1 mt:0 #What's this for?");
+        $('p#', 'Your location coordinates (latitude and longitude) are used to calculate accurate sunrise and sunset times for time-based automation.');
+        
+        $('h1#How to set');
+        $('ul', () => {
+            $('li', () => {
+                $('strong#Use current location: ');
+                $('#Click "Use current" to detect your location automatically using your browser.');
+            });
+            $('li', () => {
+                $('strong#Manual entry: ');
+                $('#You can also enter latitude and longitude manually. Use any online map service.');
+            });
+        });
+        $('h1#Privacy');
+        $('ul', () => {
+            $('li#Your location is stored locally on your Zigbee2MQTT server only.');
+            $('li#The coordinates are rounded to 2 decimal places (~1km accuracy), which is more than enough for sunrise/sunset calculations.');
+        });
+
+        $('button.primary mt:2em w:100% #Got it', 'click=', () => route.up());
+    });
+}
+
 export function drawBatteriesPage(): void {
     
     routeState.title = 'Batteries';

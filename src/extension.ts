@@ -36,6 +36,8 @@ interface LightLynxConfig {
     externalPort?: number; // for UPnP
     remoteAccess: boolean;
     automation: boolean; // Enable/disable automation features
+    latitude?: number; // For sunrise/sunset calculations (default: Enschede)
+    longitude?: number;
 }
 
 // === Automation Module ===
@@ -51,11 +53,10 @@ function getDayOfYear(date: Date) {
 function sinDeg(deg: number) { return Math.sin(deg * 2.0 * Math.PI / 360.0); }
 function acosDeg(x: number) { return Math.acos(x) * 360.0 / (2 * Math.PI); }
 function asinDeg(x: number) { return Math.asin(x) * 360.0 / (2 * Math.PI); }
-function tanDeg(deg: number) { return Math.tan(deg * 2.0 * Math.PI / 360.0); }
 function cosDeg(deg: number) { return Math.cos(deg * 2.0 * Math.PI / 360.0); }
 function mod(a: number, b: number) { const r = a % b; return r < 0 ? r + b : r; }
 
-function calculate(latitude: number, longitude: number, isSunrise: boolean, zenith: number, date: Date) {
+function getSunTime(latitude: number, longitude: number, isSunrise: boolean, zenith: number, date: Date) {
     const dayOfYear = getDayOfYear(date);
     const hoursFromMeridian = longitude / degreesPerHour;
     const approxTimeOfEventInDays = isSunrise
@@ -88,48 +89,11 @@ function calculate(latitude: number, longitude: number, isSunrise: boolean, zeni
 }
 
 function getSunrise(lat: number, lon: number, zenith?: number, date?: Date) { 
-    return calculate(lat, lon, true, zenith || defaultZenith, date || new Date()); 
+    return getSunTime(lat, lon, true, zenith || defaultZenith, date || new Date()); 
 }
 
 function getSunset(lat: number, lon: number, zenith?: number, date?: Date) { 
-    return calculate(lat, lon, false, zenith || defaultZenith, date || new Date()); 
-}
-
-function parseTimeRange(str: string) {
-    let m = str.trim().match(/^([0-9]{1,2})(:([0-9]{2}))?((b|a)(s|r))?$/);
-    if (!m) return 0;
-    let hour = 0 | parseInt(m[1]!);
-    let minute = 0 | parseInt(m[3] || '0');
-    let beforeAfter = m[5];
-    let riseSet = m[6];
-
-    if (riseSet) {
-        let sunTime = (riseSet === 'r' ? getSunrise : getSunset)(52.24, 6.88);
-        if (sunTime) {
-            if (beforeAfter === 'a') {
-                hour += sunTime.getHours();
-                minute += sunTime.getMinutes();
-            } else {
-                hour = sunTime.getHours() - hour;
-                minute = sunTime.getMinutes() - minute;
-            }
-        }
-    }
-    hour += Math.floor(minute / 60);
-    hour = ((hour % 24) + 24) % 24;
-    minute = ((minute % 60) + 60) % 60;
-    return hour * 60 + minute;
-}
-
-function checkTimeRange(startStr: string, endStr: string) {
-    let start = parseTimeRange(startStr);
-    let end = parseTimeRange(endStr);
-    if (end < start) end += 24 * 60;
-    let now = new Date();
-    let nowMins = now.getHours() * 60 + now.getMinutes();
-    if (nowMins < start) nowMins += 24 * 60;
-    if (nowMins >= start && nowMins <= end) return end - start;
-    return null;
+    return getSunTime(lat, lon, false, zenith || defaultZenith, date || new Date()); 
 }
 
 const CLICK_COUNTS: Record<string, number> = {single: 1, double: 2, triple: 3, quadruple: 4, many: 5};
@@ -155,17 +119,19 @@ class Automation {
     private zigbee: any;
     private state: any;
     private mqttBaseTopic: string;
+    private config: LightLynxConfig;
     private clickCounts: Map<string, number> = new Map();
     private clickTimers: Map<string, NodeJS.Timeout> = new Map();
     private groups: Record<string, Group> = {};
     private lastTimedSceneIds: Record<string, number | undefined> = {};
     private timeInterval?: NodeJS.Timeout;
 
-    constructor(mqtt: any, zigbee: any, state: any, mqttBaseTopic: string) {
+    constructor(mqtt: any, zigbee: any, state: any, mqttBaseTopic: string, config: LightLynxConfig) {
         this.mqtt = mqtt;
         this.zigbee = zigbee;
         this.state = state;
         this.mqttBaseTopic = mqttBaseTopic;
+        this.config = config;
     }
 
     start(eventBus: any) {
@@ -184,6 +150,60 @@ class Automation {
             clearTimeout(group.timer);
         }
         this.groups = {};
+    }
+
+    private parseTimeRange(str: string) {
+        let m = str.trim().match(/^([0-9]{1,2})(:([0-9]{2}))?((b|a)(s|r))?$/);
+        if (!m) return 0;
+        let hour = 0 | parseInt(m[1]!);
+        let minute = 0 | parseInt(m[3] || '0');
+        let beforeAfter = m[5];
+        let riseSet = m[6];
+
+        if (riseSet) {
+            const lat = this.config.latitude!;
+            const lon = this.config.longitude!;
+            let sunTime = (riseSet === 'r' ? getSunrise : getSunset)(lat, lon);
+            if (sunTime) {
+                if (beforeAfter === 'a') {
+                    hour += sunTime.getHours();
+                    minute += sunTime.getMinutes();
+                } else {
+                    hour = sunTime.getHours() - hour;
+                    minute = sunTime.getMinutes() - minute;
+                }
+            }
+        }
+        hour += Math.floor(minute / 60);
+        hour = ((hour % 24) + 24) % 24;
+        minute = ((minute % 60) + 60) % 60;
+        return hour * 60 + minute;
+    }
+
+    private checkTimeRange(startStr: string, endStr: string) {
+        let start = this.parseTimeRange(startStr);
+        let end = this.parseTimeRange(endStr);
+        if (end < start) end += 24 * 60;
+        let now = new Date();
+        let nowMins = now.getHours() * 60 + now.getMinutes();
+        if (nowMins < start) nowMins += 24 * 60;
+        if (nowMins >= start && nowMins <= end) return end - start;
+        return null;
+    }
+
+    private findScene(group: Group, trigger: string | number): Scene | undefined {
+        let sceneOptions = group.scenes[trigger];
+        if (sceneOptions) {
+            let foundRange = 25*60, foundScene;
+            for(let scene of sceneOptions) {
+                let range = scene.start && scene.end ? this.checkTimeRange(scene.start, scene.end) : 24*60;
+                if (range!=null && range < foundRange) {
+                    foundScene = scene;
+                }
+            }
+            return foundScene;
+        }
+        return undefined;
     }
 
     
@@ -317,7 +337,7 @@ class Automation {
                     }
                 }
                 else {
-                    let scene = findScene(group, clicks);
+                    let scene = this.findScene(group, clicks);
                     if (scene) {
                         newState = { scene_recall: scene.id };
                     }
@@ -329,7 +349,7 @@ class Automation {
                 }
             }
             else if (data.update.occupancy) {
-                let scene = findScene(group, 'sensor');
+                let scene = this.findScene(group, 'sensor');
                 if (scene) {
                     newState = { scene_recall: scene.id };
                 }
@@ -348,7 +368,7 @@ class Automation {
     handleTimeTriggers() {
         for(let group of Object.values(this.groups)) {
             let newState: any;
-            let scene = findScene(group, 'time');
+            let scene = this.findScene(group, 'time');
             if (scene) {
                 group.touch();
                 if (this.lastTimedSceneIds[group.name] !== scene.id) {
@@ -370,21 +390,6 @@ class Automation {
             }
         }
     }
-}
-
-function findScene(group: Group, trigger: string | number): Scene | undefined {
-    let sceneOptions = group.scenes[trigger];
-    if (sceneOptions) {
-        let foundRange = 25*60, foundScene;
-        for(let scene of sceneOptions) {
-            let range = scene.start && scene.end ? checkTimeRange(scene.start, scene.end) : 24*60;
-            if (range!=null && range < foundRange) {
-                foundScene = scene;
-            }
-        }
-        return foundScene;
-    }
-    return undefined;
 }
 
 // === Main Extension Class ===
@@ -482,7 +487,7 @@ class LightLynx {
 
         // Start automation if enabled
         if (this.config.automation) {
-            this.automation = new Automation(this.mqtt, this.zigbee, this.state, this.mqttBaseTopic);
+            this.automation = new Automation(this.mqtt, this.zigbee, this.state, this.mqttBaseTopic, this.config);
             this.automation.start(this.eventBus);
             this.log('info', 'Automation enabled');
         }
@@ -526,6 +531,9 @@ class LightLynx {
             const loaded = JSON.parse(fs.readFileSync(configPath, 'utf8')) || defaultConfig;
             // Ensure automation field exists (default to false for backward compatibility)
             if (loaded.automation === undefined) loaded.automation = false;
+            // Set default location (Enschede, NL) if not configured
+            if (loaded.latitude === undefined) loaded.latitude = 52.24;
+            if (loaded.longitude === undefined) loaded.longitude = 6.88;
             return loaded;
         } catch (e: any) {
             this.log('error', 'Error loading configuration: ' + e.message);
@@ -1078,7 +1086,7 @@ class LightLynx {
                         this.config.automation = !!message.enabled;
                         this.saveConfig();
                         if (this.config.automation && !wasEnabled) {
-                            this.automation = new Automation(this.mqtt, this.zigbee, this.state, this.mqttBaseTopic);
+                            this.automation = new Automation(this.mqtt, this.zigbee, this.state, this.mqttBaseTopic, this.config);
                             this.automation.start(this.eventBus);
                             this.log('info', 'Automation enabled');
                         } else if (!this.config.automation && wasEnabled && this.automation) {
@@ -1087,6 +1095,14 @@ class LightLynx {
                             this.log('info', 'Automation disabled');
                         }
                         response = { data: { automation: this.config.automation }, status: 'ok' };
+                        this.broadcastConfig();
+                        break;
+                    case 'setLocation':
+                        if (message.latitude !== undefined) this.config.latitude = message.latitude;
+                        if (message.longitude !== undefined) this.config.longitude = message.longitude;
+                        this.saveConfig();
+                        // No need to restart automation - it reads from config
+                        response = { data: { latitude: this.config.latitude, longitude: this.config.longitude }, status: 'ok' };
                         this.broadcastConfig();
                         break;
                     case 'listUsers': 
@@ -1130,6 +1146,8 @@ class LightLynx {
         return { 
             remoteAccess: this.config.remoteAccess,
             automation: this.config.automation,
+            latitude: this.config.latitude,
+            longitude: this.config.longitude,
             externalAddress: this.config.remoteAccess && this.config.ssl?.externalIp && this.config.externalPort 
                 ? `${this.config.ssl.externalIp}:${this.config.externalPort}` 
                 : undefined,
