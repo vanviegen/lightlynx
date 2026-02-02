@@ -842,7 +842,11 @@ class LightLynx {
         if (!user) return this.sendConnectError(req, socket, head, 'Invalid user name or password.');
 
         const externalIp = this.config.ssl?.externalIp;
-        if (!user.allowRemote && !this.isLocalIp(clientIp) && clientIp !== externalIp) {
+        const isRemote = !this.isLocalIp(clientIp) && clientIp !== externalIp;
+        if (isRemote && !this.config.remoteAccess) {
+            return this.sendConnectError(req, socket, head, 'Remote access is disabled on this server.');
+        }
+        if (isRemote && !user.allowRemote) {
             return this.sendConnectError(req, socket, head, 'Remote access not permitted for user.');
         }
 
@@ -965,15 +969,17 @@ class LightLynx {
         const name = parts[0];
         if (name && parts[1] === 'set') {
             // Check if this is a group and user has permission
-            const group = this.findGroupByName(name);
-            if (group && clientInfo.allowedGroups?.includes(group.id)) return true;
+            const groupId = this.findGroupIdByName(name);
+            if (groupId != null && clientInfo.allowedGroups?.includes(groupId)) return true;
             
             // Check if this device belongs to a group the user has access to
-            const device = this.findDeviceByName(name);
-            if (device) {
+            const deviceIeee = this.findDeviceIeeeByName(name);
+            if (deviceIeee) {
                 for (const gid of clientInfo.allowedGroups || []) {
-                    const g = this.zigbee.resolveEntity(String(gid)) as any;
-                    if (g && g.members?.some((m: any) => m.ieeeAddr === device.ieeeAddr)) {
+                    const g = this.zigbee.resolveEntity(gid) as any;
+                    // g.zh.members is an array of Endpoint objects with deviceIeeeAddress property
+                    const members = g?.zh?.members;
+                    if (members?.some((m: any) => m.deviceIeeeAddress === deviceIeee)) {
                         return true;
                     }
                 }
@@ -982,16 +988,18 @@ class LightLynx {
         return false;
     }
 
-    private findDeviceByName(name: string) {
+    private findDeviceIeeeByName(name: string): string | null {
         for (const device of this.zigbee.devicesIterator()) {
-            if (device.name === name || device.ieeeAddr === name) return device;
+            const ieeeAddr = device.zh?.ieeeAddr;
+            if (device.name === name || ieeeAddr === name) return ieeeAddr;
         }
         return null;
     }
 
-    private findGroupByName(name: string) {
+    private findGroupIdByName(name: string): number | null {
         for (const group of this.zigbee.groupsIterator()) {
-            if (group.name === name || String(group.id) === name) return group;
+            const groupId = group.zh?.groupID;
+            if (group.name === name || String(groupId) === name) return groupId;
         }
         return null;
     }
@@ -1024,7 +1032,7 @@ class LightLynx {
         if (parts[0] === 'bridge') return;
 
         const groupName = parts[0];
-        if (!groupName || !this.findGroupByName(groupName)) return;
+        if (!groupName || this.findGroupIdByName(groupName) == null) return;
         
         if (parts.length === 2 && parts[1] === 'set') {
             let message: any;
@@ -1145,6 +1153,9 @@ class LightLynx {
             automation: this.config.automation,
             latitude: this.config.latitude,
             longitude: this.config.longitude,
+            localAddress: this.config.ssl?.localIp 
+                ? `${this.config.ssl.localIp}:${PORT}` 
+                : undefined,
             externalAddress: this.config.remoteAccess && this.config.ssl?.externalIp && this.config.externalPort 
                 ? `${this.config.ssl.externalIp}:${this.config.externalPort}` 
                 : undefined,

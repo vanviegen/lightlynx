@@ -750,12 +750,18 @@ class Api {
                 this.store.automationEnabled = payload.automation;
                 this.store.latitude = payload.latitude;
                 this.store.longitude = payload.longitude;
+                this.store.localAddress = payload.localAddress;
                 this.store.externalAddress = payload.externalAddress;
                 
-                // Update server credentials with external address
+                // Update server credentials with server-provided addresses
+                // This handles the case where the user connected via external IP
+                // and we now know the correct local IP
                 const server = this.store.servers[0];
                 if (server && this.store.connected) {
-                    server.externalAddress = this.store.externalAddress;
+                    if (payload.localAddress) {
+                        server.localAddress = payload.localAddress;
+                    }
+                    server.externalAddress = payload.externalAddress;
                 }
             }
             else if (topic === "lightlynx/sceneSet") {

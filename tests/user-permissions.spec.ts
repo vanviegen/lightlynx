@@ -155,4 +155,41 @@ test.describe('User Permissions', () => {
     await expect(livingRoomItem).toBeVisible();
     await expect(livingRoomItem).toHaveClass(/disabled/);
   });
+
+  test('should allow limited user to toggle lights in permitted group', async ({ page }) => {
+    // Set up as admin and create a limited user
+    await connectToMockServer(page, { admin: true });
+    
+    await page.getByRole('heading', { name: 'Users' }).getByRole('img', { name: 'create' }).click();
+    await page.locator('input[placeholder="Username"]').fill('lightuser');
+    await page.locator('input[type="password"]').fill('lightpass');
+    
+    // Give permission to Kitchen group
+    await page.locator('label:has-text("Kitchen") input[type="checkbox"]').check();
+    
+    await page.getByRole('button', { name: 'Save' }).click();
+    
+    // Get password hash and reconnect as limited user
+    const hashedPassword = await hashPassword(page, 'lightpass');
+    await connectToMockServer(page, { username: 'lightuser', password: hashedPassword, admin: false });
+    
+    // The Kitchen group should be visible and NOT disabled
+    const kitchenGroup = page.locator('.item.group:has(h2:text("Kitchen"))');
+    await expect(kitchenGroup).toBeVisible();
+    await expect(kitchenGroup).not.toHaveClass(/disabled/);
+    
+    // Get initial state of the circle
+    const circle = kitchenGroup.locator('.circle');
+    const initiallyOn = await circle.evaluate(el => el.classList.contains('on'));
+    
+    // Click on the circle to toggle the lights
+    await circle.click();
+    
+    // Verify the light state toggled (circle should have opposite state)
+    if (initiallyOn) {
+      await expect(circle).not.toHaveClass(/on/);
+    } else {
+      await expect(circle).toHaveClass(/on/);
+    }
+  });
 });

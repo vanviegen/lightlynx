@@ -15,7 +15,7 @@ import { drawGroupPage } from './pages/group-page';
 import { drawConnectionPage } from './pages/connection-page';
 import { drawUsersSection, drawUserEditor } from './pages/users-page';
 import { drawRemoteInfoPage, drawAutomationInfoPage, drawLocationInfoPage, drawBatteriesPage, drawDumpPage } from './pages/info-pages';
-import { routeState, admin } from './ui';
+import { routeState, admin, copyToClipboard } from './ui';
 import { askPrompt, drawPromptPage } from './components/prompt';
 import swUrl from './sw.ts?worker&url';
 import { preventFormNavigation } from './utils';
@@ -261,7 +261,13 @@ function drawRemoteAccessToggle(): void {
 		$('h2#Remote access');
 		if (api.store.remoteAccessEnabled) {
 			const address = api.store.servers[0]?.externalAddress || "No address yet";
-			$('span opacity:0.6 #'+address);
+			$('span.link opacity:0.6 #'+address, 'click=', (e: Event) => {
+				e.stopPropagation();
+				e.preventDefault();
+				if (api.store.servers[0]?.externalAddress) {
+					copyToClipboard(api.store.servers[0].externalAddress, 'Address');
+				}
+			});
 		}
 		icons.info('.link margin-left:auto click=', (e: Event) => {
 			e.stopPropagation();

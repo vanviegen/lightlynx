@@ -129,7 +129,8 @@ class MockEntity {
         }
         if (data?.members) {
             this._members = data.members;
-            this.zh.members = data.members;
+            // zh.members should be endpoint-like objects with deviceIeeeAddress, matching real Z2M
+            this.zh.members = data.members.map((ieee: string) => ({ deviceIeeeAddress: ieee, ID: 1 }));
         }
         if (data?.scenes) {
             this.zh.scenes = data.scenes;
@@ -620,8 +621,11 @@ function handleBridgeRequest(cmd: string, payload: any) {
             const device = zigbee.deviceByFriendlyName(payload.device) || zigbee.deviceByIeeeAddr(payload.device);
             const ieee = device ? device.ieeeAddr : payload.device;
             if (!group.zh.members) group.zh.members = [];
-            if (!group.zh.members.includes(ieee)) {
-                group.zh.members.push(ieee);
+            // Check if device already in group (compare deviceIeeeAddress)
+            const alreadyMember = group.zh.members.some((m: any) => m.deviceIeeeAddress === ieee);
+            if (!alreadyMember) {
+                // Add as endpoint-like object with deviceIeeeAddress to match real Z2M
+                group.zh.members.push({ deviceIeeeAddress: ieee, ID: 1 });
                  // Actual MockEntity storage
                 if (!(group as any)._members) (group as any)._members = [];
                 (group as any)._members.push(ieee);

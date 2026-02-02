@@ -1,5 +1,6 @@
 import { $, proxy } from 'aberdeen';
 import * as route from 'aberdeen/route';
+import { createToast } from './components/toasts';
 
 export interface RouteState {
     title: string;
@@ -53,5 +54,14 @@ export function lazySave(getState: () => void | (() => void), delay: number = 10
         if (firstRun) firstRun = false;
         else if (saveFunc) timeoutId = setTimeout(saveFunc, delay);
     });
+}
+
+export async function copyToClipboard(text: string, label: string = 'Text'): Promise<void> {
+    try {
+        await navigator.clipboard.writeText(text);
+        createToast('info', `${label} copied to clipboard`);
+    } catch (e: any) {
+        createToast('error', `Failed to copy: ${text}`);
+    }
 }
 

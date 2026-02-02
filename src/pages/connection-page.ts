@@ -2,11 +2,10 @@ import { $, proxy, peek, derive, onEach } from 'aberdeen';
 import * as route from 'aberdeen/route';
 import api from '../api';
 import { ServerCredentials } from '../types';
-import { routeState, hashSecret } from '../ui';
+import { routeState, hashSecret, copyToClipboard } from '../ui';
 import { askConfirm } from '../components/prompt';
 import { errorMessageStyle } from '../global-style';
 import { isEqual } from '../utils';
-import { createToast } from '../components/toasts';
 
 export function drawConnectionPage(): void {
     routeState.title = 'Z2M Connection'
@@ -113,18 +112,13 @@ function drawConnectionDetails(selectedIndex: { value: number }): void {
         $('div.button-row', () => {
             if (index < api.store.servers.length) $('button.danger type=button text=Delete click=', handleDelete);
             $('button.secondary type=button text=Cancel click=', () => route.back('/'));
-            $('button.primary type=submit text=Connect .busy=', derive(() => orgServer.status !== 'disabled'));
+            $('button.primary type=submit text=Connect .busy=', derive(() => orgServer.status && orgServer.status !== 'disabled'));
         });
         $('small.link text-align:right text="Copy direct-connect URL" click=', async () => {
             let url = `${location.protocol}//${location.host}/?host=${encodeURIComponent(localAddress.value)}&username=${encodeURIComponent(username.value)}`;
             const secret = await hashSecret(password.value);
             if (secret) url += `&secret=${encodeURIComponent(secret)}`;
-            try {
-                await navigator.clipboard.writeText(url);
-                createToast('info', 'URL copied to clipboard');
-            } catch (e: any) {
-                createToast('error', 'Failed to copy URL: ' + url);
-            }
+            copyToClipboard(url, 'URL');
         });
     });
 }
