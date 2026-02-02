@@ -110,7 +110,7 @@ function drawConnectionDetails(selectedIndex: { value: number }): void {
             $('label#Secret');
             $('input type=password bind=', password, 'placeholder=', 'Password or hash or empty');
         });
-        $('div.row', () => {
+        $('div.button-row', () => {
             if (index < api.store.servers.length) $('button.danger type=button text=Delete click=', handleDelete);
             $('button.secondary type=button text=Cancel click=', () => route.back('/'));
             $('button.primary type=submit text=Connect .busy=', derive(() => orgServer.status !== 'disabled'));

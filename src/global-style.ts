@@ -167,8 +167,8 @@ insertGlobalCss({
 			'label': 'fg:$textLight font-weight:500 font-size:0.875rem',
 			'input, textarea, select': 'w:100%'
 		},
-		'.row': 'display:flex gap:$2 justify-content:flex-end'
 	},
+    '.button-row': 'display:flex gap:$2 justify-content:flex-end',
 	
 	'button.primary': {
 		'&': 'bg:$primary fg:#000 font-weight:600',

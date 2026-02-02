@@ -105,7 +105,7 @@ export function drawUserEditor(): void {
     });
 
     const busy = proxy(false);
-    $('form div.row', () => {
+    $('div.button-row', () => {
 
         if (!isNew && !isAdminUser) {
             $('button.danger', icons.remove, '#Delete user', 'click=', async () => {

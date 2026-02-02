@@ -63,7 +63,7 @@ export function drawPromptPage(state: {resolveId: number, type: string, message:
                 }
             });
 
-            $('div.row gap:1em', () => {
+            $('div.button-row gap:1em', () => {
                 if (isConfirm) {
                     $('button.secondary #No', 'click=', () => cleanupAndResolve(false));
                     $('button.primary #Yes', 'click=', () => cleanupAndResolve(true));

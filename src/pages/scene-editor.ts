@@ -204,8 +204,8 @@ export function drawSceneEditor(group: Group, groupId: number): void {
 					trigger.endTime = {hour: 22, minute: 0, type: 'wall'};
 				}
 			});
-			$('div.item flex-direction:column', () => {
-				$('div.row justify-content:space-between', () =>{
+			$('div.item flex-direction:column align-items:stretch', () => {
+				$('div display:flex justify-content:space-between gap:$3 align-items: center', () =>{
 					$('select width:inherit bind=', ref(trigger, 'type'), () => {
 						$('option value=1 #Single Tap');
 						$('option value=2 #Double Tap');
@@ -218,7 +218,7 @@ export function drawSceneEditor(group: Group, groupId: number): void {
 					
 					$(() => {
 						if (trigger.type !== 'time') {
-							$('label', () => {
+							$('label display:flex align-items:center gap:$2', () => {
 								$('input type=checkbox', {checked: !!trigger.startTime}, 'change=', (e: Event) => {
 									const target = e.target as HTMLInputElement;
 									if (target.checked) {
@@ -238,11 +238,9 @@ export function drawSceneEditor(group: Group, groupId: number): void {
 				});
 				$(() => {
 					if (trigger.startTime && trigger.endTime) {
-						$('div.scene-times', {create: grow, destroy: shrink}, () => {
-							$('label#From ')
-							drawTimeEditor(trigger.startTime!);
-							$('label#Until ')
-							drawTimeEditor(trigger.endTime!);
+						$('div', {create: grow, destroy: shrink}, () => {
+							drawTimeEditor("From", trigger.startTime!);
+							drawTimeEditor("Until", trigger.endTime!);
 						})
 					}
 				})
@@ -271,7 +269,7 @@ export function drawSceneEditor(group: Group, groupId: number): void {
 		api.send(group.name, "set", {scene_remove: scene.id});
 	}
 	$('div.list', () => {
-		$('div.item.link', icons.save, '#Save current state', 'click=', save);
+		$('div.item.link', icons.save, '#Overwrite scene with current state', 'click=', save);
 		$('div.item.link', icons.remove, '#Delete scene', 'click=', remove);
 	})
 
@@ -298,16 +296,20 @@ export function drawSceneEditor(group: Group, groupId: number): void {
 }
 
 // Time range editor component
-function drawTimeEditor(range: Time): void {
+function drawTimeEditor(text: string, range: Time): void {
     // Start time
-	$('input.hour type=number min=0 max=23 bind=', ref(range, 'hour'));
-	$('b# : ');
-	$('input.minute type=number min=0 max=59 value=', unproxy(range).minute.toString().padStart(2, '0'), 'input=', (event: any) => range.minute = parseInt(event.target.value));
-	$('select.time-type bind=', ref(range, 'type'), () => {
-		$('option value=wall #wall time');
-		$('option value=br #before sunrise');
-		$('option value=ar #after sunrise');
-		$('option value=bs #before sunset');
-		$('option value=as #after sunset');
+	$('div display:flex align-items:center gap:$2', () => {
+		$('label flex:1 text-align:right text=', text+" ")
+		$('input width:4em type=number min=0 max=23 bind=', ref(range, 'hour'));
+		$('b# : ');
+		$('input width:4em type=number min=0 max=59 value=', unproxy(range).minute.toString().padStart(2, '0'), 'input=', (event: any) => range.minute = parseInt(event.target.value));
+		$('select bind=', ref(range, 'type'), () => {
+			$('option value=wall #wall time');
+			$('option value=br #before sunrise');
+			$('option value=ar #after sunrise');
+			$('option value=bs #before sunset');
+			$('option value=as #after sunset');
+		});
 	});
+
 }
