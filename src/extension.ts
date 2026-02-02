@@ -1525,6 +1525,46 @@ class LightLynx {
         return null;
     }
 
+    private getDeviceModelString(device: any): string {
+        const definition = device.definition;
+        const description = definition?.description || device.modelID;
+        const vendor = definition?.vendor || device.manufacturerName;
+        return `${description} (${vendor})`;
+    }
+
+    private buildLightState(device: any, definition: any): any {
+        const deviceState = this.state.get(device) || {};
+        const features = definition?.exposes?.find((e: any) => e.type === 'light' || e.type === 'switch')?.features || [];
+        const brightnessFeat = features.find((f: any) => f.name === 'brightness');
+        const colorHsFeat = features.find((f: any) => f.name === 'color_hs');
+        const colorXyFeat = features.find((f: any) => f.name === 'color_xy');
+        const colorTempFeat = features.find((f: any) => f.name === 'color_temp');
+        
+        return {
+            state: {
+                on: deviceState.state === 'ON',
+                brightness: deviceState.brightness,
+                color: deviceState.color_temp ? deviceState.color_temp :
+                       deviceState.color ? deviceState.color : undefined
+            },
+            caps: {
+                brightness: brightnessFeat ? {
+                    valueMin: brightnessFeat.value_min || 0,
+                    valueMax: brightnessFeat.value_max || 255
+                } : undefined,
+                colorTemp: colorTempFeat ? {
+                    valueMin: colorTempFeat.value_min || 150,
+                    valueMax: colorTempFeat.value_max || 500
+                } : undefined,
+                colorHs: !!colorHsFeat,
+                colorXy: !!colorXyFeat,
+                supportsBrightness: !!brightnessFeat,
+                supportsColor: !!(colorHsFeat || colorXyFeat),
+                supportsColorTemp: !!colorTempFeat
+            }
+        };
+    }
+
     private broadcastDevicesDelta() {
         // Rebuild light and device data from current Zigbee state
         const lights: any = {};
@@ -1539,38 +1579,14 @@ class LightLynx {
             const lightExpose = definition?.exposes?.find((e: any) => e.type === 'light' || e.type === 'switch');
             
             if (lightExpose) {
-                const features = lightExpose.features || [];
-                const brightnessFeat = features.find((f: any) => f.name === 'brightness');
-                const colorHsFeat = features.find((f: any) => f.name === 'color_hs');
-                const colorXyFeat = features.find((f: any) => f.name === 'color_xy');
-                const colorTempFeat = features.find((f: any) => f.name === 'color_temp');
-                
+                const lightState = this.buildLightState(device, definition);
                 lights[ieee] = {
                     ieee,
                     name: device.name,
-                    model: (definition?.description || device.modelID) + " (" + (definition?.vendor || device.manufacturerName) + ")",
+                    model: this.getDeviceModelString(device),
                     description: device.options?.description,
-                    state: {
-                        on: deviceState.state === 'ON',
-                        brightness: deviceState.brightness,
-                        color: deviceState.color_temp ? deviceState.color_temp :
-                               deviceState.color ? deviceState.color : undefined
-                    },
-                    caps: {
-                        brightness: brightnessFeat ? {
-                            valueMin: brightnessFeat.value_min || 0,
-                            valueMax: brightnessFeat.value_max || 255
-                        } : undefined,
-                        colorTemp: colorTempFeat ? {
-                            valueMin: colorTempFeat.value_min || 150,
-                            valueMax: colorTempFeat.value_max || 500
-                        } : undefined,
-                        colorHs: !!colorHsFeat,
-                        colorXy: !!colorXyFeat,
-                        supportsBrightness: !!brightnessFeat,
-                        supportsColor: !!(colorHsFeat || colorXyFeat),
-                        supportsColorTemp: !!colorTempFeat
-                    },
+                    state: lightState.state,
+                    caps: lightState.caps,
                     meta: {
                         online: deviceState.linkquality !== undefined,
                         battery: deviceState.battery,
@@ -1583,7 +1599,7 @@ class LightLynx {
                 devices[ieee] = {
                     ieee,
                     name: device.name,
-                    model: (definition?.description || device.modelID) + " (" + (definition?.vendor || device.manufacturerName) + ")",
+                    model: this.getDeviceModelString(device),
                     description: device.options?.description,
                     actions: actionExpose?.values,
                     state: deviceState,
@@ -1609,40 +1625,11 @@ class LightLynx {
             const ieee = device.zh?.ieeeAddr;
             if (!ieee) continue;
             
-            const deviceState = this.state.get(device) || {};
             const definition = device.definition;
             const lightExpose = definition?.exposes?.find((e: any) => e.type === 'light' || e.type === 'switch');
             
             if (lightExpose) {
-                const features = lightExpose.features || [];
-                const brightnessFeat = features.find((f: any) => f.name === 'brightness');
-                const colorHsFeat = features.find((f: any) => f.name === 'color_hs');
-                const colorXyFeat = features.find((f: any) => f.name === 'color_xy');
-                const colorTempFeat = features.find((f: any) => f.name === 'color_temp');
-                
-                lights[ieee] = {
-                    state: {
-                        on: deviceState.state === 'ON',
-                        brightness: deviceState.brightness,
-                        color: deviceState.color_temp ? deviceState.color_temp :
-                               deviceState.color ? deviceState.color : undefined
-                    },
-                    caps: {
-                        brightness: brightnessFeat ? {
-                            valueMin: brightnessFeat.value_min || 0,
-                            valueMax: brightnessFeat.value_max || 255
-                        } : undefined,
-                        colorTemp: colorTempFeat ? {
-                            valueMin: colorTempFeat.value_min || 150,
-                            valueMax: colorTempFeat.value_max || 500
-                        } : undefined,
-                        colorHs: !!colorHsFeat,
-                        colorXy: !!colorXyFeat,
-                        supportsBrightness: !!brightnessFeat,
-                        supportsColor: !!(colorHsFeat || colorXyFeat),
-                        supportsColorTemp: !!colorTempFeat
-                    }
-                };
+                lights[ieee] = this.buildLightState(device, definition);
             }
         }
         
@@ -1730,40 +1717,11 @@ class LightLynx {
             const deviceIeee = device.zh?.ieeeAddr;
             if (!deviceIeee) continue;
             
-            const deviceState = this.state.get(device) || {};
             const definition = device.definition;
             const lightExpose = definition?.exposes?.find((e: any) => e.type === 'light' || e.type === 'switch');
             
             if (lightExpose) {
-                const features = lightExpose.features || [];
-                const brightnessFeat = features.find((f: any) => f.name === 'brightness');
-                const colorHsFeat = features.find((f: any) => f.name === 'color_hs');
-                const colorXyFeat = features.find((f: any) => f.name === 'color_xy');
-                const colorTempFeat = features.find((f: any) => f.name === 'color_temp');
-                
-                lights[deviceIeee] = {
-                    state: {
-                        on: deviceState.state === 'ON',
-                        brightness: deviceState.brightness,
-                        color: deviceState.color_temp ? deviceState.color_temp :
-                               deviceState.color ? deviceState.color : undefined
-                    },
-                    caps: {
-                        brightness: brightnessFeat ? {
-                            valueMin: brightnessFeat.value_min || 0,
-                            valueMax: brightnessFeat.value_max || 255
-                        } : undefined,
-                        colorTemp: colorTempFeat ? {
-                            valueMin: colorTempFeat.value_min || 150,
-                            valueMax: colorTempFeat.value_max || 500
-                        } : undefined,
-                        colorHs: !!colorHsFeat,
-                        colorXy: !!colorXyFeat,
-                        supportsBrightness: !!brightnessFeat,
-                        supportsColor: !!(colorHsFeat || colorXyFeat),
-                        supportsColorTemp: !!colorTempFeat
-                    }
-                };
+                lights[deviceIeee] = this.buildLightState(device, definition);
             }
         }
         
