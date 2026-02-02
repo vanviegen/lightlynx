@@ -1564,14 +1564,14 @@ class LightLynx {
     }
 
     private onMQTTPublish(data: any) {
+        // This handler is registered with the event bus but state updates
+        // are now handled through buildState and specific broadcast methods
         if (data.options.meta?.isEntityState || !data.topic.startsWith(`${this.mqttBaseTopic}/`)) return;
-        // We don't need to broadcast individual MQTT messages
-        // State updates are handled through buildState and specific broadcast methods
     }
 
     private onEntityState(data: any) {
-        // We don't need to broadcast individual entity state changes
-        // State updates are handled through buildState and specific broadcast methods
+        // This handler is registered with the event bus but state updates
+        // are now handled through buildState and specific broadcast methods
     }
 
     private async onMQTTRequest(data: any) {
