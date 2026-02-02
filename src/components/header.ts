@@ -92,7 +92,7 @@ export function drawHeader(
         $(() => {
             const server = api.store.servers[0];
             if (!server) return;
-            const user = api.store.users[server.username];
+            const user = api.store.users[server.userName];
             if (!user?.isAdmin) return;
             
             let holdTimeout: any;

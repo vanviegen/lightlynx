@@ -217,7 +217,7 @@ function connectToDemo(): void {
     const demoHost = `demo${String(demoNumber).padStart(2, '0')}.lightlynx.eu`;
     api.store.servers.unshift({
         localAddress: demoHost,
-        username: 'admin',
+        userName: 'admin',
         secret: '',
         status: 'try'
     });

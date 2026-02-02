@@ -51,7 +51,7 @@ export const deviceGroups: Record<string, number[]> = {};
 $(() => {
 	let result: Record<string, number[]> = {};
 	for (const [groupId, group] of Object.entries(api.store.groups)) {
-		for (const ieee of group.members) {
+		for (const ieee of group.lightIds) {
 			(result[ieee] = result[ieee] || []).push(parseInt(groupId));
 		}
 	}
@@ -80,7 +80,7 @@ function drawManagementSection(): void {
 		$('label.item', () => {
 			$({'.busy': automationBusy.value});
 			$('input type=checkbox', {
-				checked: api.store.automationEnabled,
+				checked: api.store.config.automationEnabled,
 				disabled: automationBusy.value,
 				change: async (e: Event) => {
 					const checked = (e.target as HTMLInputElement).checked;
@@ -108,18 +108,18 @@ function drawLocationSetting(): void {
 	$('div.item gap:$2', () => {
 		$('h2 flex:0 #Location:');
 		$('input type=number step=0.01 placeholder=Latitude width:5rem flex:initial', {
-			value: api.store.latitude,
+			value: api.store.config.latitude,
 			change: async (e: Event) => {
 				const lat = parseFloat((e.target as HTMLInputElement).value);
-				const lon = api.store.longitude ?? 6.88;
+				const lon = api.store.config.longitude ?? 6.88;
 				if (!isNaN(lat)) await api.setLocation(lat, lon);
 			}
 		});
 		$('input type=number step=0.01 placeholder=Longitude width:5rem flex:initial', {
-			value: api.store.longitude,
+			value: api.store.config.longitude,
 			change: async (e: Event) => {
 				const lon = parseFloat((e.target as HTMLInputElement).value);
-				const lat = api.store.latitude ?? 52.24;
+				const lat = api.store.config.latitude ?? 52.24;
 				if (!isNaN(lon)) await api.setLocation(lat, lon);
 			}
 		});
@@ -196,14 +196,14 @@ function drawTopPage(): void {
 				
 				// Scene icons (horizontally scrollable)
 				$("div.scenes", () => {
-					onEach(group.scenes, (scene) => {
+					onEach(group.scenes, (scene, sceneId) => {
 						function onClick(): void {
-							api.send(group.name, "set", {scene_recall: scene.id});
+							api.recallScene(groupId, sceneId);
 						}
 						const isActive = derive(() => api.store.activeScenes[group.name] == scene.id && group.lightState?.on);
-						const icon = icons.scenes[scene.shortName.toLowerCase()];
+						const icon = icons.scenes[scene.name.toLowerCase()];
 						if (icon) icon('.link click=', onClick, {'.active-scene': isActive});
-						else $('div.scene.link#', scene.shortName, {'.active-scene': isActive}, 'click=', onClick);
+						else $('div.scene.link#', scene.name, {'.active-scene': isActive}, 'click=', onClick);
 					},  scene => `${scene.suffix || 'x'}#${scene.name}`);
 					
 					if (!group.scenes || group.scenes.length === 0) {
@@ -241,7 +241,7 @@ function drawRemoteAccessToggle(): void {
 	$('label.item', () => {
 		$({'.busy': remoteBusy.value});
 		$('input type=checkbox', {
-			checked: api.store.remoteAccessEnabled,
+			checked: api.store.allowRemote,
 			disabled: remoteBusy.value,
 			change: async (e: Event) => {
 				const checked = (e.target as HTMLInputElement).checked;
@@ -259,7 +259,7 @@ function drawRemoteAccessToggle(): void {
 			}
 		});
 		$('h2#Remote access');
-		if (api.store.remoteAccessEnabled) {
+		if (api.store.allowRemote) {
 			const address = api.store.servers[0]?.externalAddress || "No address yet";
 			$('span.link opacity:0.6 #'+address, 'click=', (e: Event) => {
 				e.stopPropagation();
@@ -342,7 +342,7 @@ $('div', rootStyle, () => {
 					drawBulbPage(p[1]);
 				} else if (p[0] === 'batteries') {
 					drawBatteriesPage();
-				} else if (p[0] === 'user' && p[1]) {
+				} else if (p[0] === 'user') {
 					drawUserEditor();
 				} else if (p[0] === 'dump') {
 					drawDumpPage();

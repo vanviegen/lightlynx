@@ -69,7 +69,7 @@ export function drawBulbCircle(target: Device | Group, targetId: string | number
             // For groups, collect all colors for gradient
             let bgs: string[] = [];
             const group = target as Group;
-            for(let ieee of group.members) {
+            for(let ieee of group.lightIds) {
                 let device = api.store.devices[ieee];
                 if (device) {
                     bgs.push(getBulbRgb(device));
@@ -148,7 +148,7 @@ export function drawColorWheel(target: Device | Group, targetId: string | number
         })
 
         drawColorWheelMarker(state);
-        if ('members' in target) onEach(target.members, ieee => {
+        if ('members' in target) onEach(target.lightIds, ieee => {
             let memberState = api.store.devices[ieee]?.lightState;
             if (memberState) {
                 drawColorWheelMarker(memberState, 8);
@@ -306,7 +306,7 @@ function drawScale(target: Device | Group, targetId: string | number, colorTempR
 
         drawScaleMarker(state, colorTempRange);
 
-        if ('members' in target) onEach(target.members, ieee => {
+        if ('members' in target) onEach(target.lightIds, ieee => {
             let memberState = api.store.devices[ieee]?.lightState;
             if (memberState) {
                 drawScaleMarker(memberState, colorTempRange, 8);

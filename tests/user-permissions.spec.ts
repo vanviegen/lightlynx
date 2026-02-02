@@ -7,7 +7,7 @@ test.describe('User Permissions', () => {
     
     // Create a limited user with permission only for Kitchen
     await page.getByRole('heading', { name: 'Users' }).getByRole('img', { name: 'create' }).click();
-    await page.locator('input[placeholder="Username"]').fill('limited');
+    await page.locator('input[placeholder="UserName"]').fill('limited');
     await page.locator('input[type="password"]').fill('pass123');
     
     // Give permission only to Kitchen group
@@ -17,7 +17,7 @@ test.describe('User Permissions', () => {
     
     // Reconnect as the limited user
     const hashedPassword = await hashPassword(page, 'pass123');
-    await connectToMockServer(page, { username: 'limited', password: hashedPassword, admin: false });
+    await connectToMockServer(page, { userName: 'limited', password: hashedPassword, admin: false });
     
     // Should see Kitchen group (enabled, can click)
     const kitchenItem = page.locator('.item.group:has(h2:text("Kitchen"))');
@@ -40,7 +40,7 @@ test.describe('User Permissions', () => {
     
     // Create limited user with Kitchen permission only (not Living Room)
     await page.getByRole('heading', { name: 'Users' }).getByRole('img', { name: 'create' }).click();
-    await page.locator('input[placeholder="Username"]').fill('partial');
+    await page.locator('input[placeholder="UserName"]').fill('partial');
     await page.locator('input[type="password"]').fill('pass456');
     // Give permission to Kitchen only
     await page.locator('label:has-text("Kitchen") input[type="checkbox"]').check();
@@ -51,7 +51,7 @@ test.describe('User Permissions', () => {
     const hashedPassword = await hashPassword(page, 'pass456');
     
     // Reconnect as limited user
-    await connectToMockServer(page, { username: 'partial', password: hashedPassword, admin: false });
+    await connectToMockServer(page, { userName: 'partial', password: hashedPassword, admin: false });
     
     // Kitchen should be enabled and clickable
     const kitchenItem = page.locator('.item.group:has(h2:text("Kitchen"))');
@@ -74,7 +74,7 @@ test.describe('User Permissions', () => {
     
     // Create an admin user
     await page.getByRole('heading', { name: 'Users' }).getByRole('img', { name: 'create' }).click();
-    await page.locator('input[placeholder="Username"]').fill('adminuser');
+    await page.locator('input[placeholder="UserName"]').fill('adminuser');
     await page.locator('input[type="password"]').fill('adminpass');
     
     // Enable admin access
@@ -86,7 +86,7 @@ test.describe('User Permissions', () => {
     const hashedPassword = await hashPassword(page, 'adminpass');
     
     // Reconnect as admin user
-    await connectToMockServer(page, { username: 'adminuser', password: hashedPassword, admin: true });
+    await connectToMockServer(page, { userName: 'adminuser', password: hashedPassword, admin: true });
     
     // All groups should be visible and enabled
     const kitchenItem = page.locator('.item.group:has(h2:text("Kitchen"))');
@@ -107,7 +107,7 @@ test.describe('User Permissions', () => {
     await connectToMockServer(page, { admin: true });
     
     await page.getByRole('heading', { name: 'Users' }).getByRole('img', { name: 'create' }).click();
-    await page.locator('input[placeholder="Username"]').fill('regularuser');
+    await page.locator('input[placeholder="UserName"]').fill('regularuser');
     await page.locator('input[type="password"]').fill('regular123');
     
     // Do NOT enable admin access, but give access to all groups so they're not all disabled
@@ -120,7 +120,7 @@ test.describe('User Permissions', () => {
     const hashedPassword = await hashPassword(page, 'regular123');
     
     // Reconnect as regular user (not in admin mode)
-    await connectToMockServer(page, { username: 'regularuser', password: hashedPassword, admin: false });
+    await connectToMockServer(page, { userName: 'regularuser', password: hashedPassword, admin: false });
     
     // Should NOT see Users section (not in admin mode and not admin)
     await expect(page.locator('h1', { hasText: 'Users' })).not.toBeVisible({ timeout: 3000 });
@@ -132,7 +132,7 @@ test.describe('User Permissions', () => {
     
     // Create a user with no permissions at all
     await page.getByRole('heading', { name: 'Users' }).getByRole('img', { name: 'create' }).click();
-    await page.locator('input[placeholder="Username"]').fill('emptyuser');
+    await page.locator('input[placeholder="UserName"]').fill('emptyuser');
     await page.locator('input[type="password"]').fill('empty123');
     
     // Don't check any permissions
@@ -143,7 +143,7 @@ test.describe('User Permissions', () => {
     const hashedPassword = await hashPassword(page, 'empty123');
     
     // Reconnect as user with no permissions
-    await connectToMockServer(page, { username: 'emptyuser', password: hashedPassword, admin: false });
+    await connectToMockServer(page, { userName: 'emptyuser', password: hashedPassword, admin: false });
     
     // Groups should be visible but disabled
     const kitchenItem = page.locator('.item.group:has(h2:text("Kitchen"))');
@@ -161,7 +161,7 @@ test.describe('User Permissions', () => {
     await connectToMockServer(page, { admin: true });
     
     await page.getByRole('heading', { name: 'Users' }).getByRole('img', { name: 'create' }).click();
-    await page.locator('input[placeholder="Username"]').fill('lightuser');
+    await page.locator('input[placeholder="UserName"]').fill('lightuser');
     await page.locator('input[type="password"]').fill('lightpass');
     
     // Give permission to Kitchen group
@@ -171,7 +171,7 @@ test.describe('User Permissions', () => {
     
     // Get password hash and reconnect as limited user
     const hashedPassword = await hashPassword(page, 'lightpass');
-    await connectToMockServer(page, { username: 'lightuser', password: hashedPassword, admin: false });
+    await connectToMockServer(page, { userName: 'lightuser', password: hashedPassword, admin: false });
     
     // The Kitchen group should be visible and NOT disabled
     const kitchenGroup = page.locator('.item.group:has(h2:text("Kitchen"))');
@@ -198,7 +198,7 @@ test.describe('User Permissions', () => {
     await connectToMockServer(page, { admin: true });
     
     await page.getByRole('heading', { name: 'Users' }).getByRole('img', { name: 'create' }).click();
-    await page.locator('input[placeholder="Username"]').fill('reverttest');
+    await page.locator('input[placeholder="UserName"]').fill('reverttest');
     await page.locator('input[type="password"]').fill('revertpass');
     
     // Give permission to Kitchen group only (NOT Living Room)
@@ -210,7 +210,7 @@ test.describe('User Permissions', () => {
     const hashedPassword = await hashPassword(page, 'revertpass');
     
     // Connect as limited user
-    await connectToMockServer(page, { username: 'reverttest', password: hashedPassword, admin: false });
+    await connectToMockServer(page, { userName: 'reverttest', password: hashedPassword, admin: false });
     
     // Wait for devices to load by checking for groups on the main page
     await expect(page.locator('.item.group').first()).toBeVisible({ timeout: 5000 });

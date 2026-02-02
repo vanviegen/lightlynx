@@ -47,7 +47,7 @@ npm run start-mock
 
 This starts both a mock Zigbee2MQTT server and Vite dev server on random ports, and outputs a direct connection URL. The servers listen on all network interfaces, making them accessible from other devices.
 
-The mock server runs without TLS (`MOCK_Z2M_INSECURE=true`), and the frontend automatically uses `ws://` instead of `wss://` when loaded over HTTP.
+The mock server runs without TLS (`LIGHTLYNX_INSECURE=true`), and the frontend automatically uses `ws://` instead of `wss://` when loaded over HTTP.
 
 ### Testing
 

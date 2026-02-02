@@ -15,7 +15,7 @@
     "deploy:cert": "npm run build:cert && dotenv -- bash -c 'node scripts/deploy-bunny-script.cjs $BUNNY_SSL_SCRIPT_ID $BUNNY_ACCESS_KEY build.backend/cert.js'",
     "deploy": "npm run build && dotenv -- bash -c 'rclone sync build.frontend/ :sftp,host=$DEPLOY_HOST,user=$DEPLOY_USER,pass=$DEPLOY_PASS_OBSCURED,key_use_agent=false:/ --progress --inplace --sftp-shell-type=none' && npm run deploy:cert && npm run deploy:purge-cdn",
     "test": "rm -rf tests-out/* && playwright test",
-    "mock-z2m": "MOCK_Z2M_PORT=43598 MOCK_Z2M_INSECURE=true npm run build:extension && node --experimental-strip-types src/mock-z2m.ts",
+    "mock-z2m": "LIGHTLYNX_PORT=43598 LIGHTLYNX_INSECURE=true npm run build:extension && node --experimental-strip-types src/mock-z2m.ts",
     "mock": "node scripts/mock.mjs"
   },
   "author": "Frank van Viegen",

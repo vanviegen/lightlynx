@@ -254,19 +254,12 @@ export function drawSceneEditor(group: Group, groupId: number): void {
 	async function save(e: Event): Promise<void> {
 		e.stopPropagation();
 		if (!await askConfirm(`Are you sure you want to overwrite the '${scene.name}' scene for group '${group.name}' with the current light state?`)) return;
-		api.send(group.name, "set", {scene_store: {ID: scene.id, name: scene.name}});
-
-		// Also store any off-states into the scene (for some reason that doesn't happen by default)
-		for(let ieee of group.members) {
-			if (!api.store.devices[ieee]?.lightState?.on) {
-				api.send(ieee, "set", {scene_add: {ID: scene.id, group_id: groupId, name: scene.name, state: "OFF"}});
-			}
-		}
+		api.send("scene", groupId, "store", {ID: scene.id, name: scene.name});
 	}
 	async function remove(e: Event): Promise<void> {
 		e.stopPropagation();
 		if (!await askConfirm(`Are you sure you want to delete the '${scene.name}' scene for group '${group.name}'?`)) return;
-		api.send(group.name, "set", {scene_remove: scene.id});
+		api.send("scene", groupId, "remove", scene.id);
 	}
 	$('div.list', () => {
 		$('div.item.link', icons.save, '#Overwrite scene with current state', 'click=', save);
@@ -288,7 +281,7 @@ export function drawSceneEditor(group: Group, groupId: number): void {
 
         newName.value = `${sceneState.shortName}${newSuffix ? ` (${newSuffix})` : ''}`;
         return function() {
-            api.send(group.name, "set", {scene_rename: {ID: scene.id, name: newName.value}});
+            api.send("scene", groupId, "rename", {ID: scene.id, name: newName.value});
         }
     });
 

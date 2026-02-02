@@ -1,4 +1,4 @@
-import { $, proxy, peek, derive, onEach, insertCss } from 'aberdeen';
+import { $, proxy, derive, onEach, insertCss } from 'aberdeen';
 import * as route from 'aberdeen/route';
 import api from '../api';
 import { ServerCredentials } from '../types';
@@ -19,27 +19,25 @@ export function drawConnectionPage(): void {
     routeState.title = 'Z2M Connection'
 
     // When this page is opened, we should disconnect
-    if (peek(() => api.store.servers[0]?.status === 'enabled')) {
-        api.store.servers[0]!.status = 'disabled';
-    }
+    api.connection.mode = 'disabled';
 
     // Navigate away on successful connection
     $(() => {
-        if (api.store.servers[0]?.status === 'enabled') {
+        if (api.connection.mode === 'enabled') {
             route.back('/');
         }
     });
 
     const selectedIndex = proxy(0);
     $(() => {
-        if (selectedIndex.value > api.store.servers.length) {
-            selectedIndex.value = api.store.servers.length;
+        if (selectedIndex.value > api.servers.length) {
+            selectedIndex.value = api.servers.length;
         }
     })
 
     // Show setup instructions for first-time users
     $(() => {
-        if (api.store.servers.length === 0) {
+        if (api.servers.length === 0) {
             $('div', setupInstructionsStyle, () => {
                 $('h3#First time? Install the extension:');
                 $('ol', () => {
@@ -61,23 +59,23 @@ export function drawConnectionPage(): void {
 
     $('h1#Select a connection');
     $('div m:$3 div.list', () => {
-        onEach(api.store.servers, (server: ServerCredentials, index: number) => {
-            const name = `${server.username}@${server.localAddress}`;
+        onEach(api.servers, (server: ServerCredentials, index: number) => {
+            const name = `${server.userName}@${server.localAddress}`;
             if (isEqual(index, selectedIndex.value)) {
                 $('div.item fg:$primary text=', name);
             } else {
                 $('div.item.link text=', name, 'click=', () => {
-                    delete api.store.lastConnectError;
+                    delete api.connection.lastError;
                     selectedIndex.value = index;
                 });
             }
         });
-        if (isEqual(selectedIndex.value, api.store.servers.length)) {
+        if (isEqual(selectedIndex.value, api.servers.length)) {
             $('div.item fg:$primary text="New connection..."');
         } else {
             $('div.item.link text="New connection..." click=', () => {
-                delete api.store.lastConnectError;
-                selectedIndex.value = api.store.servers.length;
+                delete api.connection.lastError;
+                selectedIndex.value = api.servers.length;
             });
         }
     });
@@ -91,16 +89,16 @@ export function drawConnectionPage(): void {
 
 function drawConnectionDetails(selectedIndex: { value: number }): void {
     const index = selectedIndex.value;
-    const orgServer: Partial<ServerCredentials> = api.store.servers[index] || {};
+    const orgServer: Partial<ServerCredentials> = api.servers[index] || {};
     
     const localAddress = proxy(orgServer.localAddress || '');
-    const username = proxy(orgServer.username || 'admin');
+    const userName = proxy(orgServer.userName || 'admin');
     const password = proxy(orgServer.secret || '');
 
     // Show connection errors
     $(() => {
-        if (api.store.lastConnectError) {
-            $('div', errorMessageStyle, '#', api.store.lastConnectError);
+        if (api.connection.lastError) {
+            $('div', errorMessageStyle, '#', api.connection.lastError + " Please check the server address and port.");
         }
     });
 
@@ -108,20 +106,21 @@ function drawConnectionDetails(selectedIndex: { value: number }): void {
         e.preventDefault();
         // Remove the existing server entry (if it exists), and shift the new/edited server to the front,
         // and change selectedIndex such that we'll keep editing it.
-        api.store.servers.splice(index, 1);
+        api.servers.splice(index, 1);
         selectedIndex.value = 0;
-        api.store.servers.unshift({
+        api.servers.unshift({
             localAddress: localAddress.value,
-            username: username.value,
+            userName: userName.value,
             secret: await hashSecret(password.value),
             externalAddress: localAddress.value !== orgServer.localAddress ? undefined : orgServer.externalAddress,
-            status: 'try'
         });
+        api.connection.mode = 'try';
+        api.connection.attempts = 0;
     }
 
     async function handleDelete(): Promise<void> {
         if (await askConfirm('Are you sure you want to remove these credentials?')) {
-            api.store.servers.shift();
+            api.servers.shift();
             route.back('/');
         }
     }
@@ -132,20 +131,20 @@ function drawConnectionDetails(selectedIndex: { value: number }): void {
             $('input placeholder="e.g. 192.168.1.5[:port]" required=', true, 'bind=', localAddress);
         });
         $('div.field', () => {
-            $('label#Username');
-            $('input required=', true, 'bind=', username);
+            $('label#UserName');
+            $('input required=', true, 'bind=', userName);
         });
         $('div.field', () => {
             $('label#Secret');
             $('input type=password bind=', password, 'placeholder=', 'Password or hash or empty');
         });
         $('div.button-row', () => {
-            if (index < api.store.servers.length) $('button.danger type=button text=Logout click=', handleDelete);
+            if (index < api.servers.length) $('button.danger type=button text=Logout click=', handleDelete);
             $('button.secondary type=button text=Cancel click=', () => route.back('/'));
-            $('button.primary type=submit text=Connect .busy=', derive(() => orgServer.status && orgServer.status !== 'disabled'));
+            $('button.primary type=submit text=Connect .busy=', derive(() => api.connection.mode !== 'disabled'));
         });
         $('small.link text-align:right text="Copy direct-connect URL" click=', async () => {
-            let url = `${location.protocol}//${location.host}/?host=${encodeURIComponent(localAddress.value)}&username=${encodeURIComponent(username.value)}`;
+            let url = `${location.protocol}//${location.host}/?host=${encodeURIComponent(localAddress.value)}&userName=${encodeURIComponent(userName.value)}`;
             const secret = await hashSecret(password.value);
             if (secret) url += `&secret=${encodeURIComponent(secret)}`;
             copyToClipboard(url, 'URL');

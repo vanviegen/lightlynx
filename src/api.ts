@@ -1,54 +1,16 @@
-import { $, proxy, clone, copy, unproxy, peek } from "aberdeen";
+import { $, proxy, clone, copy, unproxy, peek, merge, onEach } from "aberdeen";
 import { applyPrediction, applyCanon } from "aberdeen/prediction";
 import * as route from "aberdeen/route";
-import * as colors from "./colors";
-import { LightState, XYColor, HSColor, ColorValue, isHS, isXY, Store, LightCaps, Device, Group } from "./types";
+import { isHS, tailorLightState }  from "./colors";
+import { LightState, LightCaps, ServerCredentials, Config, GroupWithDerives, ClientState, User } from "./types";
+import { applyDelta } from "./json-merge-patch";
 
-const CREDENTIALS_LOCAL_STORAGE_ITEM_NAME = "lightlynx-servers";
-
-// Inlined by Vite from build.frontend/extensions/versions.json
-declare const __EXTENSION_HASH__: string;
-let EXTENSION_HASH: string = typeof __EXTENSION_HASH__ !== 'undefined' ? __EXTENSION_HASH__ : '';
-
-// In dev mode, fetch hash dynamically
-if (import.meta.env.DEV) {
-    fetch('/extension.hash')
-        .then(r => r.text())
-        .then(hash => {
-            EXTENSION_HASH = hash || '';
-            console.log('Extension hash loaded:', EXTENSION_HASH);
-        })
-        .catch(err => console.error('Failed to load extension hash:', err));
-}
+const REQUIRED_EXTENSION_VERSION = 1;
+const RECOMMENDED_EXTENSION_VERSION = 1;
 
 interface PromiseCallbacks {
-    resolve: () => void;
+    resolve: (result: any) => void;
     reject: (err: Error) => void;
-}
-
-interface LightStateDelta {
-    state?: 'ON' | 'OFF';
-    brightness?: number;
-    color?: { hue: number; saturation: number } | XYColor;
-    color_temp?: number;
-    transition?: number;
-}
-
-function objectIsEmpty(obj: object): boolean {
-    for(let _ in obj) return false;
-    return true;
-}
-
-function colorsEqual(a?: ColorValue, b?: ColorValue): boolean {
-    if (a === b) return true;
-    if (!a || !b) return false;
-    if (isHS(a) && isHS(b)) {
-        return a.hue === b.hue && a.saturation === b.saturation;
-    }
-    if (isXY(a) && isXY(b)) {
-        return a.x === b.x && a.y === b.y;
-    }
-    return false;
 }
 
 function ipToHexDomain(ip: string): string {
@@ -59,295 +21,244 @@ function ipToHexDomain(ip: string): string {
     return `x${hex}.lightlynx.eu`;
 }
 
-function createLightStateDelta(o: LightState, n: LightState): LightStateDelta {
-    let delta: LightStateDelta = {};
-    if (n.on != null && o.on !== n.on) {
-        delta.state = n.on ? 'ON' : 'OFF';
-    }
-    if (n.brightness != null && o.brightness !== n.brightness) {
-        delta.brightness = n.brightness;
-    }
-    if (n.color != null && !colorsEqual(n.color, o.color)) {
-        if (isHS(n.color)) {
-            delta.color = { hue: Math.round(n.color.hue), saturation: Math.round(n.color.saturation * 100) };
-        } else if (isXY(n.color)) {
-            delta.color = n.color;
-        } else {
-            delta.color_temp = n.color as number;
-        }
-    }
-    return delta;
-}
-
-function tailorLightState(from: LightState, cap: any): LightState {
-    let to: LightState = {};
-
-    if (from.on != null) {
-        to.on = from.on;
-    }
-
-    if (isHS(from.color)) {
-        if (cap.colorHs) {
-            to.color = from.color;
-        }
-        else if (cap.colorXy) {
-            to.color = colors.hsToXy(from.color as HSColor);
-        }
-    }
-    else if (typeof from.color === 'number') {
-        if (cap.colorTemp) {
-            to.color = from.color;
-        }
-        else if (cap.colorHs) {
-            const hsColor = colors.miredsToHs(from.color);
-            to.color = hsColor;
-        }
-        else if (cap.colorXy) {
-            const hsColor = colors.miredsToHs(from.color);
-            to.color = colors.hsToXy(hsColor);
-        }
-    }
-    else if (isXY(from.color)) {
-        to.color = from.color;
-    }
-    if (typeof to.color === 'number') {
-        to.color = Math.min(cap.colorTemp.valueMax, Math.max(cap.colorTemp.valueMin, to.color));
-    }
-
-    if (from.brightness != null) {
-        if (cap.brightness) {
-            to.brightness = Math.min(cap.brightness.valueMax, Math.max(cap.brightness.valueMin, 1, from.brightness));
-        }
-    }
-    console.log('api/tailorLightState', 'from', from, 'to', to, 'cap', cap)
-
-    return to;
-}
-
-function setLocalStorage(key: string, value: any) {
-    localStorage.setItem(key, JSON.stringify(value));
-}
-
-function getLocalStorage(key: string): any {
-    const json = localStorage.getItem(key);
-    return json ? json && JSON.parse(json) : undefined;
+function createFreshStoreState() {
+    return {
+        lights: {},
+        toggles: {},
+        groups: {},
+        permitJoin: false,
+        config: {} as Config,
+        extensionVersion: 0,
+    };
 }
 
 class Api {
-    private socket?: WebSocket;
-    private tryingSockets: WebSocket[] = [];
-    private requests: Map<string, PromiseCallbacks> = new Map();
-    private transactionNumber = 1;
-    private transactionRndPrefix: string;
-    private nameToIeeeMap: Map<string, string> = new Map();
-    private currentConnectionKey: string | null = null;
-    private reconnectTimeout?: ReturnType<typeof setTimeout>;
-    private connectTimeout?: ReturnType<typeof setTimeout>;
-    private reconnectAttempts = 0;
+    private socket?: WebSocket; // Current active socket
 
-    store: Store = proxy({
-        devices: {},
-        groups: {},
-        permitJoin: false,
-        servers: getLocalStorage(CREDENTIALS_LOCAL_STORAGE_ITEM_NAME) || [],
-        connected: false,
-        connectionState: 'idle',
-        users: {},
-        activeScenes: {},
-        automationEnabled: false,
-        remoteAccessEnabled: false,
-        isAdmin: true, // Default to true until user data is loaded
-        allowedGroupIds: {},
-    });
-    groupDescriptionsCache: Record<string, string | undefined> = {};
+    private tryingSockets?: Set<WebSocket>; // One or two sockets trying to connect
+    
+    private awaitingTransactions: Map<number, PromiseCallbacks> = new Map();
+    private transactionCount = 0;
+
+    private connectTimeout?: ReturnType<typeof setTimeout>;
+
+    store: ClientState = proxy(createFreshStoreState());
+
+    servers: ServerCredentials[] = proxy([]); // Preserved to localStorage. servers[0] is the current server.
+
+    connection: {
+        mode: 'enabled' | 'disabled' | 'try';
+        state: "idle" | "connecting" | "initializing" | "connected" | "reconnecting";
+        lastError?: string;
+        attempts: number;
+    } = proxy({ mode: 'enabled', state: 'idle', attempts: 0 });
+
     notifyHandlers: Array<(type: 'error' | 'info' | 'warning', msg: string, channel?: string) => void> = [];
     
-    notify = (type: 'error' | 'info' | 'warning', msg: string): void => {
-        for (const handler of this.notifyHandlers) {
-            handler(type, msg, 'api');
-        }
-    };
-    
     constructor() {
-        this.transactionRndPrefix = (Math.random() + 1).toString(36).substring(2,7);
+        // Load server list
+        try {
+            const data = localStorage.getItem("lightlynx-servers");
+            if (data) copy(this.servers, JSON.parse(data));
+        } catch(e) {
+            console.error("Failed to load lightlynx-servers from localStorage:", e);
+        }
 
         // Load cached data from localStorage
-        for (const topic of ['bridge/devices', 'bridge/groups']) {
-            const data = localStorage.getItem(topic);
-            if (data) this.onMessage({ data } as MessageEvent);
+        try {
+            const data = localStorage.getItem("lightlynx-store");
+            if (data) merge(this.store, JSON.parse(data));
+        } catch(e) {
+            console.error("Failed to load lightlynx-store from localStorage:", e);
         }
+        
+        // Persist servers list to localStorage on changes
+        $(() => {
+            const json = JSON.stringify(this.servers);
+            setTimeout(() => {
+                localStorage.setItem("lightlynx-servers", json);
+            }, 250); // Delay- don't keep UI thread busy during events
+        });
+
+        // Persist store to localStorage on changes
+        $(() => {
+            const data = {
+                lights: this.cloneLightsWithoutState(),
+                toggles: clone(this.store.toggles),
+                groups: clone(this.store.groups),
+                config: clone(this.store.config),
+                me: this.store.me ? clone(this.store.me) : undefined,
+            };
+            setTimeout(() => {
+                localStorage.setItem("lightlynx-store", JSON.stringify(data));
+            }, 250); // Delay- don't keep UI thread busy during events
+        });
 
         // Auto-connect from URL parameters
         // As we're not in any scope, this peek shouldn't do anything, but just for clarity:
         peek(() => {
             const initialHost = route.current.search.host;
-            const initialUsername = route.current.search.username;
-            if (!initialHost || !initialUsername) return;
+            const initialUserName = route.current.search.userName;
+            if (!initialHost || !initialUserName) return;
             const initialSecret = route.current.search.secret;
 
-            console.log('Auto-connecting from URL parameters:', initialHost, initialUsername);
-            let server = this.store.servers.find(s => s.localAddress === initialHost && s.username === initialUsername);
+            console.log('Auto-connecting from URL parameters:', initialHost, initialUserName);
+            let server = this.servers.find(s => s.localAddress === initialHost && s.userName === initialUserName);
             if (server) {
                 if (initialSecret) server.secret = initialSecret;
-                const index = this.store.servers.indexOf(server);
+                const index = this.servers.indexOf(server);
                 if (index > 0) {
-                    this.store.servers.splice(index, 1);
-                    this.store.servers.unshift(server);
+                    this.servers.splice(index, 1);
+                    this.servers.unshift(server);
                 }
             } else {
-                this.store.servers.unshift({localAddress: initialHost, username: initialUsername, secret: initialSecret || '', status: 'try'});
+                this.servers.unshift({localAddress: initialHost, userName: initialUserName, secret: initialSecret || ''});
+                this.connection.mode = 'enabled';
             }
             // Remove from the route
             delete route.current.search.host;
-            delete route.current.search.username;
+            delete route.current.search.userName;
             delete route.current.search.secret;
         });
-        
-        // Persist servers list to localStorage on changes
+                
+        // Flush store when changing server
+        let prevLocalAddress = peek(() => this.servers[0]?.localAddress);
         $(() => {
-            setLocalStorage(CREDENTIALS_LOCAL_STORAGE_ITEM_NAME, this.store.servers);
-        });
-        
-        // Reactively update isAdmin and allowedGroupIds based on current user
-        $(() => {
-            const username = this.store.servers[0]?.username;
-            const user = username ? this.store.users[username] : undefined;
-            this.store.isAdmin = !user || user.isAdmin;
-            const newAllowed: Record<number, true> = {};
-            if (user && !user.isAdmin) {
-                for (const gid of user.allowedGroups) {
-                    newAllowed[gid] = true;
-                }
+            if (this.servers[0]?.localAddress !== prevLocalAddress) {
+                prevLocalAddress = this.servers[0]?.localAddress;
+                copy(this.store, createFreshStoreState());
             }
-            copy(this.store.allowedGroupIds, newAllowed);
-        });
-        
-        // Reactive connection management
-        $(() => {
-            const server = this.store.servers[0];
-            
-            // Compute the wanted connection key (null = no connection wanted)
-            // Reading localAddress/username/secret subscribes to credential changes
-            // Reading status subscribes to disabled state - but try→enabled change 
-            // still computes the same key, so no reconnect happens
-            const wantedKey = server && server.status !== 'disabled'
-                ? `${server.localAddress}|${server.username}|${server.secret}`
-                : null;
-            
+        })
 
-            
-            // Only act if the target changed
-            if (wantedKey === this.currentConnectionKey) return;
-            
-            // Switching connections - flush cache if we had a previous one
-            if (this.currentConnectionKey) {
-                this.flushCache();
-            }
-            this.currentConnectionKey = wantedKey;
+        // Connect and disconnect/reconnect as servers[0] changes
+        $(() => {
+            const server = this.servers[0];
             this.disconnect();
             
-            if (wantedKey && server) {
-                // Extract values using peek() to avoid subscribing to externalAddress
+            if (server && this.connection.mode !== 'disabled') {
+                // Whenever connection.attempts changes, try to connect again
+                this.connection.attempts;
                 this.connect({
                     localAddress: server.localAddress,
-                    externalAddress: peek(server, 'externalAddress'),
-                    username: server.username,
+                    externalAddress: peek(server, 'externalAddress'), // Don't trigger reconnect when this changes
+                    userName: server.userName,
                     secret: server.secret,
                 });
             }
         });
+
+        $(() => {
+            onEach(this.store.groups, this.deriveGroupLightState.bind(this));
+        })
     }
+
+    private cloneLightsWithoutState() {
+        const result: Record<string, any> = {};
+        for (const [ieee, light] of Object.entries(this.store.lights)) {
+            result[ieee] = {
+                name: light.name,
+                description: light.description,
+                model: light.model,
+                meta: clone(light.meta),
+                lightCaps: clone(light.lightCaps),
+            }
+        }
+        return result;
+    }
+
+    notify(type: 'error' | 'info' | 'warning', msg: string) {
+        for (const handler of this.notifyHandlers) {
+            handler(type, msg, 'api');
+        }
+    };    
 
     private disconnect(): void {
-        if (!this.socket && this.tryingSockets.length === 0 && !this.reconnectTimeout) return;
-        console.log("api/disconnect");
-        
-        clearTimeout(this.reconnectTimeout);
         clearTimeout(this.connectTimeout);
-        this.reconnectTimeout = undefined;
         this.connectTimeout = undefined;
+
+        const sockets = this.tryingSockets;
+        if (sockets) {
+            this.tryingSockets = undefined;
+            for(const socket of sockets) {
+                socket.close();
+            }
+        }
         
-        this.socket?.close();
-        this.socket = undefined;
-        for (const s of this.tryingSockets) s.close();
-        this.tryingSockets = [];
+        const socket = this.socket;
+        if (socket) {
+            this.socket = undefined;
+            socket.close();
+        }
         
-        this.store.connectionState = 'idle';
-        this.store.connected = false;
+        this.connection.state = 'idle';
     }
 
-    private connect(creds: { localAddress: string; externalAddress?: string; username?: string; secret?: string }): void {
+    private connect(creds: { localAddress: string; externalAddress?: string; userName?: string; secret?: string }): void {
         console.log("api/connect", creds.localAddress);
         
-        this.store.connectionState = 'connecting';
+        this.connection.state = 'connecting';
         
         // Timeout for connection attempt
         this.connectTimeout = setTimeout(() => {
-            this.handleConnectionFailure("Connection timed out. Please check the server address and port.");
+            this.handleConnectionFailure("Connection timed out.");
         }, 4000);
 
-        // Build connection URLs (try both local and external if available)
-        const connections: { hostname: string, port: number }[] = [];
-        const [localHost, serverPort] = creds.localAddress.split(':');
-        connections.push({ hostname: ipToHexDomain(localHost!), port: parseInt(serverPort || '43597') });
-        
-        if (creds.externalAddress) {
-            const [externalHost, externalPort] = creds.externalAddress.split(':');
-            connections.push({ hostname: ipToHexDomain(externalHost!), port: parseInt(externalPort || '43597') });
-        }
+        this.tryingSockets = new Set();
+        for (const addr of [creds.localAddress, creds.externalAddress]) {
+            if (!addr) continue;
+            const hostname = ipToHexDomain(addr.split(':')[0]!);
+            const port = parseInt(addr.split(':')[1] || '43597');
 
-        for (const { hostname, port } of connections) {
             // Use ws:// if page loaded over http://, otherwise wss://
             const protocol = location.protocol === 'http:' ? 'ws' : 'wss';
             const url = new URL(`${protocol}://${hostname}:${port}/api`);
-            url.searchParams.append("lightlynx", "1");
-            if (creds.username) {
-                url.searchParams.append("user", creds.username);
+            if (creds.userName) {
+                url.searchParams.append("user", creds.userName);
                 url.searchParams.append("secret", creds.secret || '');
             }
             const socket = new WebSocket(url.toString(), ["lightlynx"]);
-            this.tryingSockets.push(socket);
+            this.tryingSockets.add(socket);
+
+            const close = (reason: string) => {
+                if (this.socket === socket) {
+                    // Our active socket closed/errored
+                    this.handleConnectionFailure(reason);
+                } else if (this.tryingSockets?.has(socket)) {
+                    this.tryingSockets.delete(socket);
+                    if (this.tryingSockets.size === 0 && !this.socket) {
+                        this.handleConnectionFailure(reason);
+                    }
+                }
+            }
+            
+            socket.addEventListener("close", (e) => {
+                console.log("api/onClose", socket.url, e.code, e.reason);
+                close("Connection lost.");
+            });
             
             socket.addEventListener("error", (e) => {
-                console.error("WebSocket error", e);
+                console.error("api/onError", socket.url, e);
+                close(`Connection error: ${e}.`);
             });
             
             socket.addEventListener("open", () => {
                 if (this.socket) {
-                    socket.close();  // Already have a winner
+                    if (socket !== this.socket) socket.close();  // Already have a winner
                     return;
                 }
                 console.log("api/onOpen", socket.url);
                 
                 this.socket = socket;
-                for (const s of this.tryingSockets) {
-                    if (s !== socket) s.close();
-                }
-                this.tryingSockets = [];
-                this.store.connectionState = 'authenticating';
-                if (this.reconnectTimeout) {
-                    clearTimeout(this.reconnectTimeout);
-                    this.reconnectTimeout = undefined;
-                }
-            });
-            
-            socket.addEventListener("close", (e) => {
-                console.log("api/onClose", socket.url, e.code, e.reason);
-                
-                if (this.socket === socket) {
-                    // Our active socket closed
-                    this.socket = undefined;
-                    this.handleConnectionFailure("Connection lost.");
-                } else {
-                    // One of the racing sockets failed
-                    const index = this.tryingSockets.indexOf(socket);
-                    if (index !== -1) {
-                        this.tryingSockets.splice(index, 1);
-                        if (this.tryingSockets.length === 0 && !this.socket) {
-                            this.handleConnectionFailure("Connection failed. Please check the server address.");
-                        }
+
+                if (this.tryingSockets) {
+                    for (const s of this.tryingSockets) {
+                        if (s !== socket) s.close();
                     }
+                    this.tryingSockets = undefined;
                 }
+                this.connection.state = 'initializing';
+                clearTimeout(this.connectTimeout);
+                this.connectTimeout = undefined;
             });
             
             socket.addEventListener("message", this.onMessage);
@@ -356,144 +267,70 @@ class Api {
     }
     
     private handleConnectionFailure(errorMessage: string): void {
-        if (this.socket && this.store.connected) {
-            return;
-        }
         console.log("api/connectionFailed", errorMessage);
-        clearTimeout(this.connectTimeout);
-        this.socket?.close();
-        this.socket = undefined;
-        for (const s of this.tryingSockets) s.close();
-        this.tryingSockets = [];
-        this.store.connected = false;
-        this.store.lastConnectError = errorMessage;
+        this.disconnect();
+        this.connection.lastError = errorMessage;
         
-        const server = this.store.servers[0];
-        if (server?.status === 'try') {
+        if (this.connection.mode === 'try') {
             // Single attempt mode: disable on failure
-            server.status = 'disabled';
-            this.store.connectionState = 'idle';
-        } else if (server?.status === 'enabled') {
+            this.connection.mode = 'disabled';
+            this.connection.state = 'idle';
+        } else if (this.connection.mode === 'enabled') {
             // Persistent mode: schedule retry with exponential backoff
-            const delay = Math.min(500 * Math.pow(2, this.reconnectAttempts++), 16000);
-            console.log(`api/scheduleReconnect in ${delay}ms (attempt ${this.reconnectAttempts})`);
-            this.store.connectionState = 'reconnecting';
-            // Extract credentials now (not in the timeout callback)
-            const creds = {
-                localAddress: server.localAddress,
-                externalAddress: server.externalAddress,
-                username: server.username,
-                secret: server.secret,
-            };
-            this.reconnectTimeout = setTimeout(() => {
-                this.reconnectTimeout = undefined;
-                if (this.store.servers[0]?.status === 'enabled') {
-                    this.connect(creds);
-                }
+            const delay = Math.min(500 * Math.pow(2, this.connection.attempts), 16000);
+            console.log(`api/scheduleReconnect in ${delay}ms (attempt ${this.connection.attempts + 1})`);
+            this.connection.state = 'reconnecting';
+            this.connectTimeout = setTimeout(() => {
+                this.connectTimeout = undefined;
+                this.connection.attempts++; // Cause reactive method in constructor to reconnect
             }, delay);
         } else {
-            this.store.connectionState = 'idle';
+            this.connection.state = 'idle';
         }
     }
 
-    private flushCache(): void {
-        console.log("api/flushCache");
-        localStorage.removeItem('bridge/devices');
-        localStorage.removeItem('bridge/groups');
-        copy(this.store.devices, {});
-        copy(this.store.groups, {});
-        copy(this.store.users, {});
-        this.nameToIeeeMap.clear();
-    }
-    
-    private extractHashFromExtension(extensionCode: string): string | undefined {
-        // Extract hash from first line comment like "// hash=d1474d1c"
-        const firstLine = extensionCode.split('\n')[0];
-        const match = firstLine?.match(/^\/\/\s+hash=([a-f0-9]{8})/);
-        return match ? match[1] : undefined;
-    }
-
-    public async checkAndUpgradeExtension(): Promise<void> {
-        if (!this.store.extensionHash) return; // No extension installed yet
-        if (EXTENSION_HASH && this.store.extensionHash !== EXTENSION_HASH) {
-            console.log(`Extension hash mismatch: installed=${this.store.extensionHash}, expected=${EXTENSION_HASH}`);
-            await this.upgradeExtension();
-        }
-    }
-
-    public async upgradeExtension(): Promise<void> {
-        try {
-            // Show "updating" toast on extension channel
-            this.notify('info', 'Updating extension...');
-            
-            const response = await fetch(`/extension.js`);
-            if (!response.ok) throw new Error(`HTTP ${response.status}`);
-            const code = await response.text();
-            
-            // Code already has hash comment prepended by build
-
-            await this.send("bridge", "request", "extension", "save", { name: 'lightlynx.js', code });
-            console.log(`Extension upgraded successfully (${EXTENSION_HASH})`);
-            this.notify('info', 'Extension upgraded successfully');
-        } catch (error) {
-            const message = error instanceof Error ? error.message : String(error);
-            console.error('Failed to upgrade extension:', message);
-            this.notify('error', `Failed to upgrade extension: ${message}`);
-        }
-    }
-    
-    private resolvePromises(payload: any): void {
-        const { transaction, status, error } = payload || {};
-        if (transaction !== undefined && this.requests.has(transaction)) {
-            const { resolve, reject } = this.requests.get(transaction)!;
-            (status === "ok" || status === undefined) ? resolve() : reject(new Error(error || 'Unknown error'));
-            this.requests.delete(transaction);
-        }
-    }
-    
-    send = async (...topicAndPayload: any[]): Promise<void> => {
-        let payload: any = topicAndPayload.pop();
-        let topic = topicAndPayload.join("/");
-        console.log("api/send", topic, JSON.stringify(payload).substr(0, 100));
+    async send(...commandAndArgs: any[]): Promise<void> {
+        console.log("api/send", commandAndArgs);
 
         if (!this.socket || this.socket.readyState !== WebSocket.OPEN) {
             console.warn("api/send - WebSocket not connected, message dropped");
             throw new Error("WebSocket not connected");
         }
 
-        if (topic.startsWith('bridge/request/')) {
-            const transaction = `${this.transactionRndPrefix}-${this.transactionNumber++}`;
-            payload = { ...payload, transaction };
-        }
-        this.socket.send(JSON.stringify({ topic, payload }));
-        if (payload.transaction) {
-            await new Promise<void>((resolve, reject) => {
-                this.requests.set(payload.transaction, { resolve, reject });
-            });
-        }
+        const id = ++this.transactionCount;
+        commandAndArgs.unshift(id);
+        this.socket.send(JSON.stringify(commandAndArgs));
+
+        await new Promise<void>((resolve, reject) => {
+            this.awaitingTransactions.set(id, { resolve, reject });
+            setTimeout(() => {
+                if (this.awaitingTransactions.has(id)) {
+                    this.awaitingTransactions.delete(id);
+                    reject(new Error("Request timed out"));
+                }
+            }, 5000);
+        });
     }
 
-    // ==================== Light State Management ====================
-    //
-    // Light state flows through three stages:
-    //
-    // 1. USER INPUT (setLightState)
-    //    - User changes light state via UI
-    //    - Immediately applies optimistic update via applyPrediction()
-    //    - Queues delta for transmission (rate-limited to 3/sec per device)
-    //    - Sets 3s timeout to revert prediction if server doesn't respond
-    //
-    // 2. TRANSMISSION (flushLightStateQueue)
-    //    - Sends queued deltas to Z2M at most 3 times per second
-    //    - Rate limiting prevents overwhelming slow Zigbee devices
-    //
-    // 3. SERVER RESPONSE (applyServerLightState)
-    //    - Receives authoritative state from Z2M
-    //    - Applies via applyCanon() which auto-reverts stale predictions
-    //    - If server confirms our change: no visible UI change
-    //    - If server rejected (permission denied): UI reverts to actual state
-    //
-    // ================================================================
+    recallScene(groupId: number, sceneId: number) {
+        api.send("scene", groupId, "recall", sceneId);
+
+        // Do a local prediction, that we'll keep around for 6s or until the server responds
+        const patch = applyPrediction(() => {
+            const group = api.store.groups[groupId];
+            if (!group) return;
+            const scene = group.scenes[sceneId];
+            if (!scene || !scene.lightStates) return;
+            for (const [ieee, lightState] of Object.entries(scene.lightStates)) {
+                const light = api.store.lights[ieee];
+                if (!light) continue;
+                copy(light.lightState, tailorLightState(lightState, light.lightCaps));
+            }
+        });
+        
+        // Revert prediction after 6s. (Usually, the prediction will be dropped earlier if the server responds with new values.)
+        setTimeout(() => applyCanon(undefined, [patch]), 6000);        
+    }
 
     /**
      * Request a light state change from user input.
@@ -502,418 +339,197 @@ class Api {
     setLightState(target: string | number, lightState: LightState) {
         console.log('api/setLightState', target, lightState);
 
-        if (typeof target === 'number') {
-            const group = this.store.groups[target];
-            if (!group) return;
-            if (lightState.on != null && Object.keys(lightState).length === 1) {
-                // Just an on/off toggle, emit it to the group directly
-                this.send(group.name, "set", createLightStateDelta({}, lightState));
+        // Do a local prediction, that we'll keep around for 3s or until the server responds
+        // with any conflicting or affirming state.
+        const patch = applyPrediction(() => {
+            if (typeof target === 'number') {
+                // A group
+                const group = this.store.groups[target];
+                if (!group) return;
+                for(const ieee of group.lightIds) {
+                    const light = this.store.lights[ieee];
+                    if (!light) continue;
+                    copy(light.lightState, tailorLightState(lightState, light.lightCaps));
+                }
             } else {
-                // Other params changing - customize per member for accurate predictions
-                for (let ieee of this.store.groups[target]?.members || []) {
-                    this.setLightState(ieee, lightState);
-                }
-            }
-            return;
-        }
-
-        const dev = this.store.devices[target];
-        if (!dev?.lightCaps) {
-            console.log('api/setLightState unknown device', target);
-            return;
-        }
-        
-        lightState = tailorLightState(lightState, dev.lightCaps);
-        const delta = createLightStateDelta(dev.lightState || {}, lightState);
-        
-        if (!objectIsEmpty(delta)) {
-            // Optimistic update: show change immediately, revert if server disagrees
-            const patch = applyPrediction(() => {
-                console.log('api/applyPrediction', target, lightState);
-                if (dev.lightState) copy(dev.lightState, lightState);
-                else dev.lightState = lightState;
-            });
-            
-            // Revert prediction after 3s. (Usually, the prediction will be dropped earlier if the server responds with new values.)
-            setTimeout(() => applyCanon(undefined, [patch]), 3000);
-            
-            // Queue for rate-limited transmission
-            this.queueLightStateDelta(target, delta);
-        }
-    }
-
-    /** Pending deltas waiting to be sent, keyed by device ieee */
-    private pendingLightDeltas: Map<string, LightStateDelta> = new Map();
-    /** Timers for rate-limited transmission, keyed by device ieee */
-    private lightDeltaTimers: Map<string, ReturnType<typeof setTimeout>> = new Map();
-
-    /** Queue a delta for rate-limited transmission to Z2M */
-    private queueLightStateDelta(ieee: string, delta: LightStateDelta) {
-        let pending = this.pendingLightDeltas.get(ieee);
-        if (pending != null) {
-            // Already have a pending delta - merge this one into it
-            copy(pending, delta);
-        } else {
-            // Start new queue and schedule immediate flush
-            this.pendingLightDeltas.set(ieee, delta);
-            this.lightDeltaTimers.set(ieee, setTimeout(() => this.flushLightStateQueue(ieee), 0));
-        }
-    }
-
-    /** Send queued delta to Z2M and schedule next flush if more changes arrive */
-    private flushLightStateQueue(ieee: string) {
-        let delta = this.pendingLightDeltas.get(ieee);
-        if (delta && !objectIsEmpty(delta)) {
-            console.log('api/flushLightStateQueue', ieee, delta);
-            delta.transition = 0.333;
-            this.send(ieee, "set", delta);
-
-            // Reset queue and schedule next flush in 333ms (max 3/sec)
-            this.pendingLightDeltas.set(ieee, {});
-            this.lightDeltaTimers.set(ieee, setTimeout(() => this.flushLightStateQueue(ieee), 333));
-        } else {
-            // Queue empty - clean up
-            this.pendingLightDeltas.delete(ieee);
-            this.lightDeltaTimers.delete(ieee);
-        }
-    }
-
-    /**
-     * Apply authoritative light state from Z2M server.
-     * Auto-reverts any conflicting predictions from optimistic updates.
-     */
-    private applyServerLightState(ieee: string, payload: any) {
-        let lightState: LightState = {
-            on: payload.state === 'ON',
-            brightness: payload.brightness,
-            color: undefined,
-        };
-        if (payload.color_mode === 'color_temp') {
-            lightState.color = payload.color_temp;
-        } else if (payload.color?.hue) {
-            lightState.color = { hue: payload.color.hue, saturation: payload.color.saturation / 100 };
-        } else if (payload.color?.x) {
-            lightState.color = payload.color;
-        }
-
-        applyCanon(() => {
-            const dev = this.store.devices[ieee];
-            if (dev) {
-                dev.lightState ||= {};
-                copy(dev.lightState, lightState);
+                // A single light
+                const light = this.store.lights[target];
+                if (!light) return;
+                copy(light.lightState, tailorLightState(lightState, light.lightCaps));
             }
         });
+        
+        // Revert prediction after 3s. (Usually, the prediction will be dropped earlier if the server responds with new values.)
+        setTimeout(() => applyCanon(undefined, [patch]), 3000);
+
+
+        // Send the state, but at most 3 times per second per target
+        const actuallySendState = () => {
+            const value = this.setLightStateObjects.get(target);
+            if (value) {
+                this.send('set-state', target, value);
+                this.setLightStateTimers.set(target, setTimeout(actuallySendState, 333));
+                this.setLightStateObjects.delete(target);
+            } else {
+                this.setLightStateTimers.delete(target);
+            }
+        }
+
+        const org = this.setLightStateObjects.get(target) || {};
+        this.setLightStateObjects.set(target, { ...org, ...lightState });
+
+        actuallySendState();
     }
 
-    /**
-     * Compute aggregate light state/caps for a group from its member devices.
-     * Sets up reactive subscription so group state updates when members change.
-     */
-    private streamGroupState(groupId: number) {
-        $(() => {
-            if (!unproxy(this.store).groups[groupId]) return;
-            const group = this.store.groups[groupId]!;
-            const members = group.members || [];
+    private setLightStateObjects: Map<string|number, LightState> = new Map();
+    private setLightStateTimers: Map<string|number, ReturnType<typeof setTimeout>> = new Map();
 
-            // Start with first member's state/caps as base
-            let groupState: LightState = {};
-            let groupCaps: LightCaps = {};
-            if (members.length) {
-                const ieee = members[0]!;
-                groupState = clone(this.store.devices[ieee]?.lightState || {});
-                groupCaps = clone(this.store.devices[ieee]?.lightCaps || {});
+    /**
+     * Compute aggregate light state/caps for a group based on its lights.
+     * This runs reactively from a onEach defined in the constructor.
+     */
+    private deriveGroupLightState(group: GroupWithDerives) {
+        let groupState: LightState | undefined;
+        let groupCaps: LightCaps | undefined;
+
+        for(const [lightIndex, lightId] of group.lightIds.entries()) {
+            const light = this.store.lights[lightId];
+            if (!light) continue;
+
+            if (!groupCaps || !groupState) { // Start by copying first member's caps/state
+                groupCaps = clone(light.lightCaps);
+                groupState = clone(light.lightState);
+                continue;
             }
 
-            for(let memberIndex = 1; memberIndex < members.length; memberIndex++) {
-                let ieee = members[memberIndex]!;
-
-                for(const [name,obj] of Object.entries(this.store.devices[ieee]?.lightCaps||{}) as [keyof LightCaps, any][]) {
-                    if (obj && typeof obj === 'object') {
-                        const cap = (groupCaps[name] ||= clone(obj));
-                        if (obj.valueMin != null && cap.valueMin != null) {
-                            cap.valueMin = Math.min(cap.valueMin, obj.valueMin);
-                            cap.valueMax = Math.max(cap.valueMax, obj.valueMax);
-                        }
-                    } else {
-                        // For booleans (supportsBrightness, etc), use OR (any member supports it)
-                        if (groupCaps[name] === undefined) groupCaps[name] = obj;
-                        else if (typeof obj === 'boolean') groupCaps[name] = groupCaps[name] || obj as any;
+            // Merge lightCaps into groupCaps
+            for(const [name,obj] of Object.entries(light.lightCaps||{}) as [keyof LightCaps, any][]) {
+                if (obj && typeof obj === 'object') {
+                    const cap = (groupCaps[name] ||= clone(obj));
+                    if (obj.valueMin != null && cap.valueMin != null) {
+                        cap.valueMin = Math.min(cap.valueMin, obj.valueMin);
+                        cap.valueMax = Math.max(cap.valueMax, obj.valueMax);
                     }
-                }
-                
-                let lightState: LightState = this.store.devices[ieee]?.lightState || {};
-                if (!lightState || !groupState) continue;
-
-                groupState.on = groupState.on || lightState.on;
-
-                if (typeof groupState.color === 'number' && typeof lightState.color === 'number' && Math.abs(groupState.color-lightState.color)<10) {
-                    // Color temp similar enough! Take the average.
-                    groupState.color = Math.round((groupState.color * memberIndex + lightState.color) / (memberIndex+1));
-                }
-                else if (isHS(groupState.color) && isHS(lightState.color) && Math.abs(lightState.color.hue-groupState.color.hue)<20 && Math.abs(lightState.color.saturation-groupState.color.saturation)<0.1) {
-                    // Hue/saturation are close enough! Take the average.
-                    groupState.color.hue = Math.round((groupState.color.hue * memberIndex + lightState.color.hue) / (memberIndex+1));
-                    groupState.color.saturation = Math.round((groupState.color.saturation * memberIndex + lightState.color.saturation) / (memberIndex+1));
                 } else {
-                    groupState.color = undefined;
-                }
-
-                if (groupState.brightness!==undefined && lightState.brightness!==undefined && Math.abs(groupState.brightness - lightState.brightness) < 0.2) {
-                    groupState.brightness = Math.round((groupState.brightness * memberIndex + lightState.brightness) / (memberIndex+1));
-                } else {
-                    groupState.brightness = undefined;
+                    // For booleans (supportsBrightness, etc), use OR (any member supports it)
+                    if (groupCaps[name] === undefined) groupCaps[name] = obj;
+                    else if (typeof obj === 'boolean') groupCaps[name] = groupCaps[name] || obj as any;
                 }
             }
-            // console.log('api/streamGroupState update', groupId, groupState);
-            if (groupState && group) {
-                group.lightState ||= {};
-                copy(group.lightState, groupState);
-                group.lightCaps ||= {};
-                copy(group.lightCaps, groupCaps);
+            
+            // Merge lightState into groupState
+            const lightState = light.lightState;
+            groupState.on = groupState.on || lightState.on;
+
+            if (typeof groupState.color === 'number' && typeof lightState.color === 'number' && Math.abs(groupState.color-lightState.color)<10) {
+                // Color temp similar enough! Take the average.
+                groupState.color = Math.round((groupState.color * lightIndex + lightState.color) / (lightIndex+1));
             }
-        });
+            else if (isHS(groupState.color) && isHS(lightState.color) && Math.abs(lightState.color.hue-groupState.color.hue)<20 && Math.abs(lightState.color.saturation-groupState.color.saturation)<0.1) {
+                // Hue/saturation are close enough! Take the average.
+                groupState.color.hue = Math.round((groupState.color.hue * lightIndex + lightState.color.hue) / (lightIndex+1));
+                groupState.color.saturation = Math.round((groupState.color.saturation * lightIndex + lightState.color.saturation) / (lightIndex+1));
+            } else {
+                groupState.color = undefined;
+            }
+
+            if (groupState.brightness!==undefined && lightState.brightness!==undefined && Math.abs(groupState.brightness - lightState.brightness) < 0.2) {
+                groupState.brightness = Math.round((groupState.brightness * lightIndex + lightState.brightness) / (lightIndex+1));
+            } else {
+                groupState.brightness = undefined;
+            }
+        }
+        copy(group, 'lightCaps', groupCaps);
+        copy(group, 'lightState', groupState);
+
+        // Subscribe to the lightCaps property we just set, so that in case a server patch
+        // somehow overwrites the entire Light, we will be triggered to recalculate.
+        group.lightCaps;
     }
-
-    // ==================== Public API Methods ====================
 
     setRemoteAccess(enabled: boolean): Promise<void> {
-        return this.send('bridge/request/lightlynx/config/setRemoteAccess', { enabled });
+        return this.send('patch-config', { allowRemote: enabled });
     }
 
     setAutomation(enabled: boolean): Promise<void> {
-        return this.send('bridge/request/lightlynx/config/setAutomation', { enabled });
+        return this.send('patch-config', { automationEnabled: enabled });
     }
 
     setLocation(latitude: number, longitude: number): Promise<void> {
-        return this.send('bridge/request/lightlynx/config/setLocation', { latitude, longitude });
+        return this.send('patch-config', { latitude, longitude });
     }
 
-    addUser(payload: any): Promise<void> {
-        return this.send('bridge/request/lightlynx/config/addUser', payload);
+    async patchConfig(patch: any): Promise<void> {
+        const prediction = applyPrediction(() => {
+            copy(this.store.config, patch);
+        })
+        await this.send('patch-config', patch);
+        applyCanon(undefined, [prediction]);
     }
 
-    updateUser(payload: any): Promise<void> {
-        return this.send('bridge/request/lightlynx/config/updateUser', payload);
+    updateUser(user: User): Promise<void> {
+        return this.send('patch-config', {users: {[user.name]: user}})
     }
 
-    deleteUser(username: string): Promise<void> {
-        return this.send('bridge/request/lightlynx/config/deleteUser', { username });
+    deleteUser(userName: string): Promise<void> {
+        return this.send('patch-config', {users: {[userName]: null}});
     }
 
     /**
      * Check if the current user can control a group (reactive)
      */
     canControlGroup(groupId: number): boolean {
-        return this.store.isAdmin || !!this.store.allowedGroupIds[groupId];
+        return this.store.me ? (this.store.me.isAdmin || this.store.me.allowedGroupIds.includes(groupId)) : false;
     }
 
     private onMessage = (event: MessageEvent): void => {
         const socket = event.target as WebSocket;
         if (socket && socket !== this.socket) return;
 
-        const message = JSON.parse(event.data);
-        let topic = message.topic;
-        let payload = message.payload;        
+        const args = JSON.parse(event.data);
+        const command = args.shift();
 
-        if (topic === 'bridge/lightlynx/connectError') {
-            this.handleConnectionFailure(payload.message);
-        } else if (this.store.connectionState === 'authenticating') {
-            // First message confirms authentication succeeded
-            console.log("api/onMessage - Authentication confirmed");
+        if (command === 'init' && this.connection.state === 'initializing') {
+            const [version, store] = args;
+            if (version < REQUIRED_EXTENSION_VERSION) {
+                this.handleConnectionFailure(`Light Lynx Zigbee2MQTT extension version ${version} is no longer supported. Please update!`);
+                return;
+            }
+            
+            // Connection established!
+            this.connection.state = 'connected';
+            delete this.connection.lastError;
+            if (this.connection.mode === 'try') {
+                this.connection.mode = 'enabled';
+            }
+            unproxy(this.connection).attempts = 0; // Don't trigger reconnect by changing this
             clearTimeout(this.connectTimeout);
             this.connectTimeout = undefined;
-            this.store.connected = true;
-            this.store.connectionState = 'connected';
-            delete this.store.lastConnectError;
-            this.reconnectAttempts = 0;
-            
-            // If status was 'try', upgrade to 'enabled' on success
-            const server = this.store.servers[0];
-            if (server?.status === 'try') {
-                server.status = 'enabled';
+
+            applyDelta(this.store, store);
+            if (this.store.me?.isAdmin && version < RECOMMENDED_EXTENSION_VERSION) {
+                this.notify('warning', `Light Lynx Zigbee2MQTT extension version ${version} is outdated. Please consider updating.`);
             }
         }
-        
-        if (!topic && message.transaction) {
-            this.resolvePromises(message);
-            return;
+        else if (command === 'reply') {
+            const [id, response, error] = args;
+
+            const promises = this.awaitingTransactions.get(id);
+            if (promises) {
+                if (error) {
+                    promises.reject(new Error(error));
+                } else {
+                    promises.resolve(response);
+                }
+                this.awaitingTransactions.delete(id);
+            }
         }
-
-        if (!topic) return;
-
-        if (topic === 'bridge/devices' || topic === 'bridge/groups') {
-            localStorage.setItem(topic, event.data);
+        else if (command === 'store-delta') {
+            const [delta] = args;
+            applyDelta(this.store, delta);
         }
-
-        if (topic.startsWith("bridge/")) {
-            topic = topic.substr(7);
-            if (topic.startsWith("response/")) {
-                if (payload.status === 'error') {
-                    this.notify('error', payload.error);
-                }
-                this.resolvePromises(payload);
-            }
-            else if (topic === "info") {
-                this.store.permitJoin = payload.permit_join;
-
-                // Unfortunately the 'description' field in groups is only updated on Z2M restart,
-                // so we'll have to rely on the "info" topic to set/update it.
-                for(const [id, info] of Object.entries(payload.config.groups as Record<string, {description: string | undefined}>)) {
-                    const group = this.store.groups[parseInt(id)];
-                    if (group) group.description = info.description;
-                    this.groupDescriptionsCache[id] = info.description;
-                }
-            }  
-            else if (topic === "extensions") {
-                // Extract hash from lightlynx.js extension
-                const lightlynxExt = (payload || []).find((e: any) => e.name === 'lightlynx.js');
-                if (lightlynxExt) {
-                    const hash = this.extractHashFromExtension(lightlynxExt.code);
-                    if (hash) {
-                        this.store.extensionHash = hash;
-                        console.log('Extension hash:', hash);
-                        this.checkAndUpgradeExtension();
-                    }
-                }
-            }
-            else if (topic === "lightlynx/users") {
-                copy(this.store.users, payload || {});
-            }
-            else if (topic === "lightlynx/config") {
-                this.store.remoteAccessEnabled = payload.remoteAccess;
-                this.store.automationEnabled = payload.automation;
-                this.store.latitude = payload.latitude;
-                this.store.longitude = payload.longitude;
-                this.store.localAddress = payload.localAddress;
-                this.store.externalAddress = payload.externalAddress;
-                
-                // Update server credentials with server-provided addresses
-                // This handles the case where the user connected via external IP
-                // and we now know the correct local IP
-                const server = this.store.servers[0];
-                if (server && this.store.connected) {
-                    if (payload.localAddress) {
-                        server.localAddress = payload.localAddress;
-                    }
-                    server.externalAddress = payload.externalAddress;
-                }
-            }
-            else if (topic === "lightlynx/sceneSet") {
-                // Merge incoming scene updates into activeScenes
-                for (const [groupName, sceneId] of Object.entries(payload)) {
-                    if (sceneId === undefined) {
-                        delete this.store.activeScenes[groupName];
-                    } else {
-                        this.store.activeScenes[groupName] = sceneId as number;
-                    }
-                }
-            }
-            else if (topic === "devices") {
-                let newDevs: Record<string, Device> = {};
-                for (let z2mDev of payload) {
-                    if (!z2mDev.definition) continue;
-                    const model = (z2mDev.definition.description || z2mDev.model_id) + " (" + (z2mDev.definition.vendor || z2mDev.manufacturer) + ")";
-                    let newDev : Device = {
-                        name: z2mDev.friendly_name,
-                        description: z2mDev.description,
-                        model,
-                    };
-                    for (let expose of z2mDev.definition.exposes) {
-                        if (expose.type === "light" || expose.type === "switch") {
-                            let features: any = {};
-                            for (let feature of (expose.features || [])) {
-                                features[feature.name] = {};
-                                if (feature.value_max !== undefined) {
-                                    features[feature.name].valueMin = feature.value_min;
-                                    features[feature.name].valueMax = feature.value_max;
-                                }
-                            }
-                            newDev.lightCaps = {
-                                supportsBrightness: !!features.brightness,
-                                supportsColor: !!(features.color_hs || features.color_xy),
-                                supportsColorTemp: !!features.color_temp,
-                                brightness: features.brightness,
-                                colorTemp: features.color_temp,
-                                colorHs: !!features.color_hs,
-                                colorXy: !!features.color_xy
-                            };
-                        }
-                        else if (expose.name === "action") {
-                            newDev.actions = expose.values;
-                        }
-                    }
-                    let ieee = z2mDev.ieee_address;
-                    const oldDev = this.store.devices[ieee];
-                    newDev.lightState = oldDev?.lightState;
-                    newDev.meta = oldDev?.meta;
-
-                    newDevs[ieee] = newDev;
-                    this.nameToIeeeMap.set(newDev.name, ieee);
-                }
-                copy(this.store.devices, newDevs);
-            }
-            else if (topic === "groups") {
-                let groups: Record<number, Group> = {};
-                let newGroupIds: Array<number> = [];
-                for (let z2mGroup of payload) {
-                    const id = z2mGroup.id;
-                    const oldGroup = this.store.groups[z2mGroup.id];
-                    const newGroup: Group = {
-                        name: z2mGroup.friendly_name,
-                        description: this.groupDescriptionsCache[z2mGroup.id],
-                        scenes: z2mGroup.scenes.map((obj: any) => {
-                            // Scenes use parentheses suffix for metadata (triggers, etc)
-                            let m = obj.name.match(/^(.*?)\s*\((.*)\)\s*$/)
-                            if (m)
-                                return {id: obj.id, name: obj.name, shortName: m[1], suffix: m[2]}
-                            return {id: obj.id, name: obj.name, shortName: obj.name, suffix: ''}
-                        }),
-                        members: z2mGroup.members.map((obj: any) => obj.ieee_address),
-                        lightState: oldGroup?.lightState || {},
-                        lightCaps: oldGroup?.lightCaps || {},
-                    };
-                    groups[id] = newGroup;
-                    if (!this.store.groups[id]) {
-                        newGroupIds.push(id);
-                    }
-                }
-                copy(this.store.groups, groups);
-                for(let groupId of newGroupIds) {
-                    this.streamGroupState(groupId);
-                }
-            }
-        } else {
-            if (topic.endsWith("/availability")) {
-                let deviceName = topic.substr(0,topic.length-13);
-                let ieee = this.nameToIeeeMap.get(deviceName);
-                if (ieee) {
-                    const dev = this.store.devices[ieee]!;
-                    dev.meta ||= {};
-                    dev.meta.online = payload.state==="online";
-                }
-            }
-            else { // A device state
-                let ieee = this.nameToIeeeMap.get(topic);
-                if (payload && ieee) {
-                    const dev = this.store.devices[ieee]!;
-                    if (payload.update) {
-                        payload.update = payload.update.state;
-                    }
-                    for(const key of ['battery', 'linkquality', 'update'] as const) {
-                        if (payload[key]!=null) {
-                            dev.meta ||= {};
-                            dev.meta[key] = payload[key];
-                            delete payload[key];
-                        }
-                    }
-                
-                    if (payload.state) {
-                        this.applyServerLightState(ieee, payload)
-                    } else {
-                        dev.otherState = payload;
-                    }
-                }
-            }
+        else {
+            console.warn("api/onMessage - unknown command:", command);
         }
     }
 }

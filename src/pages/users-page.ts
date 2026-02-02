@@ -1,4 +1,4 @@
-import { $, proxy, ref, onEach, isEmpty, clone, unproxy } from 'aberdeen';
+import { $, proxy, ref, onEach, isEmpty, clone, unproxy, derive } from 'aberdeen';
 import * as route from 'aberdeen/route';
 import api from '../api';
 import * as icons from '../icons';
@@ -9,14 +9,14 @@ import { createToast } from '../components/toasts';
 
 export function drawUsersSection(): void {
     $("h1#Users", () => {
-        icons.create('.link click=', () => route.go(['user', 'new']));
+        icons.create('.link click=', () => route.go(['user']));
     });
 
     $('div.list', () => {
-        onEach(api.store.users, (user, username) => {
-            $('div.item.link', 'click=', () => route.go(['user', username]), () => {
+        onEach(api.store.config.users, (user, userName) => {
+            $('div.item.link', 'click=', () => route.go(['user', userName]), () => {
                 (user.isAdmin ? icons.shield : icons.user)();
-                $('h2#', username);
+                $('h2#', userName);
                 if (!user.secret) $('span.badge.warning#No password');
                 else if (user.allowRemote) $('span.badge#Remote');
             });
@@ -25,61 +25,52 @@ export function drawUsersSection(): void {
 }
 
 export function drawUserEditor(): void {
+    if (!api.store.me?.isAdmin) return route.back();
     
-    const username = route.current.p[1]!;
-    const isNew = username === 'new';
-    const isAdminUser = username === 'admin';
-    
-    const storeUser = api.store.users[username];
-    const user = isNew ? proxy<User>({
-        isAdmin: false,
-        allowedGroups: [],
-        allowRemote: false, // Can't enable without password
-        secret: ''
-    }) : proxy(clone(unproxy(storeUser || {
-        isAdmin: true,
-        allowedGroups: [],
-        allowRemote: false,
-        secret: ''
-    })));
-    
-    const password = proxy(storeUser?.secret || '');
-    
-    const newUsername = proxy('');
+    const userName = route.current.p[1]!;
+    const existing = userName ? api.store.config.users[userName] : undefined;
 
+    const user = proxy<User>(
+        existing ? clone(unproxy(existing)) : {
+            name: userName || '',
+            isAdmin: false,
+            allowedGroupIds: [],
+            allowRemote: false, // Can't enable without password
+            secret: ''
+        }
+    );
+    
     $(() => {
-        routeState.title = isNew ? 'New User' : username;
+        routeState.title = existing ? userName : 'Add';
         routeState.subTitle = 'user';
     });
 
     $('h1#Settings');
     $('div.list', () => {
 
-        if (isNew) {
+        if (!existing) {
             $('div.item', () => {
-                $('h2.form-label#Username');
-                $('input bind=', newUsername, 'placeholder=Username');
+                $('h2.form-label#UserName');
+                $('input bind=', ref(user, 'name'), 'placeholder=UserName');
             });
         }
 
         $('div.item', () => {
             $('h2.form-label flex:0 #Password');
-            $('input flex:1 type=password bind=', password, 'placeholder=', 'Password or secret');
+            $('input flex:1 type=password bind=', ref(user, 'secret'), 'placeholder=', 'Password or secret');
         });
 
-        if (!isAdminUser) {
-            $('label.item', () => {
-                $('input type=checkbox bind=', ref(user, 'isAdmin'));
-                $('h2#Admin access');
-            });
-        }
+        $('label.item', () => {
+            $('input type=checkbox bind=', ref(user, 'isAdmin'));
+            $('h2#Admin access');
+        });
 
         $('label.item', () => {
             // Can only enable remote access if user has password
-            $('input type=checkbox bind=', ref(user, 'allowRemote'), 'disabled=', () => !password.value, 'title=', () => password.value ? '' : 'Set a password first to enable remote access');
+            $('input type=checkbox bind=', ref(user, 'allowRemote'), 'disabled=', derive(() => !user.secret), 'title=', derive(() => user.secret ? '' : 'Set a password first to enable remote access'));
             $('h2#Allow remote access');
             $(() => {
-                if (!password.value) $('p.muted#Requires password');
+                if (!user.secret) $('p.muted#Requires password');
             });
         });
     });
@@ -93,10 +84,10 @@ export function drawUserEditor(): void {
             onEach(api.store.groups, (group, groupId) => {
                 $('label.item', () => {
                     const gid = parseInt(groupId);
-                    const checked = user.allowedGroups.includes(gid);
+                    const checked = user.allowedGroupIds.includes(gid);
                     $('input type=checkbox', 'checked=', checked, 'change=', (e: any) => {
-                        if (e.target.checked) user.allowedGroups.push(gid);
-                        else user.allowedGroups = user.allowedGroups.filter((id: number) => id !== gid);
+                        if (e.target.checked) user.allowedGroupIds.push(gid);
+                        else user.allowedGroupIds = user.allowedGroupIds.filter((id: number) => id !== gid);
                     });
                     $('h2#', group.name);
                 });
@@ -108,10 +99,10 @@ export function drawUserEditor(): void {
     const busy = proxy(false);
     $('form div.button-row', () => {
 
-        if (!isNew && !isAdminUser) {
+        if (!existing && api.store.me?.name !== userName) {
             $('button.danger', icons.remove, '#Delete user', 'click=', async () => {
-                if (await askConfirm(`Are you sure you want to delete user '${username}'?`)) {
-                    await api.deleteUser(username);
+                if (await askConfirm(`Are you sure you want to delete user '${userName}'?`)) {
+                    await api.deleteUser(userName);
                     route.up();
                 }
             });
@@ -120,29 +111,14 @@ export function drawUserEditor(): void {
 
         $('button.secondary type=button text=Cancel click=', () => route.up());
         $('button.primary type=button .busy=', busy, 'text=Save click=', async () => {
-            busy.value = true;
-            try {
-                const finalUsername = isNew ? newUsername.value : username;
-                if (!finalUsername) throw new Error("Username required");
-                
-                const userPayload: any = {
-                    username: finalUsername,
-                    isAdmin: user.isAdmin,
-                    allowedGroups: [...user.allowedGroups],
-                    allowRemote: user.allowRemote,
-                    secret: await hashSecret(password.value),
-                };
-                
-                if (isNew) {
-                    await api.addUser(userPayload);
-                } else {
-                    await api.updateUser(userPayload);
-                }
-                route.up();
-            } catch (e: any) {
-                createToast('error', e.message || "Failed to save user");
-            } finally {
+            if (!user.name) {
+                createToast('error', 'User name is required');
+            } else {
+                busy.value = true;
+                user.secret = await hashSecret(user.secret);                
+                await api.updateUser(user);
                 busy.value = false;
+                route.up();
             }
         });
     });

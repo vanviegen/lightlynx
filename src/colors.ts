@@ -1,4 +1,4 @@
-import { XYColor, HSColor, isHS, isXY } from './types';
+import { XYColor, HSColor, LightState, LightCaps, Z2MLightDelta, ColorValue } from './types';
 
 export const CT_DEFAULT = 300;
 
@@ -147,3 +147,102 @@ export function toRgb(color: number | HSColor | XYColor | null | undefined, brig
     if (isXY(color)) return xyToRgb(color, brightness);
     return miredsToRgb((color as number) || CT_DEFAULT, brightness);
 }
+
+
+// Helper functions for color type checking
+export function isHS(color: any): color is HSColor {
+    return color && typeof color === 'object' && 'hue' in color;
+}
+
+export function isXY(color: any): color is XYColor {
+    return color && typeof color === 'object' && 'x' in color;
+}
+
+function colorsEqual(a?: ColorValue, b?: ColorValue): boolean {
+    if (a === b) return true;
+    if (!a || !b) return false;
+    if (isHS(a) && isHS(b)) {
+        return a.hue === b.hue && a.saturation === b.saturation;
+    }
+    if (isXY(a) && isXY(b)) {
+        return a.x === b.x && a.y === b.y;
+    }
+    return false;
+}
+
+export function createZ2MLightDelta(o: LightState, n: LightState): Z2MLightDelta {
+    let delta: Z2MLightDelta = {};
+    if (n.on != null && o.on !== n.on) {
+        delta.state = n.on ? 'ON' : 'OFF';
+    }
+    if (n.brightness != null && o.brightness !== n.brightness) {
+        delta.brightness = n.brightness;
+    }
+    if (n.color != null && !colorsEqual(n.color, o.color)) {
+        if (isHS(n.color)) {
+            delta.color = { hue: Math.round(n.color.hue), saturation: Math.round(n.color.saturation * 100) };
+        } else if (isXY(n.color)) {
+            delta.color = n.color;
+        } else {
+            delta.color_temp = n.color as number;
+        }
+    }
+    return delta;
+}
+
+/**
+ * Given a generic light state and a certain light's capability, return a light state that
+ * fits what the light can handle.
+ */
+export function tailorLightState(from: LightState, cap: LightCaps): LightState {
+    let to: LightState = {};
+
+    if (from.on != null) {
+        to.on = from.on;
+    }
+
+    if (isHS(from.color)) {
+        if (cap.colorHs) {
+            to.color = from.color;
+        }
+        else if (cap.colorXy) {
+            to.color = hsToXy(from.color as HSColor);
+        }
+    }
+    else if (typeof from.color === 'number') {
+        if (cap.colorTemp) {
+            to.color = from.color;
+        }
+        else if (cap.colorHs) {
+            const hsColor = miredsToHs(from.color);
+            to.color = hsColor;
+        }
+        else if (cap.colorXy) {
+            const hsColor = miredsToHs(from.color);
+            to.color = hsToXy(hsColor);
+        }
+    }
+    else if (isXY(from.color)) {
+        to.color = from.color;
+    }
+    if (cap.colorTemp && typeof to.color === 'number') {
+        to.color = Math.min(cap.colorTemp.valueMax, Math.max(cap.colorTemp.valueMin, to.color));
+    }
+
+    if (from.brightness != null) {
+        if (cap.brightness) {
+            to.brightness = Math.min(cap.brightness.valueMax, Math.max(cap.brightness.valueMin, 1, from.brightness));
+        }
+    }
+    // console.log('tailorLightState', 'from', from, 'to', to, 'cap', cap)
+
+    return to;
+}
+
+
+export const DEFAULT_TRIGGERS: Record<number|string, object> = {
+    1: {brightness: 150, color_temp: 365, state: 'ON'},
+    2: {brightness: 40, color_temp: 450, state: 'ON'},
+    3: {brightness: 254, color_temp: 225, state: 'ON'},
+    sensor: {brightness: 150, color_temp: 365, state: 'ON'},
+};

@@ -4,7 +4,7 @@ import * as route from 'aberdeen/route';
 import api from '../api';
 import * as icons from '../icons';
 import { drawColorPicker, drawBulbCircle } from '../components/color-picker';
-import { Device, Group } from '../types';
+import { Device, Group, Toggle } from '../types';
 import { routeState, admin, lazySave } from '../ui';
 import { askConfirm, askPrompt } from '../components/prompt';
 import { deviceGroups } from '../app';
@@ -21,11 +21,9 @@ export function drawDeviceItem(device: Device, ieee: string): void {
     });
 }
 
-// All non-light devices, partitioned group id (-1 for). {suffix: {ieee: Device}}
-const groupInputs = partition(api.store.devices, (device: Device, _ieee: string): number[] | undefined => {
-	if (device.lightCaps) return; // Ignore lights
-	return getGroupIdsFromDescription(device.description);
-});
+// All buttons and sensors, partitioned by group. {groupId: {ieee: Toggle}}. Toggles that belong to
+// no group are placed in '-1'.
+const togglesByGroup = partition(api.store.toggles, device => device.linkedGroupIds.length ? device.linkedGroupIds : -1);
 
 export function drawGroupPage(groupId: number): void {
     const optGroup = api.store.groups[groupId];
@@ -36,7 +34,7 @@ export function drawGroupPage(groupId: number): void {
     const group = optGroup;
     
     // Check if user has permission to access this group
-    if (!api.store.isAdmin && !api.store.allowedGroupIds[groupId]) {
+    if (!api.canControlGroup(groupId)) {
         $("div.empty#You don't have access to this group");
         return;
     }
@@ -50,8 +48,8 @@ export function drawGroupPage(groupId: number): void {
         if (!name) return
         
         let freeId = 0;
-        while(group.scenes.find(s => s.id === freeId)) freeId++;
-        api.send(group.name, "set", {scene_store: {ID: freeId, name}});
+        while(group.scenes[freeId]) freeId++;
+        api.send("scene", groupId, "store", {ID: freeId, name});
     }
     
     $(() => {
@@ -66,15 +64,15 @@ export function drawGroupPage(groupId: number): void {
     });
     
     $('div.list', () => {
-        onEach(group.scenes || [], (scene) => {
+        onEach(group.scenes || [], (scene, sceneId) => {
             function recall(): void {
-                api.send(group.name, "set", {scene_recall: scene.id});
+                api.recallScene(groupId, sceneId);
             }
-            const isActive = derive(() => api.store.activeScenes[group.name] == scene.id && group.lightState?.on);
+            const isActive = derive(() => group.activeSceneId == sceneId && group.lightState?.on);
             $('div.item.link click=', recall, '.active-scene=', isActive, () => {
-                let icon = icons.scenes[scene.shortName.toLowerCase()] || icons.empty;
+                let icon = icons.scenes[scene.name.toLowerCase()] || icons.empty;
                 icon();
-                $('h2#', admin.value ? scene.name : scene.shortName);
+                $('h2#', admin.value ? scene.name : scene.name);
                 if (admin.value) {
                     function configure(e: Event): void {
                         e.stopPropagation();
@@ -83,7 +81,7 @@ export function drawGroupPage(groupId: number): void {
                     icons.configure('click=', configure);
                 }
             });
-        }, (scene) => `${scene.suffix || "x"}#${scene.shortName}`);
+        }, (scene) => `${scene.suffix || "x"}#${scene.name}`);
         $(() => {
             if (isEmpty(group.scenes)) $('div.empty#None yet');
         });
@@ -95,12 +93,12 @@ export function drawGroupPage(groupId: number): void {
     
     $("div.list", () => {
         const devices = api.store.devices;
-        onEach(group.members, (ieee) => { 
+        onEach(group.lightIds, (ieee) => { 
             let device = devices[ieee]!;
             drawDeviceItem(device, ieee);
         }, (ieee) => devices[ieee]?.name);
         
-        if (isEmpty(group.members)) {
+        if (isEmpty(group.lightIds)) {
             $('div.empty#None yet');
         }
     });
@@ -193,7 +191,7 @@ function drawGroupConfigurationEditor(
 
     if (automationEnabled) {
         $('div.list', () => {
-            onEach(groupInputs[groupId] || {}, (device, ieee) => {
+            onEach(togglesByGroup[groupId] || {}, (device, ieee) => {
                 $("div.item", () => {
                     drawBulbCircle(device, ieee);
                     $("h2#", device.name);
@@ -203,7 +201,7 @@ function drawGroupConfigurationEditor(
                     });
                 });
             });
-            if (isEmpty(groupInputs[groupId] || {})) {
+            if (isEmpty(togglesByGroup[groupId] || {})) {
                 $('div.empty#None yet');
             }
         });

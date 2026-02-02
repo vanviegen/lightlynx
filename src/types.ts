@@ -15,11 +15,18 @@ export type ColorValue = /* color temperature */ number | HSColor | XYColor;
 
 export interface LightState {
     on?: boolean;
-    brightness?: number; // Standardized brightness property (0-255)
+    brightness?: number;  // Standardized brightness property (0-255)
     color?: ColorValue;
 }
 
-// Light capabilities interface
+export interface Z2MLightDelta {
+    state?: 'ON' | 'OFF';
+    brightness?: number;
+    color?: { hue: number; saturation: number } | XYColor;
+    color_temp?: number;
+    transition?: number;
+}
+
 export interface LightCaps {
     colorModes?: string[];
     supportsColor?: boolean;
@@ -42,11 +49,7 @@ export interface Device {
     name: string;
     description?: string;
     model?: string;
-    lightState?: LightState;
-    otherState?: any;
-    lightCaps?: LightCaps;
-    actions?: string[];
-    meta?: {
+    meta: {
         battery?: number;
         online?: boolean;
         linkquality?: number;
@@ -54,72 +57,117 @@ export interface Device {
     };
 }
 
+export interface Light extends Device {
+    lightCaps: LightCaps;
+    lightState: LightState;
+}
+
+export interface Toggle extends Device {
+    actions: string[];
+    linkedGroupIds: number[]; // IDs of groups this input device controls
+}
+
+export interface Trigger {
+    event: string, // "time" or "1" .. "5" or "sensor"
+    startTime?: string; // Conditional start and end times
+    endTime?: string; // in extension.parseTime() format
+}
+
 // Scene interface
 export interface Scene {
-    id: number;
-    name: string;
-    shortName: string;
-    suffix?: string;
-    description?: string;
-}
+    name: string; // Without the suffix
+    fullName: string;
+    // Derived from the name:
+    triggers: Trigger[];
+    lightStates?: Record<string, LightState>; // IEEE address -> LightState
+} 
 
 // Group interface
 export interface Group {
     name: string;
-    members: string[];
-    scenes: Scene[];
-    lightState: LightState;
-    lightCaps: LightCaps;
+    lightIds: string[]; // IEEE addresses of member (light) devices
+    toggleIds: string[]; // IEEE addresses of associated non-member button/sensor devices
+    scenes: Record<number, Scene>;
     description?: string;
+    activeSceneId?: number;
+    // Derived from description:
+    timeout: number | undefined;
+
+    _autoOffTimer?: NodeJS.Timeout; // Auto off timer
+    _lastTimedSceneId?: number | undefined; // Last scene set by a time interval rule (so we don't reapply it)
 }
 
+
 export interface User {
+    name: string;
     isAdmin: boolean;
-    allowedGroups: number[];
+    allowedGroupIds: number[];
     allowRemote: boolean;
     secret: string;
 }
 
-export type ServerStatus = 'enabled' | 'disabled' | 'try';
-
 export interface ServerCredentials {
     localAddress: string;  // Server address (ip[:port])
-    externalAddress?: string; // External address (ip:port)
-    username: string;
+    externalAddress?: string;  // External address (ip:port)
+    userName: string;
     secret: string;
-    status: ServerStatus;  // enabled: maintain connection, disabled: no connection, try: single attempt
 }
 
 // Connection state machine
-export type ConnectionState = 'idle' | 'connecting' | 'authenticating' | 'connected' | 'reconnecting';
+export type ConnectionState = 'idle' | 'connecting' | 'initializing' | 'connected' | 'reconnecting';
+
+export type StripUnderscoreKeys<T> =
+  T extends (infer U)[] ? StripUnderscoreKeys<U>[] :
+  T extends object ? {
+    [K in keyof T as K extends `_${string}` ? never : K]:
+      T[K] extends infer V ? StripUnderscoreKeys<V> : never;
+  } : T;
+
+export interface SslConfig {
+    expiresAt: number;
+    nodeHttpsOptions: {
+        cert: string;
+        key: string;
+    };
+    localIp?: string;
+    externalIp?: string;
+}
+
+export interface Config {
+    allowRemote: boolean;
+    automationEnabled: boolean;
+    latitude: number;  // For sunrise/sunset calculations
+    longitude: number;
+    users: Record<string, User>;  // Filtered out if user is not admin
+    _externalPort: number | undefined;  // For persistent UPnP mapping
+    _ssl?: SslConfig;
+    _sceneStates: Record<number, Record<number, Record<string, LightState>>>; // groupId -> sceneId -> ieeeAddress -> LightState    
+}
 
 // Store interface for the global application state
-export interface Store {
-    devices: Record<string, Device>; // IEEE address -> Device
-    groups: Record<number, Group>;   // Group ID -> Group
+export interface State {
+    // Derived on startup (and stored in cache):
+    lights: Record<string, Light>;  // IEEE address -> Light
+    toggles: Record<string, Toggle>;  // IEEE address -> Toggle
+    groups: Record<number, Group>;  // Group ID -> Group
     permitJoin: boolean;
-    servers: ServerCredentials[];    // All saved servers
-    connected: boolean;              // Connection status (legacy, derived from connectionState)
-    connectionState: ConnectionState; // Explicit connection state
-    lastConnectError?: string;       // Last connection error message
-    extensionHash?: string; // Hash of installed lightlynx extension
-    users: Record<string, User>;    // Users from lightlynx extension
-    remoteAccessEnabled?: boolean;  // From lightlynx extension config
-    automationEnabled?: boolean;    // From lightlynx extension config
-    latitude?: number;              // From lightlynx extension config (for sunrise/sunset)
-    longitude?: number;             // From lightlynx extension config
-    localAddress?: string;          // From lightlynx extension config
-    externalAddress?: string;       // From lightlynx extension config
-    activeScenes: Record<string, number | undefined>; // Group name -> active scene ID
-    isAdmin: boolean;               // Whether current user is admin (reactive)
-    allowedGroupIds: Record<number, true>; // Group IDs current user can control (reactive)
+    localAddress?: string;
+    externalAddress?: string;
+
+    // In our config file:
+    config: Config;
+
+    // Different per connection:
+    me?: User;
 }
 
-// Helper functions for color type checking
-export function isHS(color: any): color is HSColor {
-    return color && typeof color === 'object' && 'hue' in color;
+export interface GroupWithDerives extends Group {
+    lightState?: LightState;
+    lightCaps?: LightCaps;
 }
 
-export function isXY(color: any): color is XYColor {
-    return color && typeof color === 'object' && 'x' in color;
-}
+/** The client-side version of State is the same except:
+ * - Keys starting with underscore are stripped
+ * - Group items are augmented to be GroupWithDerives items
+ */
+export type ClientState = Exclude<StripUnderscoreKeys<State>, 'groups'> & {groups: Record<string, GroupWithDerives>};

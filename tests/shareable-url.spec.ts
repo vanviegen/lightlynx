@@ -3,9 +3,9 @@ import { test, expect } from './base-test';
 test.describe('Shareable Connection URL', () => {
   test('should connect using shareable URL with all parameters', async ({ page }) => {
 
-    // Navigate with URL parameters (host and username)
+    // Navigate with URL parameters (host and userName)
     // The app will auto-connect
-    const connectUrl = '/?host=localhost:43598&username=admin';
+    const connectUrl = '/?host=localhost:43598&userName=admin';
     await page.goto(connectUrl);
 
     // The app should auto-connect and show the main page
@@ -23,7 +23,7 @@ test.describe('Shareable Connection URL', () => {
     
     // Fill in connection details
     await page.fill('input[placeholder="e.g. 192.168.1.5[:port]"]', 'localhost:43598');
-    await page.fill('label:has-text("Username") + input', 'admin');
+    await page.fill('label:has-text("UserName") + input', 'admin');
     
     // The "Copy direct-connect URL" link should be visible
     const copyLink = page.locator('small.link', { hasText: 'Copy direct-connect URL' });
@@ -43,14 +43,14 @@ test.describe('Shareable Connection URL', () => {
 
   test('should handle shareable URL with existing server', async ({ page }) => {
     // First connection to establish a server
-    await page.goto('/?host=localhost:43598&username=admin');
+    await page.goto('/?host=localhost:43598&userName=admin');
     await expect(page.locator('h2', { hasText: 'Kitchen' })).toBeVisible({ timeout: 10000 });
     
     // Disconnect by navigating away
     await page.goto('/');
     
     // Now use the same shareable URL again
-    await page.goto('/?host=localhost:43598&username=admin');
+    await page.goto('/?host=localhost:43598&userName=admin');
     
     // Should reconnect to the existing server
     await expect(page.locator('h2', { hasText: 'Kitchen' })).toBeVisible({ timeout: 10000 });
@@ -60,7 +60,7 @@ test.describe('Shareable Connection URL', () => {
 
   test('should connect with pre-hashed secret in URL', async ({ page }) => {
     // First, connect as admin to get the app running
-    await page.goto('/?host=localhost:43598&username=admin');
+    await page.goto('/?host=localhost:43598&userName=admin');
     await expect(page.locator('h2', { hasText: 'Kitchen' })).toBeVisible({ timeout: 10000 });
     
     // Generate a hash using the app's hashing function

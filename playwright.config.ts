@@ -47,8 +47,8 @@ export default defineConfig({
       command: 'exec npm run mock-z2m',
       port: 43598,
       env: {
-        MOCK_Z2M_PORT: '43598',
-        MOCK_Z2M_INSECURE: 'true',
+        LIGHTLYNX_PORT: '43598',
+        LIGHTLYNX_INSECURE: 'true',
       },
     },
     {

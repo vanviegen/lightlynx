@@ -43,9 +43,8 @@ Uses Aberdeen's `proxy()` for reactive state. The global store (`api.store`) con
 - `permitJoin`: Boolean for pairing mode
 - `servers`: Array of saved server credentials
 - `connected`: Boolean connection status
-- `extensionHash`: Hash of installed lightlynx extension (for auto-upgrade)
 - `users`: User management data
-- `remoteAccessEnabled`: Remote access toggle state
+- `allowRemote`: Remote access toggle state
 - `automationEnabled`: Automation toggle state (off by default)
 - `localIp`: The local server IP address used for connectivity
 - `externalIp`: The external server IP address (if remote access enabled)
@@ -141,7 +140,7 @@ npm run mock stop
 You can connect to a server directly via URL parameters. Example:
 
 ```
-http://localhost:5173/?host=192.168.1.94:41791&username=admin&secret=<hash>
+http://localhost:5173/?host=192.168.1.94:41791&userName=admin&secret=<hash>
 ```
 
 This will connect to the specified server, saving the credentials in localStorage for future use (if they're not there yet).
@@ -151,12 +150,12 @@ This will connect to the specified server, saving the credentials in localStorag
 The mock server (`src/mock-z2m.ts`) accepts extensions as command-line arguments:
 
 ```bash
-MOCK_Z2M_PORT=43598 MOCK_Z2M_INSECURE=true node --experimental-strip-types src/mock-z2m.ts [extension-path...]
+LIGHTLYNX_PORT=43598 LIGHTLYNX_INSECURE=true node --experimental-strip-types src/mock-z2m.ts [extension-path...]
 ```
 
 Environment variables:
-- `MOCK_Z2M_PORT`: Port for WebSocket server (default: 43598)
-- `MOCK_Z2M_INSECURE`: If 'true', use HTTP/WS instead of HTTPS/WSS
+- `LIGHTLYNX_PORT`: Port for WebSocket server (default: 43598)
+- `LIGHTLYNX_INSECURE`: If 'true', use HTTP/WS instead of HTTPS/WSS
 
 If no extension paths are provided, it loads `build.frontend/extension.js` by default. You can provide one or more extension paths as command-line arguments to load custom extensions.
 
@@ -224,5 +223,5 @@ The service worker implements stale-while-revalidate caching:
 - `/connect` - Server connection dialog
 - `/ssl-setup` - SSL setup guide
 - `/group/:id` - Group detail view
-- `/user/:username` - User editor (admin)
+- `/user/:userName` - User editor (admin)
 - `/dump` - Debug state dump (admin)

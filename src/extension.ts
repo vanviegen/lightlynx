@@ -4,507 +4,170 @@ import http from 'http';
 import https from 'https';
 import dgram from 'dgram';
 import WebSocket, { WebSocketServer } from 'ws';
+import { Config, Group, Light, Scene, Toggle, State, Trigger, User, StripUnderscoreKeys } from './types';
+import { applyDelta, createDelta, deepClone } from './json-merge-patch';
+import { createZ2MLightDelta, tailorLightState, DEFAULT_TRIGGERS } from './colors';
+import api from './api';
 
-const CONFIG_FILE = 'lightlynx.json';
-const PORT = 43597;
+const EXTENSION_VERSION = 1;
+const CONFIG_PATH = path.join(process.env.ZIGBEE2MQTT_DATA || path.join(__dirname, '..', '..', 'data'), 'lightlynx.json');
 const SSL_RENEW_THRESHOLD = 10 * 24 * 60 * 60 * 1000; // 10 days
 
-interface UserConfig {
-    secret: string;
-    isAdmin: boolean;
-    allowedGroups: number[];
-    allowRemote: boolean;
-}
+// Read configuration from environment
+const PORT = parseInt(process.env.LIGHTLYNX_PORT || '43597');
+const INSECURE = !['', '0', 'false'].includes(process.env.LIGHTLYNX_INSECURE || '');
+const CERT_FILE = process.env.LIGHTLYNX_CERT_FILE;
 
-interface User extends UserConfig {
-    username: string;
-}
+// Sun calculation constants
+const DEFAULT_ZENITH = 90.8333;
+const DEGREES_PER_HOUR = 360 / 24;
 
-interface SslConfig {
-    expiresAt: number;
-    nodeHttpsOptions: {
-        cert: string;
-        key: string;
-    };
-    localIp?: string;
-    externalIp?: string;
-}
+const CLICK_COUNTS: Record<string, number> = {
+    single: 1,
+    double: 2,
+    triple: 3,
+    quadruple: 4,
+    many: 5
+};
 
-interface LightLynxConfig {
-    users: Record<string, UserConfig>;
-    ssl?: SslConfig;
-    externalPort?: number; // for UPnP
-    remoteAccess: boolean;
-    automation: boolean; // Enable/disable automation features
-    latitude?: number; // For sunrise/sunset calculations (default: Enschede)
-    longitude?: number;
-}
-
-// === Automation Module ===
-
-const defaultZenith = 90.8333;
-const degreesPerHour = 360 / 24;
-const msecInDay = 8.64e7;
-
-function getDayOfYear(date: Date) {
-    return Math.ceil((date.getTime() - new Date(date.getFullYear(), 0, 1).getTime()) / msecInDay);
-}
-
-function sinDeg(deg: number) { return Math.sin(deg * 2.0 * Math.PI / 360.0); }
-function acosDeg(x: number) { return Math.acos(x) * 360.0 / (2 * Math.PI); }
-function asinDeg(x: number) { return Math.asin(x) * 360.0 / (2 * Math.PI); }
-function cosDeg(deg: number) { return Math.cos(deg * 2.0 * Math.PI / 360.0); }
-function mod(a: number, b: number) { const r = a % b; return r < 0 ? r + b : r; }
-
-function getSunTime(latitude: number, longitude: number, isSunrise: boolean, zenith: number, date: Date) {
-    const dayOfYear = getDayOfYear(date);
-    const hoursFromMeridian = longitude / degreesPerHour;
-    const approxTimeOfEventInDays = isSunrise
-        ? dayOfYear + ((6.0 - hoursFromMeridian) / 24.0)
-        : dayOfYear + ((18.0 - hoursFromMeridian) / 24.0);
-
-    const sunMeanAnomaly = (0.9856 * approxTimeOfEventInDays) - 3.289;
-    let sunTrueLong = sunMeanAnomaly + (1.916 * sinDeg(sunMeanAnomaly)) + (0.020 * sinDeg(2 * sunMeanAnomaly)) + 282.634;
-    sunTrueLong = mod(sunTrueLong, 360);
-
-    let sunRightAscension = acosDeg(cosDeg(sunTrueLong) / cosDeg(asinDeg(0.39782 * sinDeg(sunTrueLong))));
-    sunRightAscension = mod(sunRightAscension, 360);
-    sunRightAscension = sunRightAscension + (((Math.floor(sunTrueLong / 90.0) * 90.0) - (Math.floor(sunRightAscension / 90.0) * 90.0)) / degreesPerHour);
-
-    const sunDeclinationSin = 0.39782 * sinDeg(sunTrueLong);
-    const sunDeclinationCos = cosDeg(asinDeg(sunDeclinationSin));
-
-    const localHourAngleCos = (cosDeg(zenith) - (sunDeclinationSin * sinDeg(latitude))) / (sunDeclinationCos * cosDeg(latitude));
-
-    if (localHourAngleCos > 1 || localHourAngleCos < -1) return null;
-
-    const localHourAngle = isSunrise ? 360 - acosDeg(localHourAngleCos) : acosDeg(localHourAngleCos);
-    const localMeanTime = (localHourAngle / degreesPerHour) + (sunRightAscension / degreesPerHour) - (0.06571 * approxTimeOfEventInDays) - 6.622;
-    const utcTimeInHours = mod(localMeanTime - hoursFromMeridian, 24);
-    const utcDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-
-    utcDate.setUTCHours(Math.floor(utcTimeInHours));
-    utcDate.setUTCMinutes(Math.floor((utcTimeInHours - Math.floor(utcTimeInHours)) * 60));
-    return utcDate;
-}
-
-function getSunrise(lat: number, lon: number, zenith?: number, date?: Date) { 
-    return getSunTime(lat, lon, true, zenith || defaultZenith, date || new Date()); 
-}
-
-function getSunset(lat: number, lon: number, zenith?: number, date?: Date) { 
-    return getSunTime(lat, lon, false, zenith || defaultZenith, date || new Date()); 
-}
-
-const CLICK_COUNTS: Record<string, number> = {single: 1, double: 2, triple: 3, quadruple: 4, many: 5};
-
-
-interface Scene {
-    id: number;
-    start?: string;
-    end?: string;
-}
-
-interface Group {
-    id: number;
-    name: string;
-    scenes: Record<string, Scene[]>;
-    timeout: number | undefined;
-    timer: NodeJS.Timeout | undefined;
-    touch: () => void;
-}
-
-class Automation {
-    private mqtt: any;
-    private zigbee: any;
-    private state: any;
-    private mqttBaseTopic: string;
-    private config: LightLynxConfig;
-    private clickCounts: Map<string, number> = new Map();
-    private clickTimers: Map<string, NodeJS.Timeout> = new Map();
-    private groups: Record<string, Group> = {};
-    private lastTimedSceneIds: Record<string, number | undefined> = {};
-    private timeInterval?: NodeJS.Timeout;
-
-    constructor(mqtt: any, zigbee: any, state: any, mqttBaseTopic: string, config: LightLynxConfig) {
-        this.mqtt = mqtt;
-        this.zigbee = zigbee;
-        this.state = state;
-        this.mqttBaseTopic = mqttBaseTopic;
-        this.config = config;
-    }
-
-    start(eventBus: any) {
-        eventBus['onStateChange'](this, this.onStateChange.bind(this));
-        for(const event of ['ScenesChanged', 'GroupMembersChanged', 'EntityOptionsChanged', 'EntityRenamed', 'DevicesChanged']) {
-            eventBus['on' + event](this, this.loadScenes.bind(this));
-        }
-        this.timeInterval = setInterval(this.handleTimeTriggers.bind(this), 10000);
-        this.loadScenes();
-    }
-
-    stop(eventBus: any) {
-        eventBus.removeListeners(this);
-        if (this.timeInterval) clearInterval(this.timeInterval);
-        for (let group of Object.values(this.groups)) {
-            clearTimeout(group.timer);
-        }
-        this.groups = {};
-    }
-
-    private parseTimeRange(str: string) {
-        let m = str.trim().match(/^([0-9]{1,2})(:([0-9]{2}))?((b|a)(s|r))?$/);
-        if (!m) return 0;
-        let hour = 0 | parseInt(m[1]!);
-        let minute = 0 | parseInt(m[3] || '0');
-        let beforeAfter = m[5];
-        let riseSet = m[6];
-
-        if (riseSet) {
-            const lat = this.config.latitude!;
-            const lon = this.config.longitude!;
-            let sunTime = (riseSet === 'r' ? getSunrise : getSunset)(lat, lon);
-            if (sunTime) {
-                if (beforeAfter === 'a') {
-                    hour += sunTime.getHours();
-                    minute += sunTime.getMinutes();
-                } else {
-                    hour = sunTime.getHours() - hour;
-                    minute = sunTime.getMinutes() - minute;
-                }
-            }
-        }
-        hour += Math.floor(minute / 60);
-        hour = ((hour % 24) + 24) % 24;
-        minute = ((minute % 60) + 60) % 60;
-        return hour * 60 + minute;
-    }
-
-    private checkTimeRange(startStr: string, endStr: string) {
-        let start = this.parseTimeRange(startStr);
-        let end = this.parseTimeRange(endStr);
-        if (end < start) end += 24 * 60;
-        let now = new Date();
-        let nowMins = now.getHours() * 60 + now.getMinutes();
-        if (nowMins < start) nowMins += 24 * 60;
-        if (nowMins >= start && nowMins <= end) return end - start;
-        return null;
-    }
-
-    private findScene(group: Group, trigger: string | number): Scene | undefined {
-        let sceneOptions = group.scenes[trigger];
-        if (sceneOptions) {
-            let foundRange = 25*60, foundScene;
-            for(let scene of sceneOptions) {
-                let range = scene.start && scene.end ? this.checkTimeRange(scene.start, scene.end) : 24*60;
-                if (range!=null && range < foundRange) {
-                    foundScene = scene;
-                }
-            }
-            return foundScene;
-        }
-        return undefined;
-    }
-
-    
-    loadScenes() {
-        console.log('automation.js loading scenes');
-        let groups: Record<string, Group> = {};
-        for (let zigbeeGroup of this.zigbee.groupsIterator()) {
-            let resultScenes: Record<string, Scene[]> = {};
-            let discoveredScenes: Set<string> = new Set();
-            for (let endpoint of zigbeeGroup.zh.members) {
-                let scenes = endpoint.meta?.scenes;
-                for (const sceneKey in scenes) {
-                    const keyParts = sceneKey.split('_');
-                    let groupId = parseInt(keyParts[1]!);
-                    if (groupId !== zigbeeGroup.ID) continue;
-                    let sceneId = parseInt(keyParts[0]!);
-
-                    let name = scenes[sceneKey].name || '';
-
-                    let suffix = name.match(/ \((.*?)\)$/);
-                    if (!suffix) continue;
-
-                    for(let condition of suffix[1].split(',')) {
-                        let m = condition.match(/^\s*([0-9a-z]+)(?: ([^)-]*?)-([^)-]*))?\s*$/);
-                        if (!m) continue;
-                        let [_all, trigger, start, end] = m;
-                        let key = `${trigger}/${sceneId}/${start}/${end}`;
-                        if (discoveredScenes.has(key)) continue;
-                        discoveredScenes.add(key);
-                        (resultScenes[trigger] = resultScenes[trigger] || []).push({
-                            id: sceneId,
-                            start,
-                            end,
-                        });
-                    }
-                }
-            }
-
-            let onTimeout = () => {
-                this.mqtt.onMessage(`${this.mqttBaseTopic}/${group.name}/set`, JSON.stringify({ state: 'OFF', transition: 30 }));
-            };
-
-            let name = zigbeeGroup.name;
-            
-            // Parse timeout from description (lightlynx- metadata)
-            let timeout : number | undefined;
-            const description = zigbeeGroup.options?.description || '';
-            const timeoutMatch = description.match(/^lightlynx-timeout (\d+(?:\.\d+)?)([smhd])$/m);
-            if (timeoutMatch) {
-                // New format: lightlynx-timeout 30m in description
-                const value = parseFloat(timeoutMatch[1]);
-                const unit = {s: 1, m: 60, h: 60*60, d: 24*60*60}[timeoutMatch[2] as 's' | 'm' | 'h' | 'd'];
-                if (unit && !isNaN(value)) {
-                    timeout = value * unit * 1000;
-                }
-            }
-            console.log(`lightlynx group name=${name} triggers=${Object.keys(resultScenes)} timeout=${timeout ? timeout/1000 + 's' : 'none'}`);
-
-            let group = groups[name] = {
-                id: zigbeeGroup.ID,
-                name,
-                scenes: resultScenes,
-                timeout,
-                timer: undefined,
-                touch: function() {
-                    if (this.timeout) {
-                        clearTimeout(this.timer);
-                        this.timer = setTimeout(onTimeout, this.timeout)
-                    }
-                }
-            };
-            group.touch();
-        }
-
-        for(let group of Object.values(this.groups)) {
-            clearTimeout(group.timer);
-        }
-        this.groups = groups;
-    }
-
-    async onStateChange(data: any) {
-        if (!data.update) return;
-        
-        // Get device and check which groups it belongs to (description-based only)
-        if (!data.entity || !data.entity.isDevice()) return;
-        let device = data.entity;
-        let groups = [];
-        
-        // Parse group associations from device description
-        const description = device.options?.description || '';
-        const groupsMatch = description.match(/^lightlynx-groups (\d+(,\d+)*)$/m);
-        if (groupsMatch) {
-            // Map group IDs to group short names
-            for (let groupIdStr of groupsMatch[1].split(',')) {
-                for (let group of Object.values(this.groups)) {
-                    if (group.id == groupIdStr) {
-                        groups.push(group);
-                    }
-                }
-            }
-        }
-        
-        // Handle triggers for all associated groups
-        for (let group of groups) {
-            group.touch();
-
-            let newState: any;
-            
-            let action = data.update.action;
-            let clicks;
-            if (action==='press') {
-                clearTimeout(this.clickTimers.get(data.entity));
-                this.clickTimers.set(data.entity, setTimeout(()=> {
-                    this.clickTimers.delete(data.entity);
-                    this.clickCounts.delete(data.entity);
-                }, 1000))
-                
-                clicks = (this.clickCounts.get(data.entity) || 0) + 1
-                this.clickCounts.set(data.entity, clicks);
-            }
-            else if (CLICK_COUNTS[action]) {
-                clicks = CLICK_COUNTS[action];
-            }
-            
-            if (clicks) {
-                if (clicks==1 && this.state.get({ID: group.id})?.state === 'ON') {
-                    newState = {state: 'OFF'}
-                    if (action==='press') {
-                        // The next subsequent click should start the count at 1
-                        this.clickCounts.set(data.entity, 0);
-                    }
-                }
-                else {
-                    let scene = this.findScene(group, clicks);
-                    if (scene) {
-                        newState = { scene_recall: scene.id };
-                    }
-                    else {
-                        if (clicks==1) newState = {brightness: 150, color_temp: 365, state: 'ON'};
-                        else if (clicks==2) newState = {brightness: 40, color_temp: 450, state: 'ON'};
-                        else if (clicks==3) newState = {brightness: 254, color_temp: 225, state: 'ON'};
-                    }
-                }
-            }
-            else if (data.update.occupancy) {
-                let scene = this.findScene(group, 'sensor');
-                if (scene) {
-                    newState = { scene_recall: scene.id };
-                }
-                else {
-                    newState = {brightness: 150, color_temp: 365, state: 'ON'};
-                }
-            }
-
-            if (newState) {
-                newState.transition = 0.4
-                this.mqtt.onMessage(`${this.mqttBaseTopic}/${group.name}/set`, JSON.stringify(newState));
-            }
-        }
-    }
-
-    handleTimeTriggers() {
-        for(let group of Object.values(this.groups)) {
-            let newState: any;
-            let scene = this.findScene(group, 'time');
-            if (scene) {
-                group.touch();
-                if (this.lastTimedSceneIds[group.name] !== scene.id) {
-                    console.log('automation.js time-based recall', group.name, scene);
-                    newState = { scene_recall: scene.id };
-                    this.lastTimedSceneIds[group.name] = scene.id;
-                }
-            }
-            else {
-                if (this.lastTimedSceneIds[group.name]!=undefined) {
-                    console.log('automation.js time-based off', group.name);
-                    newState = {state: 'OFF'};
-                    this.lastTimedSceneIds[group.name] = undefined;
-                }
-            }
-            if (newState) {
-                newState.transition = 10;
-                this.mqtt.onMessage(`${this.mqttBaseTopic}/${group.name}/set`, JSON.stringify(newState));
-            }
-        }
-    }
-}
-
-// === Main Extension Class ===
 
 class LightLynx {
-    private zigbee: any;
+    // MQTT and Zigbee references
+    // private zigbee: any;
     private mqtt: any;
     private state: any;
     private eventBus: any;
     private logger: any;
     private mqttBaseTopic: string;
-    private clients: Map<WebSocket, User> = new Map();
-    private config: LightLynxConfig;
+
+    private webSocketUsers: Map<WebSocket, User> = new Map();
+    private pendingBridgeRequests: Map<number, { resolve: (value: any) => void, reject: (reason: any) => void }> = new Map();
+    private nextTransactionId = 1;
+
+    private store: State;
+    private storeCopy: StripUnderscoreKeys<State>; // To determine delta for emitting to WebSockets
+    private emitChangesTimeout: NodeJS.Timeout | undefined = undefined; // Batch emitting deltas
+
+    private groupIdsByNames: Record<string, number> = {}; // name -> groupId
+    private deviceIdsByName: Record<string, string> = {}; // name -> ieee
+
     private server?: http.Server | https.Server;
     private wss?: WebSocketServer;
-    private refreshTimer?: NodeJS.Timeout;
-    private activeScenes: Record<string, number | undefined> = {};
-    private lastSceneTime: Record<string, number> = {};
-    private automation?: Automation;
+    private sslRefreshTimer?: NodeJS.Timeout;
 
-    constructor(zigbee: any, mqtt: any, state: any, _publishEntityState: any, eventBus: any, _enableDisableExtension: any, _restartCallback: any, _addExtension: any, _settings: any, logger: any) {
-        this.zigbee = zigbee;
+    // For automation
+    private clickCounts: Map<string, number> = new Map();
+    private clickTimers: Map<string, NodeJS.Timeout> = new Map();
+    private timeTriggerInterval?: NodeJS.Timeout;
+
+
+    constructor(_zigbee: any, mqtt: any, state: any, _publishEntityState: any, eventBus: any, _enableDisableExtension: any, _restartCallback: any, _addExtension: any, _settings: any, logger: any) {
+        // this.zigbee = zigbee;
         this.mqtt = mqtt;
         this.state = state;
         this.eventBus = eventBus;
         this.logger = logger;
         this.mqttBaseTopic = _settings.get().mqtt.base_topic;
-        this.config = this.loadConfig();
+
+        let config = {} as Config;
+        try {
+            if (fs.existsSync(CONFIG_PATH)) {
+                config = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8'));
+            }
+        } catch (e: any) {
+            this.log('error', `Error loading configuration ${CONFIG_PATH}: ${e.message}`);
+        }
+        config.automationEnabled ||= false;
+        config.latitude ||= 52.24; // Enschede NL (center of the known universe)
+        config.longitude ||= 6.88;
+        config.users ||= {
+            admin: {
+                name: 'admin',
+                secret: '',
+                isAdmin: true,
+                allowedGroupIds: [],
+                allowRemote: false
+            },
+        };
+
+        this.store = {
+            lights: {},
+            toggles: {},
+            groups: {},
+            permitJoin: false,
+            config,
+        }
+        this.storeCopy = deepClone(this.store);
     }
 
+    private log(level: 'info' | 'error' | 'warning', message: string) {
+        this.logger[level](`Light Lynx: ${message}`);
+    }
+
+    /** Called by Zigbee2MQTT. */
     async start() {
-        this.seedAdminUser();
+        // Setups IP addresses, SSL certificates and UPnP port mapping. Update every 59 minutes.
+        await this.setupNetworking();
+        this.sslRefreshTimer = setInterval(() => this.setupNetworking(), 59 * 60 * 1000);
 
-        const mock = (globalThis as any).MOCK_Z2M;
-
-        if (mock?.insecure) {
-            // Start without TLS
-            this.log('info', 'Starting insecure WebSocket server (no TLS)');
-            this.server = http.createServer((req, res) => {
-                if (req.method === 'GET' && (req.url === '/' || req.url === '')) {
-                    res.writeHead(200, { 'Content-Type': 'text/plain' });
-                    res.end('LightLynx API ready');
-                } else {
-                    res.writeHead(404);
-                    res.end();
-                }
-            });
-        } else if (mock?.certFile) {
-            this.log('info', 'Starting using mock SSL certificate');
-            const { cert, key } = JSON.parse(fs.readFileSync(mock.certFile, 'utf8'));
-            
-            this.config.ssl = {
-                expiresAt: Date.now() + 1000000000,
-                nodeHttpsOptions: { cert, key }
-            };
-            
-            this.server = https.createServer(this.config.ssl.nodeHttpsOptions);
+        // Create either a http or an https server
+        if (INSECURE) {
+            this.log('info', 'Starting INSECURE (no TLS) WebSocket server on port ' + PORT);
+            this.server = http.createServer();
         } else {
-            await this.setupSSL();
-            this.log('info', 'Starting HTTPS server on port ' + PORT);
-            
-            const ssl = this.config.ssl;
+            this.log('info', 'Starting secure WebSocket server on port ' + PORT);
+            const ssl = this.store.config._ssl;
             if (!ssl?.nodeHttpsOptions?.cert) {
-                this.log('error', 'Failed to setup SSL. Cannot start server.');
-                return;
+                const err = 'Failed to setup SSL. Cannot start server.';
+                this.log('error', err);
+                throw new Error(err);
             }
-            
             this.server = https.createServer(ssl.nodeHttpsOptions);
         }
 
+        // Setup and start the HTTP(S) and WebSocket servers
         this.server.on('upgrade', (req, socket, head) => this.onUpgrade(req, socket, head));
-        if (!mock?.insecure) {
-            this.server.on('request', (req, res) => {
-                if (req.method === 'GET' && (req.url === '/' || req.url === '')) {
-                    res.writeHead(200, { 'Content-Type': 'text/plain' });
-                    res.end('LightLynx API ready');
-                } else {
-                    res.writeHead(404);
-                    res.end();
-                }
-            });
-        }
+        this.server.on('request', (req, res) => {
+            if (req.method === 'GET' && (req.url === '/' || req.url === '')) {
+                res.writeHead(200, { 'Content-Type': 'text/plain' });
+                res.end('Light Lynx API ready. See https://lightlynx.eu/ for info.');
+            } else {
+                res.writeHead(404);
+                res.end();
+            }
+        });
 
         this.wss = new WebSocketServer({ 
             noServer: true, 
             path: '/api'
         });
-        this.wss.on('connection', (ws: any, req: any) => this.onConnection(ws, req));
 
-        this.server.listen(mock?.httpsPort || PORT);
+        this.server.listen(PORT);
 
-        this.eventBus.onMQTTMessagePublished(this, (data: any) => this.onMQTTPublish(data));
-        this.eventBus.onPublishEntityState(this, (data: any) => this.onEntityState(data));
-        this.eventBus.onMQTTMessage(this, (data: any) => this.onMQTTRequest(data));
-
-        // Start automation if enabled
-        if (this.config.automation) {
-            this.automation = new Automation(this.mqtt, this.zigbee, this.state, this.mqttBaseTopic, this.config);
-            this.automation.start(this.eventBus);
-            this.log('info', 'Automation enabled');
+        // We gather and maintain state based on the outgoing MQTT messages send by Zigbee2MQTT.
+        // This feels more robust than trying to hook into Zigbee2MQTT internals.
+        this.eventBus.onMQTTMessagePublished(this, (data: any) => this.onOutgoingMQTT(data));
+        for(const data of Object.values(this.mqtt.retainedMessages)) {
+            this.onOutgoingMQTT(data);
         }
 
-        // Refresh check every 59 minutes
-        if (!mock) {
-            this.refreshTimer = setInterval(() => this.setupSSL(), 59 * 60 * 1000);
-        }
+        // We hook into incoming MQTT messages (including the simulated ones we send ourselves),
+        // in order to capture which scenes are being set.
+        this.eventBus.onMQTTMessage(this, (data: any) => this.onIncomingMQTT(data));
+
+        // TODO: no longer needed?
+        // this.eventBus.onPublishEntityState(this, (data: any) => this.onEntityState(data));
+        
+        // Check time based triggers every 10s
+        this.timeTriggerInterval = setInterval(this.handleTimeTriggers.bind(this), 10000);
     }
 
+    /** Called by Zigbee2MQTT, in particular before we upgrade. */
     async stop() {
-        if (this.refreshTimer) clearInterval(this.refreshTimer);
-        if (this.automation) {
-            this.automation.stop(this.eventBus);
-            this.automation = undefined;
-        }
+        if (this.sslRefreshTimer) clearInterval(this.sslRefreshTimer);
+        if (this.timeTriggerInterval) clearInterval(this.timeTriggerInterval);
         this.eventBus.removeListeners(this);
+
         if (this.wss) {
             for (const client of this.wss.clients) {
                 client.send(JSON.stringify({ topic: 'bridge/state', payload: { state: 'offline' } }));
@@ -515,40 +178,12 @@ class LightLynx {
         if (this.server) await new Promise(r => this.server?.close(r as any));
     }
 
-    // === Config Management ===
-
-    private getDataPath() {
-        return process.env.ZIGBEE2MQTT_DATA || path.join(__dirname, '..', '..', 'data');
+    /** Should be called (manually) whenever anything in this.store.config has changed. */
+    private saveConfig() {
+        fs.writeFileSync(CONFIG_PATH, JSON.stringify(this.store.config, null, 2));
     }
 
-    private loadConfig(): LightLynxConfig {
-        const configPath = path.join(this.getDataPath(), CONFIG_FILE);
-        const defaultConfig: LightLynxConfig = { users: {}, remoteAccess: false, automation: false };
-        try {
-            if (!fs.existsSync(configPath)) {
-                return defaultConfig;
-            }
-            const loaded = JSON.parse(fs.readFileSync(configPath, 'utf8')) || defaultConfig;
-            // Ensure automation field exists (default to false for backward compatibility)
-            if (loaded.automation === undefined) loaded.automation = false;
-            // Set default location (Enschede, NL) if not configured
-            if (loaded.latitude === undefined) loaded.latitude = 52.24;
-            if (loaded.longitude === undefined) loaded.longitude = 6.88;
-            return loaded;
-        } catch (e: any) {
-            this.log('error', 'Error loading configuration: ' + e.message);
-            return defaultConfig;
-        }
-    }
-
-    private saveConfig(config?: LightLynxConfig) {
-        if (config) this.config = config;
-        const configPath = path.join(this.getDataPath(), CONFIG_FILE);
-        fs.writeFileSync(configPath, JSON.stringify(this.config, null, 2));
-    }
-
-    // === SSL Management ===
-
+    /** Returns whatever IP the system uses for internet requests. */
     private getLocalIp(): Promise<string | undefined> {
         return new Promise((resolve) => {
             const socket = dgram.createSocket('udp4');
@@ -564,35 +199,74 @@ class LightLynx {
         });
     }
 
+    /** Returns the IP that the outside world sees of us (which differs from getLocalIp when
+     * we're behind a NAT). */
     private async getExternalHost(): Promise<string | null> {
         try {
-            return await this.fetchText('https://cert.lightlynx.eu/ip');
+            return (await this.httpRequest('https://cert.lightlynx.eu/ip')).body.trim();
         } catch (err) {
             return null;
         }
     }
 
-    private log(level: 'info' | 'error' | 'warning', message: string) {
-        this.logger[level](`LightLynx: ${message}`);
-    }
+    /** Obtains initial certificate valid for DNS-ified local and external IPs, or sees if
+     * a renewal is needed. Always renews when any of the IPs have changed.
+     * Stores results in this.store.config._ssl.
+     * Also updates this.store.localAddress and this.store.externalAddress.
+    */
+    private async setupNetworking() {
+        const cfg = this.store.config;
+        let ssl = cfg._ssl;
 
-    private async setupSSL() {
-        const cfg = this.config;
+        const localIp = await this.getLocalIp();
+        const externalIp = cfg.allowRemote ? await this.getExternalHost() : undefined;
 
-        const externalIp = (cfg.remoteAccess ? await this.getExternalHost() : undefined) || cfg.ssl?.externalIp;
-        const localIp = await this.getLocalIp() || cfg.ssl?.localIp;
-        let changes = false;
+        this.store.localAddress = localIp ? `${localIp}:${PORT}` : undefined;
 
-        if ((externalIp || localIp) && (!cfg.ssl || localIp !== cfg.ssl.localIp || externalIp !== cfg.ssl.externalIp || cfg.ssl.expiresAt - Date.now() < SSL_RENEW_THRESHOLD)) {
-            this.log('info', `Requesting SSL certificate localIp=${localIp} useExternalHost=${cfg.remoteAccess}`);
+        // If an IP is unset, while the other remains the same, we don't need to trigger a renewal.
+        const sslExternalIp = (externalIp || ssl?.localIp !== localIp) ? externalIp : ssl?.externalIp;
+        const sslInternalIp = (localIp || ssl?.externalIp !== externalIp) ? localIp : ssl?.localIp;
+
+        if (cfg.allowRemote && localIp) {
+            // Run UPnP port mapping setup in background. We don't need to wait for this on
+            // startup (especially since we may not be behind a UPnP-capable gateway at all).
+            (async () => {
+                const port = await this.setupUPnP(localIp, PORT, cfg._externalPort);
+                if (port !== cfg._externalPort) {
+                    cfg._externalPort = port;
+                    this.saveConfig();
+                    if (port) {
+                        this.log('info', `UPnP external port mapped to ${port}`);
+                        this.store.externalAddress = externalIp && cfg._externalPort ? `${externalIp}:${cfg._externalPort}` : undefined;
+                        this.scheduleEmitChanges();
+                    }
+                }
+            })();
+        }
+
+        if (!INSECURE && (externalIp || localIp) && (!ssl || sslInternalIp !== ssl.localIp || sslExternalIp !== ssl.externalIp || ssl.expiresAt - Date.now() < SSL_RENEW_THRESHOLD)) {
             try {
-                const res: any = await this.postJSON('https://cert.lightlynx.eu/create', { 
-                    localIp,
-                    useExternalHost: cfg.remoteAccess
-                });
-                if (res.nodeHttpsOptions && res.expiresAt) {
-                    cfg.ssl = res;
-                    changes = true;
+                let res: any;
+                if (CERT_FILE) {
+                    this.log('info', 'Loading SSL certificate from file ' + CERT_FILE);
+                    const { cert, key } = JSON.parse(fs.readFileSync(CERT_FILE, 'utf8'));            
+                    res = {
+                        expiresAt: Date.now() + 24 * 3600 * 1000,
+                        nodeHttpsOptions: { cert, key }
+                    };
+                } else {
+                    this.log('info', `Requesting SSL certificate localIp=${localIp} useExternalHost=${cfg.allowRemote}`);
+                    const response = await this.httpRequest('https://cert.lightlynx.eu/create', {
+                        method: 'POST',
+                        body: JSON.stringify({ localIp, useExternalHost: cfg.allowRemote }),
+                        headers: { 'Content-Type': 'application/json' }
+                    });
+                    res = JSON.parse(response.body);
+                }
+
+                if (res && res.nodeHttpsOptions && res.expiresAt) {
+                    cfg._ssl = res;
+                    this.saveConfig();
                     this.log('info', `New SSL certificate obtained (expires at ${new Date(res.expiresAt).toISOString()}), restarting...`);
                     await this.stop();
                     await this.start();
@@ -603,48 +277,42 @@ class LightLynx {
                 this.log('error', `SSL setup failed: ${err.message}`);
             }
         }
-
-        if (cfg.remoteAccess) {
-            const port = await this.setupUPnP(cfg.externalPort);
-            if (port && port !== cfg.externalPort) {
-                this.log('info', `UPnP external port mapped to ${port}`);
-                cfg.externalPort = port;
-                changes = true;
-            }
-        }
-
-        if (changes) {
-            this.saveConfig();
-            this.broadcastConfig();
-        }
+        
+        this.store.externalAddress = externalIp && cfg._externalPort ? `${externalIp}:${cfg._externalPort}` : undefined;
+        this.scheduleEmitChanges();
     }
 
-    private async setupUPnP(storedPort?: number): Promise<number | undefined> {
+    /** Tries to map localIp:localPort to preferredExternalPort on the NAT router.
+     * If the port is not available, a random other port is attempted. The mapped port
+     * is returned, or undefined on failure.
+     */
+    private async setupUPnP(localIp: string, localPort: number, preferredExternalPort?: number): Promise<number | undefined> {
         try {
-            const localIp = await this.getLocalIp();
-            if (!localIp) throw new Error('Could not determine local IP');
             const gatewayUrl = await this.discoverGateway();
-            if (!gatewayUrl) throw new Error('Could not find UPnP gateway');
-
+            if (!gatewayUrl) {
+                this.log('warning', 'Could not find UPnP gateway');
+                return undefined;
+            }
             for (let i = 0; i < 4; i++) {
-                const externalPort = (i < 2 && storedPort) ? storedPort : Math.floor(Math.random() * (65535 - 10000) + 10000);
-
+                const externalPort = (i < 2 && preferredExternalPort) ? preferredExternalPort : Math.floor(Math.random() * (65535 - 10000) + 10000);
                 try {
-                    await this.addPortMapping(gatewayUrl, localIp, PORT, externalPort, 'TCP', 'LightLynx');
-                    this.log('info', `UPnP port mapped: <router>:${externalPort} -> ${localIp}:${PORT}`);
+                    await this.portMapUPnP(gatewayUrl, localIp, localPort, externalPort, 'TCP', 'LightLynx');
+                    this.log('info', `UPnP port mapped: <router>:${externalPort} -> ${localIp}:${localPort}`);
                     return externalPort;
                 } catch (err: any) {
                     this.log('warning', `UPnP mapping attempt ${i + 1} failed on ${externalPort}: ${err.message}`);
                     if (i < 3) await new Promise(r => setTimeout(r, 1000));
                 }
             }
-            throw new Error('Could not establish UPnP port mapping after 4 attempts');
+            this.log('warning', 'Could not establish UPnP port mapping after 4 attempts');
+            return undefined;
         } catch (err: any) {
             this.log('warning', `UPnP setup failed: ${err.message}`);
             return undefined;
         }
     }
 
+    /** Tries for 3s to discover the UPnP gateway. Returns gateway URL or undefined. */
     private discoverGateway(): Promise<string | null> {
         return new Promise((resolve) => {
             const socket = dgram.createSocket('udp4');
@@ -681,14 +349,9 @@ class LightLynx {
         });
     }
 
-    private async addPortMapping(gatewayUrl: string, internalIp: string, internalPort: number, externalPort: number, protocol: string, description: string) {
-        const descResponse = await new Promise<string>((resolve, reject) => {
-            http.get(gatewayUrl, (res) => {
-                let data = '';
-                res.on('data', chunk => data += chunk);
-                res.on('end', () => resolve(data));
-            }).on('error', reject);
-        });
+    /** Returns nothings. Throws on failure (which is not at all unlikely). */
+    private async portMapUPnP(gatewayUrl: string, internalIp: string, internalPort: number, externalPort: number, protocol: string, description: string) {
+        const descResponse = (await this.httpRequest(gatewayUrl)).body;
 
         const serviceMatch = descResponse.match(/<serviceType>urn:schemas-upnp-org:service:WAN(IP|PPP)Connection:1<\/serviceType>[\s\S]*?<controlURL>([^<]+)<\/controlURL>/);
         if (!serviceMatch) throw new Error('Could not find WAN connection service in gateway description');
@@ -713,78 +376,37 @@ class LightLynx {
   </s:Body>
 </s:Envelope>`;
 
-        return new Promise<void>((resolve, reject) => {
-            const req = http.request(controlUrl, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'text/xml; charset="utf-8"',
-                    'SOAPACTION': `"${soapAction}"`,
-                    'Content-Length': Buffer.byteLength(body)
-                }
-            }, (res) => {
-                if (res.statusCode === 200) resolve();
-                else reject(new Error(`UPnP SOAP request failed with status ${res.statusCode}`));
+        const res = await this.httpRequest(controlUrl, {
+            method: 'POST',
+            body,
+            headers: {
+                'Content-Type': 'text/xml; charset="utf-8"',
+                'SOAPACTION': `"${soapAction}"`
+            }
+        });
+        if (res.status !== 200) throw new Error(`UPnP SOAP request failed with status ${res.status}`);
+    }
+
+    /** Generic HTTP request helper method. */
+    private httpRequest(url: string, options?: { method?: string, body?: string, headers?: Record<string, string> }): Promise<{ status: number, body: string }> {
+        return new Promise((resolve, reject) => {
+            const parsedUrl = new URL(url);
+            const httpModule = parsedUrl.protocol === 'https:' ? https : http;
+            const headers: Record<string, string> = { ...options?.headers };
+            if (options?.body) headers['Content-Length'] = String(Buffer.byteLength(options.body));
+
+            const req = httpModule.request(parsedUrl, { method: options?.method || 'GET', headers }, (res) => {
+                let body = '';
+                res.on('data', chunk => body += chunk);
+                res.on('end', () => resolve({ status: res.statusCode || 0, body }));
             });
             req.on('error', reject);
-            req.write(body);
+            if (options?.body) req.write(options.body);
             req.end();
         });
     }
 
-    private async postJSON(url: string, body: any) {
-        return new Promise((resolve, reject) => {
-            const data = JSON.stringify(body);
-            const req = https.request(url, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Content-Length': Buffer.byteLength(data)
-                }
-            }, (res) => {
-                let bytes = '';
-                res.on('data', chunk => bytes += chunk);
-                res.on('end', () => {
-                    try { resolve(JSON.parse(bytes)); }
-                    catch (e) { reject(e); }
-                });
-            });
-            req.on('error', reject);
-            req.write(data);
-            req.end();
-        });
-    }
-
-    private async fetchText(url: string): Promise<string> {
-        return new Promise((resolve, reject) => {
-            https.get(url, (res) => {
-                let bytes = '';
-                res.on('data', chunk => bytes += chunk);
-                res.on('end', () => resolve(bytes.trim()));
-            }).on('error', reject);
-        });
-    }
-
-    private seedAdminUser() {
-        if (!this.config.users.admin) {
-            this.config.users.admin = {
-                secret: '',
-                isAdmin: true,
-                allowedGroups: [],
-                allowRemote: false
-            };
-            this.saveConfig();
-            this.log('info', `Created default 'admin' user with no password`);
-        }
-    }
-
-    private validateUser(username: string, password: string): UserConfig | null {
-        const user = this.config.users[username];
-        if (!user) return null;
-        if (user.secret === '' && password === '') return user;
-        if (password !== user.secret) return null;
-        return user;
-    }
-
+    /** Returns client IP address for HTTP connection, taking proxy headers into account */
     private getClientIp(req: http.IncomingMessage) {
         let ip = req.socket.remoteAddress;
         const forwarded = req.headers['x-forwarded-for'];
@@ -795,6 +417,7 @@ class LightLynx {
         return ip && ip.startsWith('::ffff:') ? ip.slice(7) : ip;
     }
 
+    /** Given an ipv4/ipv6 address, return if it's a local/private/internal address */
     private isLocalIp(ip: string | undefined) {
         if (!ip) return false;
         if (ip.startsWith('::ffff:')) ip = ip.slice(7);
@@ -805,413 +428,717 @@ class LightLynx {
         return a === 127 || a === 10 || (a === 192 && b === 168) || (a === 172 && b >= 16 && b <= 31);
     }
 
-    private getUsersForBroadcast() {
-        const users = this.config.users;
-        const result: Record<string, any> = {};
-        for (const [name, user] of Object.entries(users)) {
-            result[name] = {
-                isAdmin: user.isAdmin,
-                allowedGroups: user.allowedGroups,
-                allowRemote: user.allowRemote,
-                secret: user.secret
+    /** Called by http server on 'upgrade' event. Check permissions, and attach
+     * socket to WebSocket server if valid.
+     */
+    private onUpgrade(req: http.IncomingMessage, socket: any, head: Buffer) {
+        try {
+            const url = new URL(req.url!, 'http://localhost');
+            if (url.pathname !== '/api') throw new Error('Invalid WebSocket path.');
+
+            const userName = url.searchParams.get('user');
+            if (!userName) throw new Error('No userName provided.');
+            const secret = url.searchParams.get('secret') || '';
+            
+            const user = this.store.config.users[userName];
+            if (!user || secret !== user.secret) throw new Error('Invalid user name or password.');
+            
+            const clientIp = this.getClientIp(req);
+            const isRemote = !this.isLocalIp(clientIp) && clientIp !== this.store.config._ssl?.externalIp;
+            if (isRemote && !this.store.config.allowRemote) {
+                throw new Error('Remote access is disabled on this server.');
+            }
+            if (isRemote && !user.allowRemote) {
+                throw new Error('Remote access not permitted for user.');
+            }
+            this.wss!.handleUpgrade(req, socket, head, (ws) => {
+                this.onWebSocketAuthenticated(ws, user);
+            });
+            
+        } catch (err: any) {
+            this.wss!.handleUpgrade(req, socket, head, (ws) => {
+                ws.send(JSON.stringify(['error', err.message]));
+                ws.close();
+            });
+        }
+    }
+
+    /** Called for new WebSocket connections after successful authentication.
+     * Attach event handlers and send initial state.
+     */
+    private async onWebSocketAuthenticated(ws: WebSocket, user: User) {
+        this.webSocketUsers.set(ws, user);
+        this.log('info', `Client connected: ${user?.name}`);
+
+        ws.on('error', (err) => this.log('error', `WebSocket error: ${err.message}`));
+        ws.on('close', () => this.webSocketUsers.delete(ws));
+        ws.on('message', (data) => this.onUserMessage(ws, data));
+
+        const delta = createDelta(this.store, {});
+        delta.me = user;
+        ws.send(JSON.stringify(['init', EXTENSION_VERSION, delta]));
+    }
+
+    /** Handle patch-config command from user. */
+    private userPatchConfig(clientInfo: any, delta: any) {
+        if (!clientInfo.isAdmin) throw new Error('Permission denied: not an admin user');
+        applyDelta(this.store.config, delta);
+        this.emitChangesNow();
+        this.saveConfig();
+        if (delta.remoteAccess !== undefined) this.setupNetworking(); // in the background
+    }
+
+    /** Handle set-state command from user for a zigbee group. */
+    private async userSetGroupState(user: User, groupId: number, state: any) {
+        const group = this.store.groups[groupId];
+        if (!group) throw new Error(`Group ${groupId} not found`);
+        if (!user.isAdmin && !user.allowedGroupIds?.includes(groupId)) throw new Error("Permission denied for group");
+
+        // First send a command to the zigbee group.
+        const delta = createZ2MLightDelta({}, state);
+        this.sendMqttCommand(String(groupId), delta);
+
+        // Then send more tailored commands to each light in the group, if needed.
+        // This may be the case when sending a color command to a light that only
+        // supports color temperature.
+        for (const ieee of group.lightIds) {
+            const light = this.store.lights[ieee];
+            if (!light) continue;
+            const tailoredDelta = createZ2MLightDelta(light.lightState, tailorLightState(state, light.lightCaps));
+            for(const [k,v] of Object.entries(delta) as [keyof typeof delta, any][]) {
+                if (tailoredDelta[k] === v) delete tailoredDelta[k];
+            }
+            if (Object.keys(tailoredDelta).length) {
+                this.sendMqttCommand(ieee, tailoredDelta);
+            }
+        }
+    }
+
+    /** Handle set-state command from user for a zigbee light. */
+    private async userSetLightState(clientInfo: any, ieee: string, state: any) {
+        const light = this.store.lights[ieee];
+        if (!light) throw new Error(`Light ${ieee} not found`);
+        if (!clientInfo.isAdmin) {
+            let allow = false;
+            for (const groupId of clientInfo.allowedGroupIds) {
+                const group = this.store.groups[groupId];
+                if (!group) continue;
+                if (group.lightIds.includes(ieee)) {
+                    allow = true;
+                    break;
+                }
+            }
+            if (!allow) throw new Error("Permission denied for device");
+        }
+
+        const delta = createZ2MLightDelta(light.lightState, tailorLightState(state, light.lightCaps))
+        this.sendMqttCommand(ieee, delta);
+    }
+
+    /** Relay admin commands send to the Zigbee2MQTT 'bridge' virtual device. */
+    private async userBridgeCommand(user: User, ...args: any[]) {
+        if (!user.isAdmin) throw new Error('Permission denied: not an admin user');
+        const payload = args.pop();
+        const topic = `${this.mqttBaseTopic}/bridge/${args.join('/')}`;
+        
+        if (args[0] === 'request') {
+            // Generate unique transaction ID
+            const transaction = this.nextTransactionId++;
+            const payloadWithTransaction = { ...payload, transaction };
+            
+            // Create promise for response
+            const responsePromise = new Promise<any>((resolve, reject) => {
+                this.pendingBridgeRequests.set(transaction, { resolve, reject });
+                
+                // Set timeout
+                setTimeout(() => {
+                    if (this.pendingBridgeRequests.has(transaction)) {
+                        this.pendingBridgeRequests.delete(transaction);
+                        reject(new Error('Bridge request timeout'));
+                    }
+                }, 10000); // 10 second timeout
+            });
+            
+            this.sendMqttCommand(topic, payloadWithTransaction);
+            return await responsePromise;
+        } else {
+            this.sendMqttCommand(topic, payload);
+        }
+    }
+
+    private async userSceneCommand(user: User, groupId: number, subCommand: string, value: any) {
+        if (user.isAdmin || (subCommand === 'recall' && user.allowedGroupIds.includes(groupId))) {
+            const group = this.store.groups[groupId];
+            if (!group) throw new Error(`Group ${groupId} not found`);
+            const payload = {[`scene_${subCommand}`]: value};
+            await this.sendMqttCommand(`${groupId}/set`, payload);
+
+            if (subCommand === 'store' || subCommand === 'add') {
+                // Also store any off-states into the scene (for some reason that doesn't happen by default)
+                const sceneId = value && typeof value === 'object' ? value.ID : value;
+                const sceneName = value && typeof value === 'object' ? value.name : undefined;
+                for(let ieee of group.lightIds) {
+                    if (!api.store.lights[ieee]?.lightState?.on) {
+                        this.sendMqttCommand(`${ieee}/set`, {scene_add: {ID: sceneId, group_id: groupId, name: sceneName, state: "OFF"}});
+                    }
+                }
+            }
+        } else {
+            throw new Error('Permission denied');
+        }
+    }
+
+    /** Called for each incoming WebSocket message. Delegates to appropriate
+     * user* function and replies with result or error.
+     */
+    private async onUserMessage(ws: WebSocket, data: any) {
+        const user = this.webSocketUsers.get(ws);
+        if (!user) return;
+
+        const args = JSON.parse(data.toString());
+        const id = args.shift();
+        const command = args.shift();
+        try {
+            let response;
+            if (command === 'patch-config') {
+                this.userPatchConfig(user, args[0]);
+            } else if (command === 'set-state') {
+                if (typeof args[0] === 'number') await this.userSetGroupState(user, args[0], args[1]);
+                else await this.userSetLightState(user, args[0], args[1]);
+            } else if (command === 'bridge') {
+                response = await this.userBridgeCommand(user, ...args);
+            } else if (command === 'scene') {
+                await this.userSceneCommand(user, args[0], args[1], args[2]);
+            } else {
+                throw new Error(`Unknown command: ${command}`);
+            }
+            ws.send(JSON.stringify(['reply', id, response]));
+        } catch (err: any) {
+            ws.send(JSON.stringify(['reply', id, undefined, err.message]));
+        }
+    }
+
+    /** Called for each MQTT sent by Zigbee2MQTT. We use this to keep this.store up-to-date.*/
+    private onOutgoingMQTT(data: any) {
+        if (data.options.meta?.isEntityState || !data.topic.startsWith(`${this.mqttBaseTopic}/`)) return;
+        const topic = data.topic.slice(this.mqttBaseTopic.length + 1).split('/');
+        let payload: any;
+        try { payload = JSON.parse(data.payload); } catch { payload = data.payload; }
+
+        if (topic[0] === 'bridge') {
+            if (topic[1] === 'response' && payload.transaction != null) {
+                const pending = this.pendingBridgeRequests.get(payload.transaction);
+                if (pending) {
+                    this.pendingBridgeRequests.delete(payload.transaction);
+                    if (payload.status === 'ok') {
+                        pending.resolve(payload.data);
+                    } else {
+                        pending.reject(new Error(payload.error || 'Bridge request failed'));
+                    }
+                }
+            }
+            else if (topic.length !== 2) {}
+            else if (topic[1] === 'groups') this.handleBridgeGroups(payload);
+            else if (topic[1] === 'devices') this.handleBridgeDevices(payload);
+            else if (topic[1] === 'info') this.store.permitJoin = payload.permit_join;
+        }
+        else if (topic.length === 2 && topic[1] === topic.endsWith('/availability')) this.handleDeviceAvailability(topic[0], payload);
+        else if (topic.length === 1) this.handleDeviceState(topic[0], payload);
+        this.scheduleEmitChanges();
+    }
+
+    /** Translate outgoing bridge/devices MQTT into this.lights and this.toggles. */
+    private handleBridgeDevices(payload: any) {
+        this.deviceIdsByName = {};
+
+        const lights: Record<string, Light> = {};
+        const toggles: Record<string, Toggle> = {};
+        for (let z2mDev of payload) {
+            if (!z2mDev.definition) continue;
+
+            const ieee = z2mDev.ieee_address;
+            const dev = {
+                name: z2mDev.friendly_name,
+                description: z2mDev.description,
+                model: (z2mDev.definition.description || z2mDev.model_id) + " (" + (z2mDev.definition.vendor || z2mDev.manufacturer) + ")",
+            };
+            this.deviceIdsByName[dev.name] = ieee;
+
+            for (const expose of z2mDev.definition.exposes) {
+                if (expose.type === "light" || expose.type === "switch") {
+                    const features: any = {};
+                    for (const feature of (expose.features || [])) {
+                        features[feature.name] = {};
+                        if (feature.value_max !== undefined) {
+                            features[feature.name].valueMin = feature.value_min;
+                            features[feature.name].valueMax = feature.value_max;
+                        }
+                    }
+                    const lightCaps = {
+                        supportsBrightness: !!features.brightness,
+                        supportsColor: !!(features.color_hs || features.color_xy),
+                        supportsColorTemp: !!features.color_temp,
+                        brightness: features.brightness,
+                        colorTemp: features.color_temp,
+                        colorHs: !!features.color_hs,
+                        colorXy: !!features.color_xy
+                    };
+                    const old = this.store.lights[ieee];
+                    lights[ieee] = {
+                        ...dev,
+                        lightCaps,
+                        lightState: old?.lightState || {},
+                        meta: old?.meta || {},
+                    };
+                } else if (expose.name === "action") {
+                    const groupsMatch = dev.description?.match(/^lightlynx-groups (\d+(,\d+)*)$/m);
+                    const linkedGroupIds = groupsMatch?.[1]?.split(',').map(parseInt) || [];
+
+                    const old = this.store.toggles[ieee];
+                    toggles[ieee] = {
+                        ...dev,
+                        actions: expose.actions,
+                        meta: old?.meta || {},
+                        linkedGroupIds,
+                    };
+                }
+            }
+        }
+        this.store.lights = lights;
+        this.store.toggles = toggles;
+    }
+
+    /** Translate outgoing bridge/groups MQTT into this.groups. */
+    private handleBridgeGroups(payload: any) {
+        this.store.groups = {};
+        this.groupIdsByNames = {};
+
+        let groups: Record<number, Group> = {};
+        for (let z2mGroup of payload) {
+            const id = z2mGroup.id;
+            const group = this.store.groups[z2mGroup.id] || {} as Group;
+            groups[id] = group;
+
+            group.name = z2mGroup.friendly_name;
+            group.description = z2mGroup.description;
+            group.scenes = this.parseZ2mScenes(id, z2mGroup.scenes);
+            group.lightIds = z2mGroup.members.map((obj: any) => obj.ieee_address);
+
+            // Parse timeout from description (lightlynx- metadata)
+            let timeout : number | undefined;
+            const timeoutMatch = group.description?.match(/^lightlynx-timeout (\d+(?:\.\d+)?)([smhd])$/m);
+            if (timeoutMatch) {
+                const value = parseFloat(timeoutMatch[1]!);
+                const unit = {s: 1, m: 60, h: 60*60, d: 24*60*60}[timeoutMatch[2] as 's' | 'm' | 'h' | 'd'];
+                if (unit && !isNaN(value)) {
+                    timeout = value * unit * 1000;
+                }
+            }
+            const oldTimeout = group.timeout;
+            if (oldTimeout && !timeout) {
+                group.timeout = timeout;
+                this.nudgeGroupAutoOff(group);
+            }
+            this.groupIdsByNames[group.name] = id;
+        }
+        this.store.groups = groups;
+    }
+
+    /** Call this when there's activity for a group, in order to (re)set its auto-off timer. */
+    private nudgeGroupAutoOff(group: Group) {
+        if (group._autoOffTimer) clearTimeout(group._autoOffTimer);
+        delete group._autoOffTimer
+        if (group.timeout && this.store.config.automationEnabled) {
+            group._autoOffTimer = setTimeout(() => {
+                if (!this.store.config.automationEnabled) return;
+                this.sendMqttCommand(`${group.name}/set`, { state: 'OFF', transition: 30 });
+            }, group.timeout);
+        }
+    }
+
+    /** Send a MQTT-style message to Zigbee2MQTT (of course bypassing MQTT). These also get 
+     * delivered to our own incoming MQTT handler. The topic will be auto-prefixed by the 
+     * MQTT base topic. */
+    sendMqttCommand(topic: string, payload: any) {
+        this.eventBus.onMQTTMessage(`${this.mqttBaseTopic}/${topic}`, JSON.stringify(payload));
+    }
+
+    /** Translate a Z2M scenes list to a this.store.groups[x].scenes object. */
+    private parseZ2mScenes(groupId: number, z2mScenes: any): Record<number, Scene> {
+        const result: Record<number, Scene> = {};
+        for(const z2mScene of z2mScenes) {
+            // Scenes use parentheses suffix for metadata (triggers, etc)
+            const m = z2mScene.name.match(/^(.*?)\s*\((.*)\)\s*$/);
+            const name = m ? m[1] : z2mScene.name;
+
+            const triggers: Trigger[] = [];
+            if (m) {
+                for(let condition of m[2].split(',')) {
+                    let m = condition.match(/^\s*([0-9a-z]+)(?: ([^)-]*?)-([^)-]*))?\s*$/);
+                    if (!m) continue;
+                    let [_all, trigger, start, end] = m;
+                    triggers.push({
+                        event: trigger,
+                        startTime: start,
+                        endTime: end,
+                    });
+                }
+            }
+
+            result[z2mScene.id] = {
+                name,
+                fullName: z2mScene.name,
+                triggers,
+                lightStates: this.store.config._sceneStates[groupId]?.[z2mScene.id],
             };
         }
         return result;
     }
 
-    private sendConnectError(req: http.IncomingMessage, socket: any, head: Buffer, message: string) {
-        this.wss!.handleUpgrade(req, socket, head, (ws) => {
-            ws.send(JSON.stringify({ topic: 'bridge/lightlynx/connectError', payload: { message } }));
-            ws.close();
-        });
-    }
-
-    private onUpgrade(req: http.IncomingMessage, socket: any, head: Buffer) {
-        const url = new URL(req.url!, 'http://localhost');
-        if (url.pathname !== '/api') {
-            socket.destroy();
-            return;
-        }
-
-        const username = url.searchParams.get('user');
-        if (!username) return this.sendConnectError(req, socket, head, 'No username provided.');
-        const password = url.searchParams.get('secret') || '';
-        const clientIp = this.getClientIp(req);
-
-        const user = this.validateUser(username, password);
-        if (!user) return this.sendConnectError(req, socket, head, 'Invalid user name or password.');
-
-        const externalIp = this.config.ssl?.externalIp;
-        const isRemote = !this.isLocalIp(clientIp) && clientIp !== externalIp;
-        if (isRemote && !this.config.remoteAccess) {
-            return this.sendConnectError(req, socket, head, 'Remote access is disabled on this server.');
-        }
-        if (isRemote && !user.allowRemote) {
-            return this.sendConnectError(req, socket, head, 'Remote access not permitted for user.');
-        }
-
-        this.wss!.handleUpgrade(req, socket, head, (ws) => {
-            this.clients.set(ws, { username, ...user });
-            this.wss!.emit('connection', ws, req);
-        });
-    }
-
-    private async onConnection(ws: WebSocket, _req: http.IncomingMessage) {
-        const clientInfo = this.clients.get(ws);
-        this.log('info', `Client connected: ${clientInfo?.username}`);
-
-        ws.on('error', (err) => this.log('error', `WebSocket error: ${err.message}`));
-        ws.on('close', () => this.clients.delete(ws));
-        ws.on('message', (data) => this.onClientMessage(ws, data));
-
-        await this.sendInitialState(ws, clientInfo);
-    }
-
-    private async sendInitialState(ws: WebSocket, clientInfo: any) {
-        for (const [topic, msg] of Object.entries(this.mqtt.retainedMessages as Record<string, any>)) {
-            if (!topic.startsWith(`${this.mqttBaseTopic}/`)) continue;
-            const shortTopic = topic.slice(this.mqttBaseTopic.length + 1);
-            let payload: any;
-            try { payload = JSON.parse(msg.payload); } catch { payload = msg.payload; }
-
-            if (payload !== null) {
-                payload = this.filterPayload(shortTopic, payload);
-                ws.send(JSON.stringify({ topic: shortTopic, payload }));
+    /** Translate outgoing Z2M device online/offline messsages to this.state. */
+    private handleDeviceAvailability(deviceName: string, payload: any) {
+        let ieee = this.deviceIdsByName[deviceName];
+        if (ieee) {
+            const dev = this.store.lights[ieee] || this.store.toggles[ieee];
+            if (dev) {
+                dev.meta.online = payload.state==="online";
             }
         }
-
-        for (const device of this.zigbee.devicesIterator((d: any) => d.type !== 'Coordinator')) {
-            const payload = this.state.get(device);
-            ws.send(JSON.stringify({ topic: device.name, payload }));
-        }
-
-        if (clientInfo.isAdmin) {
-            ws.send(JSON.stringify({ topic: 'bridge/lightlynx/users', payload: this.getUsersForBroadcast() }));
-        } else {
-            // Non-admin users only get their own user info to know their permissions
-            const ownUserData = this.getUsersForBroadcast()[clientInfo.username];
-            if (ownUserData) {
-                ws.send(JSON.stringify({ topic: 'bridge/lightlynx/users', payload: { [clientInfo.username]: ownUserData } }));
-            }
-        }
-        ws.send(JSON.stringify({ topic: 'bridge/lightlynx/config', payload: await this.getPayloadForConfig() }));
-        ws.send(JSON.stringify({ topic: 'bridge/lightlynx/sceneSet', payload: this.activeScenes }));
     }
 
-    private filterPayload(topic: string, payload: any) {
-        if (topic === 'bridge/extensions' && Array.isArray(payload)) {
-            return payload.map(ext => ({
-                name: ext.name,
-                code: (ext.code || '').split('\n')[0]
-            }));
-        }
+    /** Translate outgoing Z2M device state messages to this.state. */
+    private handleDeviceState(deviceName: string, payload: any) {
+        let ieee = this.deviceIdsByName[deviceName];
+        if (!payload || !ieee) return;
 
-        if (topic === 'bridge/devices' && Array.isArray(payload)) {
-            return payload.map(d => ({
-                ieee_address: d.ieee_address,
-                friendly_name: d.friendly_name,
-                description: d.description,
-                model_id: d.model_id,
-                manufacturer: d.manufacturer,
-                definition: d.definition ? {
-                    description: d.definition.description,
-                    vendor: d.definition.vendor,
-                    exposes: this.filterExposes(d.definition.exposes)
-                } : null
-            }));
-        }
+        const light = this.store.lights[ieee];
+        if (light) this.handleLightState(light, payload);
 
-        if (topic === 'bridge/groups' && Array.isArray(payload)) {
-            return payload.map(g => ({
-                id: g.id,
-                friendly_name: g.friendly_name,
-                description: g.description,
-                scenes: (g.scenes || []).map((s: any) => ({ id: s.id, name: s.name })),
-                members: (g.members || []).map((m: any) => ({ ieee_address: m.ieee_address }))
-            }));
-        }
+        const toggle = this.store.toggles[ieee];
+        if (toggle) this.handleToggleState(ieee, toggle, payload);
 
-        return payload;
+        for (const dev of [light, toggle]) {
+            if (!dev) continue;
+            if (payload.update != null) dev.meta.update = payload.update.state;
+            if (payload.battery != null) dev.meta.battery = payload.battery;
+            if (payload.linkquality != null) dev.meta.linkquality = payload.linkquality;
+        }
     }
 
-    private filterExposes(exposes: any[]): any[] {
-        if (!Array.isArray(exposes)) return [];
-        return exposes.map(e => {
-            const filtered: any = { type: e.type, name: e.name };
-            if (e.values) filtered.values = e.values;
-            if (e.features) filtered.features = this.filterExposes(e.features);
-            if (e.value_min !== undefined) filtered.value_min = e.value_min;
-            if (e.value_max !== undefined) filtered.value_max = e.value_max;
-            return filtered;
-        });
-    }
-
-    private onClientMessage(ws: WebSocket, data: any) {
-        const clientInfo = this.clients.get(ws);
-        if (!clientInfo) return;
-
-        let msg: any;
-        try { msg = JSON.parse(data.toString()); } catch { return; }
-        const { topic, payload } = msg;
-
-        if (!this.checkPermission(clientInfo, topic, payload)) {
-            this.log('warning', `Permission denied for ${clientInfo.username} on ${topic}`);
-            return;
+    /** Translate outgoing Z2M light state messages to this.store.lights[x]. */
+    private handleLightState(dev: Light, payload: any) {
+        if (payload.state == null) return;
+        dev.lightState = {
+            on: payload.state === 'ON',
+            brightness: payload.brightness,
+            color: undefined,
+        };
+        if (payload.color_mode === 'color_temp') {
+            dev.lightState.color = payload.color_temp;
+        } else if (payload.color?.hue) {
+            dev.lightState.color = { hue: payload.color.hue, saturation: payload.color.saturation / 100 };
+        } else if (payload.color?.x) {
+            dev.lightState.color = payload.color;
         }
-
-        this.mqtt.onMessage(`${this.mqttBaseTopic}/${topic}`, Buffer.from(JSON.stringify(payload)));
     }
 
-    private checkPermission(clientInfo: any, topic: string, _payload: any) {
-        if (clientInfo.isAdmin) return true;
+    /** Handle outgoing Z2M state messages for buttons and sensors, by taking
+     * automation actions on linked groups.
+     */
+    async handleToggleState(ieee: string, device: Toggle, payload: any) {
+        if (!this.store.config.automationEnabled) return;
 
-        const parts = topic.split('/');
-        const name = parts[0];
-        if (name && parts[1] === 'set') {
-            // Check if this is a group and user has permission
-            const groupId = this.findGroupIdByName(name);
-            if (groupId != null && clientInfo.allowedGroups?.includes(groupId)) return true;
+        let action = payload.action;
+        if (action === 'press') {
+            clearTimeout(this.clickTimers.get(ieee));
+            this.clickTimers.set(ieee, setTimeout(()=> {
+                this.clickTimers.delete(ieee);
+                this.clickCounts.delete(ieee);
+            }, 1000))
             
-            // Check if this device belongs to a group the user has access to
-            const deviceIeee = this.findDeviceIeeeByName(name);
-            if (deviceIeee) {
-                for (const gid of clientInfo.allowedGroups || []) {
-                    const g = this.zigbee.resolveEntity(gid) as any;
-                    // g.zh.members is an array of Endpoint objects with deviceIeeeAddress property
-                    const members = g?.zh?.members;
-                    if (members?.some((m: any) => m.deviceIeeeAddress === deviceIeee)) {
-                        return true;
+            action = (this.clickCounts.get(ieee) || 0) + 1
+            this.clickCounts.set(ieee, action);
+        }
+        else if (CLICK_COUNTS[action]) {
+            action = CLICK_COUNTS[action];
+        } else if (payload.occupancy) {
+            action = 'sensor';
+        } else {
+            return;
+        }
+
+        // Handle triggers for all associated groups
+        for (const groupId of device.linkedGroupIds) {
+            const group = this.store.groups[groupId];
+            if (!group) continue;
+
+            let newState: Record<string, any> | undefined;
+            if (action === 1 && this.state.get({ID: groupId})?.state === 'ON') {
+                // Special case: single press turns off if already on
+                newState = {state: 'OFF'};
+                // The next click should start the count at 1
+                if (this.clickCounts.has(ieee)) this.clickCounts.set(ieee, 0);
+            } else {
+                let sceneId = this.findSceneId(group, action);
+                newState = sceneId == null ? DEFAULT_TRIGGERS[action] : { scene_recall: sceneId };
+            }
+
+            if (newState) {
+                newState.transition = 0.4;
+                this.sendMqttCommand(`${groupId}/set`, newState);
+            }
+        }
+    }
+
+    /** Debounced sync of this.store to websockets. */
+    private scheduleEmitChanges() {
+        if (this.emitChangesTimeout === undefined) {
+            this.emitChangesTimeout = setTimeout(() => {
+                this.emitChangesTimeout = undefined;
+                this.emitChangesNow();
+            }, 0);
+        }
+    }
+
+    /** Sync this.store to websockets. */
+    private emitChangesNow() {
+        const delta = createDelta(this.store, this.storeCopy);
+        const users = delta.config?.users;
+        
+        for (const [ws, clientInfo] of this.webSocketUsers) {
+            if (ws.readyState !== WebSocket.OPEN) continue;
+            if (users) {
+                // Two special cases: only admins get `config.users`, and `me` should contain
+                // `config.users[clientInfo.name]`.
+                if (clientInfo.isAdmin) delta.config!.users = users;
+                else delete delta.config!.users;
+                const me = users[clientInfo.name];
+                if (me) delta.me = me;
+                else delete delta.me;
+            }
+            if (Object.keys(delta).length > 0) {
+                ws.send(JSON.stringify(['store-delta', delta]));
+            }
+        }
+    }
+
+    /** Called for incoming MQTT messages, including the fake messages we send to
+     * Zigbee2MQTT ourselves. We use this to track which scene is set for each group,
+     * and to capture and save scene light states.
+     */
+    private async onIncomingMQTT(data: any) {
+        /// Handle scene tracking
+        if (!data.topic.startsWith(`${this.mqttBaseTopic}/`)) return;
+        const parts = data.topic.slice(this.mqttBaseTopic.length + 1).split('/');
+        
+        const groupName = parts[0];
+        if (groupName === 'bridge') return;
+        if (parts.length !== 2 || parts[1] !== 'set') return;
+
+        const groupId = this.groupIdsByNames[groupName] ?? parseInt(groupName);
+        if (isNaN(groupId)) return;
+        const group = this.store.groups[groupId];
+        if (!group) return;
+        
+        group.activeSceneId = undefined;
+        this.nudgeGroupAutoOff(group);
+
+        let message: any;
+        try { message = JSON.parse(data.message); } catch { return; }
+
+        const sceneStore = message.scene_store || message.scene_add;
+        if (sceneStore != null) {
+            // We'll keep our own copy of the light states for this scene, to be used by the 
+            // client to predictively show scene states.
+            // Actually, scene_add should only store selected attributes - oh well!
+            const sceneId = typeof sceneStore === 'object' ? sceneStore.ID : sceneStore;
+            group.activeSceneId = sceneId;
+            const states: Record<string, any> = {};
+            for (const id of group.lightIds) {
+                const s = this.store.lights[id]?.lightState;
+                if (s) states[id] = s;
+            }
+            this.storeScene(groupId, sceneId, states);
+        }
+        else if (message.scene_recall != null) {
+            group.activeSceneId = message.scene_recall;
+        }
+        else if (message.scene_remove != null) {
+            this.storeScene(groupId, message.scene_remove, undefined);
+        }
+
+        this.scheduleEmitChanges();
+    }
+
+    /** Scenes should be stored both in this.config._sceneStates and in this.store.groups. */
+    private storeScene(groupId: number, sceneId: number, states: undefined | Record<string, any>) {
+        if (!this.store.config._sceneStates[groupId]) {
+            if (!states) return;
+            this.store.config._sceneStates[groupId] = {};
+        }
+        if (states) this.store.config._sceneStates[groupId][sceneId] = states;
+        else delete this.store.config._sceneStates[groupId][sceneId];
+        const group = this.store.groups[groupId];
+        if (group) {
+            const scene = group.scenes[sceneId];
+            if (scene) scene.lightStates = states;
+        }
+        this.saveConfig();
+        this.scheduleEmitChanges();
+    }
+
+    /**
+     * Parses time strings like "7:30", "19:00", "30bs" (30 min before sunset),
+     * "1:00ar" (1 hour after sunrise) from 00:00. Returns 0 if parsing fails.
+     */
+    private parseTime(str: string): number {
+        let m = str.trim().match(/^([0-9]{1,2})(:([0-9]{2}))?((b|a)(s|r))?$/);
+        if (!m) return 0;
+        let hour = 0 | parseInt(m[1]!);
+        let minute = 0 | parseInt(m[3] || '0');
+        let beforeAfter = m[5];
+        let riseSet = m[6];
+
+        if (riseSet) {
+            const lat = this.store.config.latitude!;
+            const lon = this.store.config.longitude!;
+            let sunTime = (riseSet === 'r' ? getSunrise : getSunset)(lat, lon);
+            if (sunTime) {
+                if (beforeAfter === 'a') {
+                    hour += sunTime.getHours();
+                    minute += sunTime.getMinutes();
+                } else {
+                    hour = sunTime.getHours() - hour;
+                    minute = sunTime.getMinutes() - minute;
+                }
+            }
+        }
+        hour += Math.floor(minute / 60);
+        hour = ((hour % 24) + 24) % 24;
+        minute = ((minute % 60) + 60) % 60;
+        return hour * 60 + minute;
+    }
+
+    /**
+     * Checks if current time is within the specified range. Handles ranges that span over midnight.
+     * If within range, returns the total range in minutes (for prioritization), otherwise returns undefined.
+     * Accepts time strings according to parseTimeRange.
+     */
+    private checkTimeRange(startStr: string, endStr: string): number | undefined {
+        let start = this.parseTime(startStr);
+        let end = this.parseTime(endStr);
+        if (end < start) end += 24 * 60;
+        let now = new Date();
+        let nowMins = now.getHours() * 60 + now.getMinutes();
+        if (nowMins < start) nowMins += 24 * 60;
+        if (nowMins >= start && nowMins <= end) return end - start;
+        return undefined;
+    }
+
+    /** Find a scene for the given group that matches the event (1 .. 5, 'sensor', 'time')
+     * and is currently within its time range (if any). If there are multiple, pick the
+     * one with the narrowest time range. Returns scene id or undefined if none is found.
+    */
+    private findSceneId(group: Group, event: string | number): number | undefined {
+        let foundRange = 25*60, foundSceneId;
+        for(const sceneId in group.scenes) {
+            const scene = group.scenes[sceneId]!;
+            for(const trig of scene.triggers) {
+                if (trig.event == event) {
+                    let range = trig.startTime && trig.endTime ? this.checkTimeRange(trig.startTime, trig.endTime) : 24*60;
+                    if (range!=null && range < foundRange) {
+                        foundSceneId = parseInt(sceneId);
                     }
                 }
             }
         }
-        return false;
+        return foundSceneId;
     }
 
-    private findDeviceIeeeByName(name: string): string | null {
-        for (const device of this.zigbee.devicesIterator()) {
-            const ieeeAddr = device.zh?.ieeeAddr;
-            if (device.name === name || ieeeAddr === name) return ieeeAddr;
-        }
-        return null;
-    }
-
-    private findGroupIdByName(name: string): number | null {
-        for (const group of this.zigbee.groupsIterator()) {
-            const groupId = group.zh?.groupID;
-            if (group.name === name || String(groupId) === name) return groupId;
-        }
-        return null;
-    }
-
-    private onMQTTPublish(data: any) {
-        if (data.options.meta?.isEntityState || !data.topic.startsWith(`${this.mqttBaseTopic}/`)) return;
-        const topic = data.topic.slice(this.mqttBaseTopic.length + 1);
-        let payload: any;
-        try { payload = JSON.parse(data.payload); } catch { payload = data.payload; }
-        this.broadcast(topic, payload);
-    }
-
-    private onEntityState(data: any) {
-        this.broadcast(data.entity.name, data.message);
-    }
-
-    private broadcast(topic: string, payload: any) {
-        payload = this.filterPayload(topic, payload);
-        for (const [ws, _clientInfo] of this.clients) {
-            if (ws.readyState !== WebSocket.OPEN) continue;
-            if (payload !== null) {
-                ws.send(JSON.stringify({ topic, payload }));
-            }
-        }
-    }
-
-    private handleSceneTracking(data: any) {
-        if (!data.topic.startsWith(`${this.mqttBaseTopic}/`)) return;
-        const parts = data.topic.slice(this.mqttBaseTopic.length + 1).split('/');
-        if (parts[0] === 'bridge') return;
-
-        const groupName = parts[0];
-        if (!groupName || this.findGroupIdByName(groupName) == null) return;
-        
-        if (parts.length === 2 && parts[1] === 'set') {
-            let message: any;
-            try { message = JSON.parse(data.message); } catch { return; }
-            
-            if (message.scene_recall !== undefined) {
-                const sceneId = message.scene_recall;
-                this.lastSceneTime[groupName] = Date.now();
-                if (this.activeScenes[groupName] !== sceneId) {
-                    this.activeScenes[groupName] = sceneId;
-                    this.broadcastSceneChange(groupName, sceneId);
+    /** Called every 10s. Checks if any new "time" event scene triggers are applicable. */
+    private handleTimeTriggers() {
+        if (!this.store.config.automationEnabled) return;
+        for(const [groupId, group] of Object.entries(this.store.groups)) {
+            let newState: Record<string, any> | undefined;
+            let sceneId = this.findSceneId(group, 'time');
+            if (sceneId != null) {
+                // Only recall if different from previous scene, to avoid setting the
+                // scene again when the user has manually changed it.
+                if (group._lastTimedSceneId !== sceneId) {
+                    this.log('info', `Time-based recall group=${group.name} scene=${sceneId}`);
+                    newState = { scene_recall: sceneId };
+                    group.activeSceneId = group._lastTimedSceneId = sceneId;
                 }
-            }
-        } else if (parts.length === 1) {
-            const timeSinceScene = Date.now() - (this.lastSceneTime[groupName] || 0);
-            if (timeSinceScene > 500 && this.activeScenes[groupName] !== undefined) {
-                this.activeScenes[groupName] = undefined;
-                this.broadcastSceneChange(groupName, undefined);
-            }
-        }
-    }
-
-    private broadcastSceneChange(groupName: string, sceneId: number | undefined) {
-        const payload: Record<string, number | undefined> = { [groupName]: sceneId };
-        for (const [ws, _clientInfo] of this.clients) {
-            if (ws.readyState === WebSocket.OPEN) {
-                ws.send(JSON.stringify({ topic: 'bridge/lightlynx/sceneSet', payload }));
-            }
-        }
-    }
-
-    private async onMQTTRequest(data: any) {
-        this.handleSceneTracking(data);
-
-        const prefix = `${this.mqttBaseTopic}/bridge/request/lightlynx/`;
-        if (!data.topic.startsWith(prefix)) return;
-
-        const path = data.topic.slice(prefix.length);
-        const parts = path.split('/');
-        const category = parts[0];
-        const action = parts[1];
-        
-        let message: any;
-        try { message = JSON.parse(data.message); } catch { message = {}; }
-        
-        let response: any;
-        try {
-            if (category === 'config') {
-                switch (action) {
-                    case 'setRemoteAccess':
-                        this.config.remoteAccess = !!message.enabled;
-                        this.saveConfig();
-                        await this.setupSSL();
-                        response = { data: { remoteAccess: this.config.remoteAccess }, status: 'ok' };
-                        this.broadcastConfig();
-                        break;
-                    case 'setAutomation':
-                        const wasEnabled = this.config.automation;
-                        this.config.automation = !!message.enabled;
-                        this.saveConfig();
-                        if (this.config.automation && !wasEnabled) {
-                            this.automation = new Automation(this.mqtt, this.zigbee, this.state, this.mqttBaseTopic, this.config);
-                            this.automation.start(this.eventBus);
-                            this.log('info', 'Automation enabled');
-                        } else if (!this.config.automation && wasEnabled && this.automation) {
-                            this.automation.stop(this.eventBus);
-                            this.automation = undefined;
-                            this.log('info', 'Automation disabled');
-                        }
-                        response = { data: { automation: this.config.automation }, status: 'ok' };
-                        this.broadcastConfig();
-                        break;
-                    case 'setLocation':
-                        if (message.latitude !== undefined) this.config.latitude = message.latitude;
-                        if (message.longitude !== undefined) this.config.longitude = message.longitude;
-                        this.saveConfig();
-                        // No need to restart automation - it reads from config
-                        response = { data: { latitude: this.config.latitude, longitude: this.config.longitude }, status: 'ok' };
-                        this.broadcastConfig();
-                        break;
-                    case 'addUser': 
-                        response = this.addUser(message); 
-                        this.broadcastUsers(); 
-                        break;
-                    case 'updateUser': 
-                        response = this.updateUser(message); 
-                        this.broadcastUsers(); 
-                        break;
-                    case 'deleteUser': 
-                        response = this.deleteUser(message); 
-                        this.broadcastUsers(); 
-                        break;
-                    default: 
-                        response = { status: 'error', error: 'Unknown action' };
-                }
+                // Keep auto-off at bay as long as the time-based scene is active
+                if (sceneId === group.activeSceneId) this.nudgeGroupAutoOff(group);
             } else {
-                response = { status: 'error', error: 'Unknown category' };
+                if (group._lastTimedSceneId != undefined) {
+                    this.log('info', `Time-based off group=${group.name}`);
+                    newState = {state: 'OFF'};
+                    group.activeSceneId = group._lastTimedSceneId = undefined;
+                }
             }
-        } catch (err: any) {
-            response = { status: 'error', error: err.message };
-        }
-        if (message.transaction) response.transaction = message.transaction;
-        await this.mqtt.publish(`bridge/response/lightlynx/${path}`, JSON.stringify(response));
-    }
-
-    private async broadcastConfig() {
-        const payload = await this.getPayloadForConfig();
-        for (const [ws, _clientInfo] of this.clients) {
-            if (ws.readyState === WebSocket.OPEN) {
-                ws.send(JSON.stringify({ topic: 'bridge/lightlynx/config', payload }));
-            }
-        }
-    }
-
-    private async getPayloadForConfig() {
-        return { 
-            remoteAccess: this.config.remoteAccess,
-            automation: this.config.automation,
-            latitude: this.config.latitude,
-            longitude: this.config.longitude,
-            localAddress: this.config.ssl?.localIp 
-                ? `${this.config.ssl.localIp}:${PORT}` 
-                : undefined,
-            externalAddress: this.config.remoteAccess && this.config.ssl?.externalIp && this.config.externalPort 
-                ? `${this.config.ssl.externalIp}:${this.config.externalPort}` 
-                : undefined,
-        };
-    }
-
-    private addUser(message: any) {
-        const { username, secret, isAdmin, allowedGroups, allowRemote } = message;
-        if (!username) throw new Error('Username required');
-        if (username === 'admin') throw new Error('Cannot add admin user');
-        if (this.config.users[username]) throw new Error('User already exists');
-        if (allowRemote && !secret) throw new Error('Cannot enable remote access without a password');
-        this.config.users[username] = { 
-            secret: secret || '', 
-            isAdmin: !!isAdmin, 
-            allowedGroups: allowedGroups || [], 
-            allowRemote: !!allowRemote 
-        };
-        this.saveConfig();
-        return { status: 'ok' };
-    }
-
-    private updateUser(message: any) {
-        const { username, secret, isAdmin, allowedGroups, allowRemote } = message;
-        if (!username) throw new Error('Username required');
-        const user = this.config.users[username];
-        if (!user) throw new Error('User not found');
-        if (secret !== undefined) user.secret = secret;
-        if (isAdmin !== undefined) user.isAdmin = isAdmin;
-        if (allowedGroups !== undefined) user.allowedGroups = allowedGroups;
-        if (allowRemote !== undefined) {
-            if (allowRemote && !user.secret) throw new Error('Cannot enable remote access without a password');
-            user.allowRemote = allowRemote;
-        }
-        this.saveConfig();
-        return { status: 'ok' };
-    }
-
-    private deleteUser(message: any) {
-        const { username } = message;
-        if (!username) throw new Error('Username required');
-        if (username === 'admin') throw new Error('Cannot delete admin user');
-        if (!this.config.users[username]) throw new Error('User not found');
-        delete this.config.users[username];
-        this.saveConfig();
-        return { status: 'ok' };
-    }
-
-    private broadcastUsers() {
-        const payload = this.getUsersForBroadcast();
-        for (const [ws, clientInfo] of this.clients) {
-            if (ws.readyState === WebSocket.OPEN && clientInfo.isAdmin) {
-                ws.send(JSON.stringify({ topic: 'bridge/lightlynx/users', payload }));
+            if (newState) {
+                newState.transition = 20;
+                this.sendMqttCommand(`${groupId}/set`, newState);
             }
         }
     }
 }
 
+
+// Functions for sunset/sunrise calculations
+
+function getDayOfYear(date: Date) {
+    return Math.ceil((date.getTime() - new Date(date.getFullYear(), 0, 1).getTime()) / (24*3600*1000));
+}
+
+function sinDeg(deg: number) { return Math.sin(deg * 2.0 * Math.PI / 360.0); }
+function acosDeg(x: number) { return Math.acos(x) * 360.0 / (2 * Math.PI); }
+function asinDeg(x: number) { return Math.asin(x) * 360.0 / (2 * Math.PI); }
+function cosDeg(deg: number) { return Math.cos(deg * 2.0 * Math.PI / 360.0); }
+function mod(a: number, b: number) { const r = a % b; return r < 0 ? r + b : r; }
+
+function getSunTime(latitude: number, longitude: number, isSunrise: boolean, zenith: number, date: Date) {
+    const dayOfYear = getDayOfYear(date);
+    const hoursFromMeridian = longitude / DEGREES_PER_HOUR;
+    const approxTimeOfEventInDays = isSunrise
+        ? dayOfYear + ((6.0 - hoursFromMeridian) / 24.0)
+        : dayOfYear + ((18.0 - hoursFromMeridian) / 24.0);
+
+    const sunMeanAnomaly = (0.9856 * approxTimeOfEventInDays) - 3.289;
+    let sunTrueLong = sunMeanAnomaly + (1.916 * sinDeg(sunMeanAnomaly)) + (0.020 * sinDeg(2 * sunMeanAnomaly)) + 282.634;
+    sunTrueLong = mod(sunTrueLong, 360);
+
+    let sunRightAscension = acosDeg(cosDeg(sunTrueLong) / cosDeg(asinDeg(0.39782 * sinDeg(sunTrueLong))));
+    sunRightAscension = mod(sunRightAscension, 360);
+    sunRightAscension = sunRightAscension + (((Math.floor(sunTrueLong / 90.0) * 90.0) - (Math.floor(sunRightAscension / 90.0) * 90.0)) / DEGREES_PER_HOUR);
+
+    const sunDeclinationSin = 0.39782 * sinDeg(sunTrueLong);
+    const sunDeclinationCos = cosDeg(asinDeg(sunDeclinationSin));
+
+    const localHourAngleCos = (cosDeg(zenith) - (sunDeclinationSin * sinDeg(latitude))) / (sunDeclinationCos * cosDeg(latitude));
+
+    if (localHourAngleCos > 1 || localHourAngleCos < -1) return null;
+
+    const localHourAngle = isSunrise ? 360 - acosDeg(localHourAngleCos) : acosDeg(localHourAngleCos);
+    const localMeanTime = (localHourAngle / DEGREES_PER_HOUR) + (sunRightAscension / DEGREES_PER_HOUR) - (0.06571 * approxTimeOfEventInDays) - 6.622;
+    const utcTimeInHours = mod(localMeanTime - hoursFromMeridian, 24);
+    const utcDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+
+    utcDate.setUTCHours(Math.floor(utcTimeInHours));
+    utcDate.setUTCMinutes(Math.floor((utcTimeInHours - Math.floor(utcTimeInHours)) * 60));
+    return utcDate;
+}
+
+function getSunrise(lat: number, lon: number, zenith?: number, date?: Date) { 
+    return getSunTime(lat, lon, true, zenith || DEFAULT_ZENITH, date || new Date()); 
+}
+
+function getSunset(lat: number, lon: number, zenith?: number, date?: Date) { 
+    return getSunTime(lat, lon, false, zenith || DEFAULT_ZENITH, date || new Date()); 
+}
+
 module.exports = LightLynx;
+
+

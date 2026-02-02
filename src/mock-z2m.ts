@@ -9,17 +9,6 @@ const require = createRequire(import.meta.url);
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Read configuration from environment
-const MOCK_Z2M_PORT = parseInt(process.env.MOCK_Z2M_PORT || '43598', 10);
-const MOCK_Z2M_INSECURE = process.env.MOCK_Z2M_INSECURE === 'true';
-
-// Set up global for extension to read
-(globalThis as any).MOCK_Z2M = {
-    httpsPort: MOCK_Z2M_PORT,
-    insecure: MOCK_Z2M_INSECURE,
-    certFile: MOCK_Z2M_INSECURE ? undefined : path.join(__dirname, 'mock-certs.json')
-};
-
 // --- Environment Setup ---
 const dataPath = `/tmp/mock-z2m-${process.pid}`;
 if (!fs.existsSync(dataPath)) fs.mkdirSync(dataPath, { recursive: true });
