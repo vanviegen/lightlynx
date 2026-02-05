@@ -47,7 +47,7 @@ if (!import.meta.env.DEV && 'serviceWorker' in navigator) {
 // Register notify handler to show API messages as toasts
 api.notifyHandlers.push(createToast);
 
-export const deviceGroups: Record<string, number[]> = {};
+export const lightGroups: Record<string, number[]> = {};
 $(() => {
 	let result: Record<string, number[]> = {};
 	for (const [groupId, group] of Object.entries(api.store.groups)) {
@@ -55,7 +55,7 @@ $(() => {
 			(result[ieee] = result[ieee] || []).push(parseInt(groupId));
 		}
 	}
-	copy(deviceGroups, result);
+	copy(lightGroups, result);
 });
 
 function drawManagementSection(): void {
@@ -163,11 +163,11 @@ const groupListClass = insertCss({
 });
 
 function drawTopPage(): void {
-	if (isEmpty(api.store.servers)) return drawLandingPage();
+	if (isEmpty(api.servers)) return drawLandingPage();
 
-	if (isEmpty(api.store.groups) && api.store.connectionState !== 'connected') {
-		if (api.store.connectionState === 'idle') {
-			api.store.servers[0]!.status = 'try';
+	if (isEmpty(api.store.groups) && api.connection.state !== 'connected') {
+		if (api.connection.state === 'idle') {
+			api.connection.mode = 'try';
 		}
 		$('div.empty#Connecting...');
 	}
@@ -177,16 +177,16 @@ function drawTopPage(): void {
 
 	$("div.list mt:$2", groupListClass, () => {
 		onEach(api.store.groups, (group, groupId) => {
-			const gid = parseInt(groupId);
+			groupId = parseInt(groupId);
 			
 			$('div.item.group', () => {
 				// Add 'off' class if lights are off
 				$('.off=', derive(() => !group.lightState?.on));
 				// Add 'disabled' class if user cannot control this group (CSS handles pointer-events:none)
-				$('.disabled=', derive(() => !api.canControlGroup(gid)));
+				$('.disabled=', derive(() => !api.canControlGroup(groupId)));
 
 				// Toggle button
-				drawBulbCircle(group, gid);
+				drawBulbCircle(group, groupId);
 				
 				// Name and chevron (includes spacer, min 20px padding)
 				$('h2.link flex:1 click=', () => route.go(['group', groupId]), () => {
@@ -197,17 +197,18 @@ function drawTopPage(): void {
 				// Scene icons (horizontally scrollable)
 				$("div.scenes", () => {
 					onEach(group.scenes, (scene, sceneId) => {
+						sceneId = parseInt(sceneId);
 						function onClick(): void {
 							api.recallScene(groupId, sceneId);
 						}
-						const isActive = derive(() => api.store.activeScenes[group.name] == scene.id && group.lightState?.on);
+						const isActive = derive(() => group.activeSceneId === sceneId && group.lightState?.on);
 						const icon = icons.scenes[scene.name.toLowerCase()];
 						if (icon) icon('.link click=', onClick, {'.active-scene': isActive});
 						else $('div.scene.link#', scene.name, {'.active-scene': isActive}, 'click=', onClick);
-					},  scene => `${scene.suffix || 'x'}#${scene.name}`);
+					},  scene => scene.triggers.map(t => t.event).concat([scene.name])); // Sort be trigger event, and then by name
 					
-					if (!group.scenes || group.scenes.length === 0) {
-						icons.scenes.normal('click=', () => api.setLightState(gid, {on: false, brightness: 140, color: colors.CT_DEFAULT}));
+					if (isEmpty(group.scenes)) {
+						icons.scenes.normal('click=', () => api.setLightState(groupId, {on: false, brightness: 140, color: colors.CT_DEFAULT}));
 					}
 				});
 			});
@@ -215,16 +216,15 @@ function drawTopPage(): void {
 	});
 	
 	$("div.list", () => {
-		onEach(api.store.devices, (device, ieee) => {
+		onEach(api.store.lights, (device, ieee) => {
 			$('div.item', () => {
 				// Add 'disabled' class if user is not admin (CSS handles pointer-events:none)
-				$('.disabled=', derive(() => !api.store.isAdmin));
+				$('.disabled=', derive(() => !api.store.me?.isAdmin));
 				drawBulbCircle(device, ieee);
 				$('h2.link#', device.name, 'click=', () => route.go(['bulb', ieee]));
 			});
 		}, (device, ieee) => {
-			let inGroups = deviceGroups[ieee];
-			return (!inGroups && device.lightCaps) ? device.name : undefined;
+			return lightGroups[ieee] ? undefined : device.name;
 		});
 	});
 
@@ -241,7 +241,7 @@ function drawRemoteAccessToggle(): void {
 	$('label.item', () => {
 		$({'.busy': remoteBusy.value});
 		$('input type=checkbox', {
-			checked: api.store.allowRemote,
+			checked: api.store.config.allowRemote,
 			disabled: remoteBusy.value,
 			change: async (e: Event) => {
 				const checked = (e.target as HTMLInputElement).checked;
@@ -259,13 +259,13 @@ function drawRemoteAccessToggle(): void {
 			}
 		});
 		$('h2#Remote access');
-		if (api.store.allowRemote) {
-			const address = api.store.servers[0]?.externalAddress || "No address yet";
+		if (api.store.config.allowRemote) {
+			const address = api.store.externalAddress || "No address yet";
 			$('span.link opacity:0.6 #'+address, 'click=', (e: Event) => {
 				e.stopPropagation();
 				e.preventDefault();
-				if (api.store.servers[0]?.externalAddress) {
-					copyToClipboard(api.store.servers[0].externalAddress, 'Address');
+				if (api.store.externalAddress) {
+					copyToClipboard(api.store.externalAddress, 'Address');
 				}
 			});
 		}
@@ -318,7 +318,7 @@ const mainContainerStyle = insertCss('flex:1 position:relative overflow:hidden')
 
 $('div', rootStyle, () => {
 	$(() => {
-		$('.landing-page=', isEmpty(api.store.servers) && route.current.path === '/');
+		$('.landing-page=', isEmpty(api.servers) && route.current.path === '/');
 	});
 
 	drawHeader(updateAvailable, disableJoin);

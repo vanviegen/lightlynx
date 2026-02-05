@@ -74,7 +74,7 @@ class MockEventBus extends EventEmitter {
         this.emit('mqttMessage', { topic, message });
     }
     emitMQTTMessagePublished(topic: string, payload: string, options: any = {}) {
-        if (typeof mqtt !== 'undefined') mqtt.retainedMessages[topic] = { payload } as any;
+        if (typeof mqtt !== 'undefined') mqtt.retainedMessages[topic] = { topic, payload, options };
         this.emit('mqttMessagePublished', { topic: topic, payload, options });
     }
     emitPublishEntityState(entity: any, state: any) {
@@ -449,13 +449,13 @@ async function init() {
 // --- MQTT Mock ---
 
 class MockMQTT {
-    public retainedMessages: Record<string, { payload: string }> = {};
+    public retainedMessages: Record<string, { topic: string, payload: string, options: any }> = {};
 
     async publish(topic: string, message: string | object, options?: any) {
         const messageStr = typeof message === 'string' ? message : JSON.stringify(message);
         console.log(`MockZ2M: MQTT OUT: ${topic} -> ${messageStr.substr(0,200)}`);
         if (options?.clientOptions?.retain) {
-            this.retainedMessages[topic] = { payload: messageStr } as any;
+            this.retainedMessages[topic] = { topic, payload: messageStr, options };
         }
         eventBus.emitMQTTMessagePublished(topic, messageStr, options);
         return Promise.resolve();

@@ -13,7 +13,7 @@ export function drawUsersSection(): void {
     });
 
     $('div.list', () => {
-        onEach(api.store.config.users, (user, userName) => {
+        onEach(api.store.config.users || {}, (user, userName) => {
             $('div.item.link', 'click=', () => route.go(['user', userName]), () => {
                 (user.isAdmin ? icons.shield : icons.user)();
                 $('h2#', userName);
@@ -28,7 +28,7 @@ export function drawUserEditor(): void {
     if (!api.store.me?.isAdmin) return route.back();
     
     const userName = route.current.p[1]!;
-    const existing = userName ? api.store.config.users[userName] : undefined;
+    const existing = userName ? api.store.config.users?.[userName] : undefined;
 
     const user = proxy<User>(
         existing ? clone(unproxy(existing)) : {

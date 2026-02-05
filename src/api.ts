@@ -476,6 +476,73 @@ class Api {
     }
 
     /**
+     * Link or unlink a toggle device to a group
+     */
+    async linkToggleToGroup(groupId: number, ieee: string, linked: boolean): Promise<void> {
+        const toggle = this.store.toggles[ieee];
+        if (!toggle) return;
+
+        // Optimistic update
+        const prediction = applyPrediction(() => {
+            const currentGroups = toggle.linkedGroupIds || [];
+            if (linked && !currentGroups.includes(groupId)) {
+                toggle.linkedGroupIds = [...currentGroups, groupId];
+            } else if (!linked && currentGroups.includes(groupId)) {
+                toggle.linkedGroupIds = currentGroups.filter(id => id !== groupId);
+            }
+        });
+
+        try {
+            await this.send('link-toggle-to-group', groupId, ieee, linked);
+        } catch (e) {
+            throw e;
+        } finally {
+            applyCanon(undefined, [prediction]);
+        }
+    }
+
+    /**
+     * Set or clear the auto-off timeout for a group (in seconds, or null to clear)
+     */
+    async setGroupTimeout(groupId: number, timeoutSecs: number | null): Promise<void> {
+        const group = this.store.groups[groupId];
+        if (!group) return;
+
+        const prediction = applyPrediction(() => {
+            group.timeout = timeoutSecs || undefined;
+        });
+
+        try {
+            await this.send('set-group-timeout', groupId, timeoutSecs);
+        } finally {
+            applyCanon(undefined, [prediction]);
+        }
+    }
+
+    /**
+     * Update scene name and triggers
+     */
+    async updateSceneMetadata(groupId: number, sceneId: number, shortName: string, triggers: Array<{event: string, startTime?: string, endTime?: string}>): Promise<void> {
+        const group = this.store.groups[groupId];
+        if (!group) return;
+        const scene = group.scenes[sceneId];
+        if (!scene) return;
+
+        // Optimistic update
+        const prediction = applyPrediction(() => {
+            scene.name = shortName;
+            scene.triggers = triggers;
+            // Note: fullName will be updated by backend delta
+        });
+
+        try {
+            await this.send('update-scene-metadata', groupId, sceneId, shortName, triggers);
+        } finally {
+            applyCanon(undefined, [prediction]);
+        }
+    }
+
+    /**
      * Check if the current user can control a group (reactive)
      */
     canControlGroup(groupId: number): boolean {

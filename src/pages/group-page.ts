@@ -4,22 +4,11 @@ import * as route from 'aberdeen/route';
 import api from '../api';
 import * as icons from '../icons';
 import { drawColorPicker, drawBulbCircle } from '../components/color-picker';
-import { Device, Group, Toggle } from '../types';
+import { Device, Group } from '../types';
 import { routeState, admin, lazySave } from '../ui';
 import { askConfirm, askPrompt } from '../components/prompt';
-import { deviceGroups } from '../app';
+import { lightGroups } from '../app';
 import { drawSceneEditor } from './scene-editor';
-
-const GROUPS_REGEXP = /^lightlynx-groups (\d+(,\d+)*)$/m;
-const TIMEOUT_REGEXP = /^lightlynx-timeout (\d+(?:\.\d+)?)([smhd])$/m;
-
-// Helper function for common pattern: device item with bulb circle and name
-export function drawDeviceItem(device: Device, ieee: string): void {
-    $('div.item', () => {
-        drawBulbCircle(device, ieee);
-        $('h2.link#', device.name, 'click=', () => route.go(['bulb', ieee]));
-    });
-}
 
 // All buttons and sensors, partitioned by group. {groupId: {ieee: Toggle}}. Toggles that belong to
 // no group are placed in '-1'.
@@ -65,23 +54,24 @@ export function drawGroupPage(groupId: number): void {
     
     $('div.list', () => {
         onEach(group.scenes || [], (scene, sceneId) => {
+            sceneId = parseInt(sceneId as string);
             function recall(): void {
                 api.recallScene(groupId, sceneId);
             }
-            const isActive = derive(() => group.activeSceneId == sceneId && group.lightState?.on);
+            const isActive = derive(() => group.activeSceneId === sceneId && group.lightState?.on);
             $('div.item.link click=', recall, '.active-scene=', isActive, () => {
                 let icon = icons.scenes[scene.name.toLowerCase()] || icons.empty;
                 icon();
-                $('h2#', admin.value ? scene.name : scene.name);
+                $('h2#', admin.value ? scene.fullName : scene.name);
                 if (admin.value) {
                     function configure(e: Event): void {
                         e.stopPropagation();
-                        route.go(['group', groupId, 'scene', scene.id]);
+                        route.go(['group', groupId, 'scene', sceneId]);
                     }
                     icons.configure('click=', configure);
                 }
             });
-        }, (scene) => `${scene.suffix || "x"}#${scene.name}`);
+        }, (scene) => scene.triggers.map(trigger => trigger.event).concat(scene.name));
         $(() => {
             if (isEmpty(group.scenes)) $('div.empty#None yet');
         });
@@ -92,11 +82,14 @@ export function drawGroupPage(groupId: number): void {
     });
     
     $("div.list", () => {
-        const devices = api.store.devices;
+        const lights = api.store.lights;
         onEach(group.lightIds, (ieee) => { 
-            let device = devices[ieee]!;
-            drawDeviceItem(device, ieee);
-        }, (ieee) => devices[ieee]?.name);
+            let light = lights[ieee]!;
+            $('div.item', () => {
+                drawBulbCircle(light, ieee);
+                $('h2.link#', light.name, 'click=', () => route.go(['bulb', ieee]));
+            });
+        }, (ieee) => lights[ieee]?.name);
         
         if (isEmpty(group.lightIds)) {
             $('div.empty#None yet');
@@ -125,14 +118,13 @@ function drawGroupAddLight(
     routeState.subTitle = 'add light';
     
     $("div.list", () => {
-        onEach(api.store.devices, (device, ieee) => { 
+        onEach(api.store.lights, (device, ieee) => { 
             $("div.item", () => {
                 drawBulbCircle(device, ieee);
                 $('h2.link#', device.name, 'click=', () => addDevice(ieee));
             });
         }, (device, ieee) => {
-            if (!device.lightCaps) return; // Skip sensors
-            let inGroups = deviceGroups[ieee] || [];
+            let inGroups = lightGroups[ieee] || [];
             if (inGroups.includes(groupId)) return; // Skip, already in this group
             return [inGroups.length ? 1 : 0, device.name];
         });
@@ -148,21 +140,18 @@ function drawGroupAddInput(
     routeState.subTitle = 'add input';
 
     function addDevice(ieee: string): void {
-        let groupIds = getGroupIdsFromDescription(api.store.devices[ieee]?.description);
-        const description = buildDescriptionWithGroupIds(api.store.devices[ieee]?.description, groupIds.concat([groupId]));
-        api.send("bridge", "request", "device", "options", {id: ieee, options: {description}});
+        api.linkToggleToGroup(groupId, ieee, true);
         route.up();
     }
     
     $("div.list", () => {
-        onEach(api.store.devices, (device, ieee) => { 
+        onEach(api.store.toggles, (device, ieee) => { 
             $("div.item", () => {
-                drawBulbCircle(device, ieee);
+                icons.sensor();
                 $('h2.link#', device.name, 'click=', () => addDevice(ieee));
             });
         }, (device, _ieee) => {
-            if (device.lightCaps) return; // Skip bulbs
-            let inGroups = getGroupIdsFromDescription(device.description);
+            let inGroups = device.linkedGroupIds;
             if (inGroups.includes(groupId)) return; // Skip, already in this group
             return [inGroups.length ? 1 : 0, device.name];
         });
@@ -175,14 +164,27 @@ function drawGroupConfigurationEditor(
 ): void {
     
     const groupState = proxy(peek(() => {
+        // Convert group.timeout (seconds) back to value/unit for UI
+        let timeout: {value: number, unit: 's' | 'm' | 'h' | 'd'} | null = null;
+        if (group.timeout) {
+            const seconds = group.timeout;
+            if (seconds % 86400 === 0) {
+                timeout = {value: seconds / 86400, unit: 'd'};
+            } else if (seconds % 3600 === 0) {
+                timeout = {value: seconds / 3600, unit: 'h'};
+            } else if (seconds % 60 === 0) {
+                timeout = {value: seconds / 60, unit: 'm'};
+            } else {
+                timeout = {value: seconds, unit: 's'};
+            }
+        }
         return {
             name: group.name,
-            description: group.description,
-            timeout: getGroupTimeoutFromDescription(group.description),
+            timeout,
         }
     }));
 
-    const automationEnabled = api.store.automationEnabled;
+    const automationEnabled = api.store.config.automationEnabled;
 
     $("h1", () => {
         $("#Buttons and sensors");
@@ -193,11 +195,10 @@ function drawGroupConfigurationEditor(
         $('div.list', () => {
             onEach(togglesByGroup[groupId] || {}, (device, ieee) => {
                 $("div.item", () => {
-                    drawBulbCircle(device, ieee);
+                    icons.sensor();
                     $("h2#", device.name);
                     icons.remove('.link click=', () => {
-                        const description = buildDescriptionWithGroupIds(device.description, (getGroupIdsFromDescription(device.description) || []).filter(id => id !== groupId));
-                        api.send("bridge", "request", "device", "options", {id: ieee, options: {description}});
+                        api.linkToggleToGroup(groupId, ieee, false);
                     });
                 });
             });
@@ -256,64 +257,15 @@ function drawGroupConfigurationEditor(
     });
 
     lazySave(() => {
-        // Update description with timeout metadata
-        const description = buildDescriptionWithGroupTimeout(groupState.description, groupState.timeout);
-        
         return function() {
-            // Update description with timeout metadata
-            if (groupState.description !== description) {
-                api.send("bridge", "request", "group", "options", {id: groupId, options: {description}});
-                groupState.description = description;
-            }
+            // Update group timeout - convert UI value/unit to seconds
+            const t = groupState.timeout;
+            const secs = t ? t.value * {s: 1, m: 60, h: 3600, d: 86400}[t.unit] : null;
+            api.setGroupTimeout(groupId, secs);
         }
     });
 
 
 }
 
-export interface GroupTimeout {
-    value: number;
-    unit: 's' | 'm' | 'h' | 'd';
-}
 
-export function getGroupIdsFromDescription(description: string | undefined): number[] {
-    if (!description) return [];
-    const m = description.match(GROUPS_REGEXP);
-    return m ? m[1]!.split(',').map(id => parseInt(id)) : [];
-}
-
-export function buildDescriptionWithGroupIds(description: string | undefined, groupIds: number[]): string {
-    let groupStr = groupIds.length ? `lightlynx-groups ${groupIds.join(',')}` : '';
-    let replaced = false;
-    description = (description || '').replace(GROUPS_REGEXP, () => {
-        replaced = true;
-        return groupStr;
-    }).trim();
-    if (!replaced && groupStr) {
-        return description.length ? description + "\n" + groupStr : groupStr;
-    }
-    return description;
-}
-
-export function getGroupTimeoutFromDescription(description: string | undefined): GroupTimeout | null {
-    if (!description) return null;
-    const m = description.match(TIMEOUT_REGEXP);
-    if (!m) return null;
-    return {
-        value: parseFloat(m[1]!),
-        unit: m[2] as 's' | 'm' | 'h' | 'd'
-    };
-}
-
-export function buildDescriptionWithGroupTimeout(description: string | undefined, timeout: GroupTimeout | null): string {
-    let timeoutStr = timeout ? `lightlynx-timeout ${timeout.value}${timeout.unit}` : '';
-    let replaced = false;
-    description = (description || '').replace(TIMEOUT_REGEXP, () => {
-        replaced = true;
-        return timeoutStr;
-    }).trim();
-    if (!replaced && timeoutStr) {
-        return description.length ? description + "\n" + timeoutStr : timeoutStr;
-    }
-    return description;
-}

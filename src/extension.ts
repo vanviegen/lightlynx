@@ -7,7 +7,6 @@ import WebSocket, { WebSocketServer } from 'ws';
 import { Config, Group, Light, Scene, Toggle, State, Trigger, User, StripUnderscoreKeys } from './types';
 import { applyDelta, createDelta, deepClone } from './json-merge-patch';
 import { createZ2MLightDelta, tailorLightState, DEFAULT_TRIGGERS } from './colors';
-import api from './api';
 
 const EXTENSION_VERSION = 1;
 const CONFIG_PATH = path.join(process.env.ZIGBEE2MQTT_DATA || path.join(__dirname, '..', '..', 'data'), 'lightlynx.json');
@@ -29,6 +28,38 @@ const CLICK_COUNTS: Record<string, number> = {
     quadruple: 4,
     many: 5
 };
+
+// Parse "lightlynx-foo val" lines from description into {foo: 'val', _: 'rest'}
+function parseMeta(desc: string | undefined): Record<string, string> {
+    const result: Record<string, string> = {};
+    const rest: string[] = [];
+    for (const line of (desc || '').split('\n')) {
+        const m = line.match(/^lightlynx-(\w+)\s+(.*)$/);
+        if (m) result[m[1]!] = m[2]!;
+        else if (line.trim()) rest.push(line);
+    }
+    if (rest.length) result._ = rest.join('\n');
+    return result;
+}
+
+// Build description from {foo: 'val', _: 'rest'} -> "rest\nlightlynx-foo val"
+function buildMeta(meta: Record<string, string>): string {
+    const parts: string[] = [];
+    if (meta._) parts.push(meta._);
+    for (const [k, v] of Object.entries(meta)) {
+        if (k !== '_' && v) parts.push(`lightlynx-${k} ${v}`);
+    }
+    return parts.join('\n');
+}
+
+// Parse timeout string with optional unit (s/m/h/d) to seconds
+function parseTimeoutSecs(str: string | undefined): number | undefined {
+    if (!str) return undefined;
+    const m = str.match(/^(\d+(?:\.\d+)?)([smhd])?$/);
+    if (!m) return undefined;
+    const units: Record<string, number> = {s: 1, m: 60, h: 3600, d: 86400};
+    return parseFloat(m[1]!) * (units[m[2]!] || 1);
+}
 
 
 class LightLynx {
@@ -542,6 +573,7 @@ class LightLynx {
         const topic = `${this.mqttBaseTopic}/bridge/${args.join('/')}`;
         
         if (args[0] === 'request') {
+            if (args[1].toLowerCase().trim() === 'extension') throw new Error('Accessing extensions is not allowed');
             // Generate unique transaction ID
             const transaction = this.nextTransactionId++;
             const payloadWithTransaction = { ...payload, transaction };
@@ -578,7 +610,7 @@ class LightLynx {
                 const sceneId = value && typeof value === 'object' ? value.ID : value;
                 const sceneName = value && typeof value === 'object' ? value.name : undefined;
                 for(let ieee of group.lightIds) {
-                    if (!api.store.lights[ieee]?.lightState?.on) {
+                    if (!this.store.lights[ieee]?.lightState?.on) {
                         this.sendMqttCommand(`${ieee}/set`, {scene_add: {ID: sceneId, group_id: groupId, name: sceneName, state: "OFF"}});
                     }
                 }
@@ -586,6 +618,54 @@ class LightLynx {
         } else {
             throw new Error('Permission denied');
         }
+    }
+
+    /** Link or unlink a toggle device to/from a group by updating its description. */
+    private async userLinkToggleToGroup(user: User, groupId: number, ieee: string, linked: boolean) {
+        if (!user.isAdmin) throw new Error('Permission denied: not an admin user');
+        const toggle = this.store.toggles[ieee];
+        if (!toggle) throw new Error(`Toggle device ${ieee} not found`);
+        
+        const meta = parseMeta(toggle.description);
+        let groups = meta.groups ? meta.groups.split(',').map(Number) : [];
+        if (linked && !groups.includes(groupId)) groups.push(groupId);
+        else if (!linked) groups = groups.filter(id => id !== groupId);
+        meta.groups = groups.length ? groups.join(',') : '';
+        
+        await this.userBridgeCommand(user, 'request', 'device', 'options', {id: ieee, options: {description: buildMeta(meta)}});
+    }
+
+    /** Set or clear the auto-off timeout for a group by updating its description. */
+    private async userSetGroupTimeout(user: User, groupId: number, timeoutSecs: number | null) {
+        if (!user.isAdmin) throw new Error('Permission denied: not an admin user');
+        const group = this.store.groups[groupId];
+        if (!group) throw new Error(`Group ${groupId} not found`);
+        
+        const meta = parseMeta(group.description);
+        meta.timeout = timeoutSecs ? String(timeoutSecs) : '';
+        
+        await this.userBridgeCommand(user, 'request', 'group', 'options', {id: groupId, options: {description: buildMeta(meta)}});
+    }
+
+    /** Update scene name and triggers by renaming the scene in Z2M. */
+    private async userUpdateSceneMetadata(user: User, groupId: number, sceneId: number, shortName: string, triggers: Array<{event: string, startTime?: string, endTime?: string}>) {
+        if (!user.isAdmin) throw new Error('Permission denied: not an admin user');
+        const group = this.store.groups[groupId];
+        if (!group) throw new Error(`Group ${groupId} not found`);
+        const scene = group.scenes[sceneId];
+        if (!scene) throw new Error(`Scene ${sceneId} not found`);
+        
+        // Build full name: "ShortName (trigger1, trigger2 start-end)"
+        const triggerParts = triggers.map(t => 
+            t.startTime && t.endTime ? `${t.event} ${t.startTime}-${t.endTime}` : t.event
+        );
+        const fullName = triggerParts.length ? `${shortName} (${triggerParts.join(', ')})` : shortName;
+        
+        // Rename the scene in Z2M
+        await this.userBridgeCommand(user, 'request', 'group', 'options', {
+            id: groupId,
+            options: { scenes: { [sceneId]: { name: fullName } } }
+        });
     }
 
     /** Called for each incoming WebSocket message. Delegates to appropriate
@@ -609,6 +689,12 @@ class LightLynx {
                 response = await this.userBridgeCommand(user, ...args);
             } else if (command === 'scene') {
                 await this.userSceneCommand(user, args[0], args[1], args[2]);
+            } else if (command === 'link-toggle-to-group') {
+                await this.userLinkToggleToGroup(user, args[0], args[1], args[2]);
+            } else if (command === 'set-group-timeout') {
+                await this.userSetGroupTimeout(user, args[0], args[1]);
+            } else if (command === 'update-scene-metadata') {
+                await this.userUpdateSceneMetadata(user, args[0], args[1], args[2], args[3]);
             } else {
                 throw new Error(`Unknown command: ${command}`);
             }
@@ -620,7 +706,7 @@ class LightLynx {
 
     /** Called for each MQTT sent by Zigbee2MQTT. We use this to keep this.store up-to-date.*/
     private onOutgoingMQTT(data: any) {
-        if (data.options.meta?.isEntityState || !data.topic.startsWith(`${this.mqttBaseTopic}/`)) return;
+        if (!data?.topic || data.options?.meta?.isEntityState || !data.topic.startsWith(`${this.mqttBaseTopic}/`)) return;
         const topic = data.topic.slice(this.mqttBaseTopic.length + 1).split('/');
         let payload: any;
         try { payload = JSON.parse(data.payload); } catch { payload = data.payload; }
@@ -691,8 +777,8 @@ class LightLynx {
                         meta: old?.meta || {},
                     };
                 } else if (expose.name === "action") {
-                    const groupsMatch = dev.description?.match(/^lightlynx-groups (\d+(,\d+)*)$/m);
-                    const linkedGroupIds = groupsMatch?.[1]?.split(',').map(parseInt) || [];
+                    const meta = parseMeta(dev.description);
+                    const linkedGroupIds = meta.groups ? meta.groups.split(',').map(Number) : [];
 
                     const old = this.store.toggles[ieee];
                     toggles[ieee] = {
@@ -710,13 +796,12 @@ class LightLynx {
 
     /** Translate outgoing bridge/groups MQTT into this.groups. */
     private handleBridgeGroups(payload: any) {
-        this.store.groups = {};
         this.groupIdsByNames = {};
 
         let groups: Record<number, Group> = {};
         for (let z2mGroup of payload) {
             const id = z2mGroup.id;
-            const group = this.store.groups[z2mGroup.id] || {} as Group;
+            const group = this.store.groups[id] || {} as Group;
             groups[id] = group;
 
             group.name = z2mGroup.friendly_name;
@@ -724,16 +809,8 @@ class LightLynx {
             group.scenes = this.parseZ2mScenes(id, z2mGroup.scenes);
             group.lightIds = z2mGroup.members.map((obj: any) => obj.ieee_address);
 
-            // Parse timeout from description (lightlynx- metadata)
-            let timeout : number | undefined;
-            const timeoutMatch = group.description?.match(/^lightlynx-timeout (\d+(?:\.\d+)?)([smhd])$/m);
-            if (timeoutMatch) {
-                const value = parseFloat(timeoutMatch[1]!);
-                const unit = {s: 1, m: 60, h: 60*60, d: 24*60*60}[timeoutMatch[2] as 's' | 'm' | 'h' | 'd'];
-                if (unit && !isNaN(value)) {
-                    timeout = value * unit * 1000;
-                }
-            }
+            // Parse timeout from description (in seconds)
+            const timeout = parseTimeoutSecs(parseMeta(group.description).timeout);
             const oldTimeout = group.timeout;
             if (oldTimeout && !timeout) {
                 group.timeout = timeout;
@@ -752,7 +829,7 @@ class LightLynx {
             group._autoOffTimer = setTimeout(() => {
                 if (!this.store.config.automationEnabled) return;
                 this.sendMqttCommand(`${group.name}/set`, { state: 'OFF', transition: 30 });
-            }, group.timeout);
+            }, group.timeout * 1000);
         }
     }
 
@@ -760,7 +837,7 @@ class LightLynx {
      * delivered to our own incoming MQTT handler. The topic will be auto-prefixed by the 
      * MQTT base topic. */
     sendMqttCommand(topic: string, payload: any) {
-        this.eventBus.onMQTTMessage(`${this.mqttBaseTopic}/${topic}`, JSON.stringify(payload));
+        this.eventBus.emitMQTTMessage(`${this.mqttBaseTopic}/${topic}`, JSON.stringify(payload));
     }
 
     /** Translate a Z2M scenes list to a this.store.groups[x].scenes object. */
@@ -774,9 +851,9 @@ class LightLynx {
             const triggers: Trigger[] = [];
             if (m) {
                 for(let condition of m[2].split(',')) {
-                    let m = condition.match(/^\s*([0-9a-z]+)(?: ([^)-]*?)-([^)-]*))?\s*$/);
-                    if (!m) continue;
-                    let [_all, trigger, start, end] = m;
+                    let match = condition.match(/^\s*([0-9a-z]+)(?: ([^)-]*?)-([^)-]*))?\s*$/);
+                    if (!match) continue;
+                    let [_all, trigger, start, end] = match;
                     triggers.push({
                         event: trigger,
                         startTime: start,
@@ -789,7 +866,7 @@ class LightLynx {
                 name,
                 fullName: z2mScene.name,
                 triggers,
-                lightStates: this.store.config._sceneStates[groupId]?.[z2mScene.id],
+                lightStates: this.store.config?._sceneStates?.[groupId]?.[z2mScene.id],
             };
         }
         return result;
@@ -972,6 +1049,10 @@ class LightLynx {
 
     /** Scenes should be stored both in this.config._sceneStates and in this.store.groups. */
     private storeScene(groupId: number, sceneId: number, states: undefined | Record<string, any>) {
+        if (!this.store.config._sceneStates) {
+            if (!states) return;
+            this.store.config._sceneStates = {};
+        }
         if (!this.store.config._sceneStates[groupId]) {
             if (!states) return;
             this.store.config._sceneStates[groupId] = {};

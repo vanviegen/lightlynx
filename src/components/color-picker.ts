@@ -2,7 +2,8 @@ import { $, clean, onEach, insertCss } from "aberdeen"
 import * as icons from '../icons'
 import * as colors from "../colors"
 import api from "../api"
-import { LightState, XYColor, HSColor, Device, Group, isHS, isXY } from '../types'
+import { LightState, XYColor, HSColor, Device, GroupWithDerives, Light } from '../types'
+import { isHS, isXY } from '../colors'
 
 const CT_MIN = 100, CT_MAX = 550;
 
@@ -37,7 +38,7 @@ interface TrackingState {
 
 let tracking: TrackingState | undefined;
 
-export function getBulbRgb(target: Device | Group): string {
+export function getBulbRgb(target: Light | GroupWithDerives): string {
     let state = target.lightState || {} as LightState;
     if (!state.on) {
         return "#000000";
@@ -47,7 +48,7 @@ export function getBulbRgb(target: Device | Group): string {
     }
 }
 
-export function drawBulbCircle(target: Device | Group, targetId: string | number): void {
+export function drawBulbCircle(target: Light | GroupWithDerives, targetId: string | number): void {
     if (!target.lightCaps || (target as any).members && Object.keys(target.lightCaps).length === 0) {
         if (!(target as any).members) icons.sensor();
         return;
@@ -68,9 +69,9 @@ export function drawBulbCircle(target: Device | Group, targetId: string | number
         if (isGroup && isOn) {
             // For groups, collect all colors for gradient
             let bgs: string[] = [];
-            const group = target as Group;
+            const group = target as GroupWithDerives;
             for(let ieee of group.lightIds) {
-                let device = api.store.devices[ieee];
+                let device = api.store.lights[ieee];
                 if (device) {
                     bgs.push(getBulbRgb(device));
                 }
@@ -127,7 +128,7 @@ function drawColorWheelMarker(state: LightState, size: number = 24): void {
     });
 }
 
-export function drawColorWheel(target: Device | Group, targetId: string | number): void {
+export function drawColorWheel(target: Light | GroupWithDerives, targetId: string | number): void {
     const state = target.lightState;
     if (!state) return;
     
@@ -148,8 +149,8 @@ export function drawColorWheel(target: Device | Group, targetId: string | number
         })
 
         drawColorWheelMarker(state);
-        if ('members' in target) onEach(target.lightIds, ieee => {
-            let memberState = api.store.devices[ieee]?.lightState;
+        if ('lightIds' in target) onEach(target.lightIds, ieee => {
+            let memberState = api.store.lights[ieee]?.lightState;
             if (memberState) {
                 drawColorWheelMarker(memberState, 8);
             }
@@ -238,17 +239,17 @@ function drawScaleMarker(state: LightState, colorTempRange?: [number, number], s
     });
 }
 
-export function drawColorPicker(device: Device, ieee: string): void;
-export function drawColorPicker(group: Group, groupId: number): void;
-export function drawColorPicker(target: Device | Group, targetId: string | number): void {
+export function drawColorPicker(device: Light, ieee: string): void;
+export function drawColorPicker(group: GroupWithDerives, groupId: number): void;
+export function drawColorPicker(target: Light | GroupWithDerives, targetId: string | number): void {
 
     const capabilities = target.lightCaps;
     if (!capabilities) return;
             
     $('div m:$3 display:flex gap:$3 flex-direction:column', () => {
         $('div display:flex gap:$3 align-items:center', () => {
-            if ('members' in target) { // group
-                drawBulbCircle(target as Device, targetId as string);
+            if ('lightIds' in target) { // group
+                drawBulbCircle(target as GroupWithDerives, targetId as string);
             }
             if (capabilities.brightness) {
                 drawScale(target, targetId);
@@ -268,7 +269,7 @@ export function drawColorPicker(target: Device | Group, targetId: string | numbe
     });
 }
 
-function drawScale(target: Device | Group, targetId: string | number, colorTempRange?: [number, number]): void {
+function drawScale(target: Light | GroupWithDerives, targetId: string | number, colorTempRange?: [number, number]): void {
     $('div', scaleStyle, () => {
 
         let state = target.lightState || {};
@@ -306,8 +307,8 @@ function drawScale(target: Device | Group, targetId: string | number, colorTempR
 
         drawScaleMarker(state, colorTempRange);
 
-        if ('members' in target) onEach(target.lightIds, ieee => {
-            let memberState = api.store.devices[ieee]?.lightState;
+        if ('lightIds' in target) onEach(target.lightIds, ieee => {
+            let memberState = api.store.lights[ieee]?.lightState;
             if (memberState) {
                 drawScaleMarker(memberState, colorTempRange, 8);
             }

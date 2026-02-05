@@ -38,17 +38,18 @@ build.backend/   # Generated bunny cert.js script
 
 ### State Management
 Uses Aberdeen's `proxy()` for reactive state. The global store (`api.store`) contains:
-- `devices`: Record of devices keyed by IEEE address
+- `lights`: Record of lights keyed by IEEE address (devices with `lightCaps`)
+- `toggles`: Record of toggle devices keyed by IEEE address (buttons, sensors)
 - `groups`: Record of groups keyed by group ID
 - `permitJoin`: Boolean for pairing mode
-- `servers`: Array of saved server credentials
-- `connected`: Boolean connection status
-- `users`: User management data
-- `allowRemote`: Remote access toggle state
-- `automationEnabled`: Automation toggle state (off by default)
-- `localIp`: The local server IP address used for connectivity
-- `externalIp`: The external server IP address (if remote access enabled)
-- `activeScenes`: Current active scene per group
+- `config`: Server configuration (automation, users, etc.)
+- `me`: Current user info
+
+Each group has:
+- `name`, `description`, `lightIds`: Basic info
+- `scenes`: Record of scenes with `name`, `fullName`, `triggers`, `lightStates`
+- `timeout`: Auto-off timeout in seconds (or undefined)
+- `activeSceneId`: Currently active scene
 
 ### Multi-Server Management
 - Credentials stored in localStorage (`lightlynx-servers`)
@@ -91,9 +92,51 @@ Requires `.env` file with BunnyCDN credentials (see `.env.example`):
 The app communicates with Zigbee2MQTT via WebSocket:
 - Connection URL: `wss://x<hex-ip>.lightlynx.eu:43598/api`
 - Authentication: `user` and `secret` (PBKDF2 hash of password) provided as URL search parameters
-- Messages follow Z2M's topic-based format: `api.send(topic, ...path, payload)`
-- Light state changes use optimistic updates with debouncing
+- Messages use `api.send(command, ...args)` format
+- Light state changes use optimistic updates via Aberdeen's `applyPrediction`/`applyCanon`
 
+### WebSocket Commands
+
+| Command | Arguments | Description |
+|---------|-----------|-------------|
+| `set-state` | `groupId/ieee, state` | Set light state for group or device |
+| `scene` | `groupId, subCommand, value` | Scene operations (recall, store, add, remove) |
+| `bridge` | `...path, payload` | Relay commands to Z2M bridge |
+| `patch-config` | `delta` | Update server config (admin only) |
+| `link-toggle-to-group` | `groupId, ieee, linked` | Link/unlink toggle device to group |
+| `set-group-timeout` | `groupId, timeoutSecs` | Set auto-off timeout in seconds (null to clear) |
+| `update-scene-metadata` | `groupId, sceneId, shortName, triggers` | Update scene name and triggers |
+
+### Description Metadata Format
+
+Device and group descriptions can contain `lightlynx-*` metadata lines:
+
+```
+lightlynx-groups 1,2,3      # Toggle devices: linked group IDs
+lightlynx-timeout 1800      # Groups: auto-off timeout in seconds
+```
+
+The backend uses generic `parseMeta()`/`buildMeta()` helpers to parse these. For backward compatibility, timeout parsing supports units: `30m`, `2h`, `1d` (but writes plain seconds).
+
+### Scene Naming Convention
+
+Scene triggers are encoded in the scene name using parentheses suffix:
+```
+Bright (1, time 08:00-22:00)
+```
+Format: `ShortName (trigger1, trigger2 start-end, ...)`
+
+Trigger events: `1`-`5` (tap count), `sensor`, `time`
+
+### Data Model Notes
+
+- `group.timeout`: Auto-off timeout in **seconds** (not milliseconds)
+- `toggle.linkedGroupIds`: Parsed from description metadata, array of group IDs
+- `scene.triggers`: Array of `{event, startTime?, endTime?}` parsed from scene name
+- `scene.name`: Short name (without trigger suffix)
+- `scene.fullName`: Full Z2M scene name (with trigger suffix)
+
+## Extension
 
 The single `lightlynx` extension provides:
 - Configuration stored in `lightlynx.json` within Z2M data directory

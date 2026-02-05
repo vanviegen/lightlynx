@@ -72,9 +72,9 @@ export function drawHeader(
         });
         
         $(() => {
-            if (isEmpty(api.store.servers)) return;
+            if (isEmpty(api.servers)) return;
             let lowest = 100;
-            for (const device of Object.values(api.store.devices)) {
+            for (const device of Object.values(api.store.lights)) {
                 const b = device.meta?.battery;
                 if (b !== undefined && b < lowest) lowest = b;
             }
@@ -90,9 +90,9 @@ export function drawHeader(
         });
         
         $(() => {
-            const server = api.store.servers[0];
+            const server = api.servers[0];
             if (!server) return;
-            const user = api.store.users[server.userName];
+            const user = api.store.config.users?.[server.userName];
             if (!user?.isAdmin) return;
             
             let holdTimeout: any;
@@ -112,12 +112,12 @@ export function drawHeader(
 
         $(() => {
             icons.reconnect(() => {
-                const state = api.store.connectionState;
+                const state = api.connection.state;
                 $({
                     '.spinning': state !== 'connected' && state !== 'idle',
                     '.on': state === 'connected',
                     '.off': state === 'idle',
-                    '.critical': !!api.store.lastConnectError,
+                    '.critical': !!api.connection.lastError,
                     '.link': true,
                     'click': () => route.go('/connect'),
                 });

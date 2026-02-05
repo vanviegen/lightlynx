@@ -170,4 +170,4 @@ export interface GroupWithDerives extends Group {
  * - Keys starting with underscore are stripped
  * - Group items are augmented to be GroupWithDerives items
  */
-export type ClientState = Exclude<StripUnderscoreKeys<State>, 'groups'> & {groups: Record<string, GroupWithDerives>};
+export type ClientState = Exclude<StripUnderscoreKeys<State>, 'groups'> & {groups: Record<number, GroupWithDerives>};
