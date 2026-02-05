@@ -582,7 +582,7 @@ class LightLynx {
     private async userBridgeCommand(user: User, ...args: any[]) {
         if (!user.isAdmin) throw new Error('Permission denied: not an admin user');
         const payload = args.pop();
-        const topic = `${this.mqttBaseTopic}/bridge/${args.join('/')}`;
+        const topic = `bridge/${args.join('/')}`;
         
         if (args[0] === 'request') {
             if (args[1].toLowerCase().trim() === 'extension') throw new Error('Accessing extensions is not allowed');
@@ -897,12 +897,13 @@ class LightLynx {
             group.scenes = this.convertZ2mScenes(id, z2mGroup.scenes);
             group.lightIds = z2mGroup.members.map((obj: any) => obj.ieee_address);
 
-            // Read timeout from config
-            const timeout = this.store.config._groupTimeouts?.[id];
-            const oldTimeout = group.timeout;
-            group.timeout = timeout;
-            if (oldTimeout && !timeout) this.nudgeGroupAutoOff(group);
-            else if (timeout) this.nudgeGroupAutoOff(group);
+            // Read timeout from config, but only if not already set
+            // (to avoid overwriting recently-set timeouts before saveConfig() runs)
+            if (group.timeout === undefined) {
+                const timeout = this.store.config._groupTimeouts?.[id];
+                group.timeout = timeout;
+                if (timeout) this.nudgeGroupAutoOff(group);
+            }
             
             this.groupIdsByNames[group.name] = id;
         }
@@ -1067,6 +1068,8 @@ class LightLynx {
                 ws.send(JSON.stringify(['store-delta', delta]));
             }
         }
+        // Update storeCopy to reflect what we just sent
+        this.storeCopy = deepClone(this.store);
         // This doesn't need to happen sync:
         setTimeout(() => this.saveConfig(), 20);
     }

@@ -257,10 +257,10 @@ function drawGroupConfigurationEditor(
     });
 
     lazySave(() => {
+        // Read reactive state here to establish dependency tracking
+        const t = groupState.timeout;
+        const secs = t ? t.value * {s: 1, m: 60, h: 3600, d: 86400}[t.unit] : null;
         return function() {
-            // Update group timeout - convert UI value/unit to seconds
-            const t = groupState.timeout;
-            const secs = t ? t.value * {s: 1, m: 60, h: 3600, d: 86400}[t.unit] : null;
             api.setGroupTimeout(groupId, secs);
         }
     });

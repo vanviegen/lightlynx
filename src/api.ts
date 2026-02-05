@@ -570,7 +570,8 @@ class Api {
         }
         else if (command === 'store-delta') {
             const [delta] = args;
-            applyDelta(this.store, delta);
+            // Apply delta as canonical state so it's not affected by prediction rollbacks
+            applyCanon(() => applyDelta(this.store, delta));
         }
         else {
             console.warn("api/onMessage - unknown command:", command);
