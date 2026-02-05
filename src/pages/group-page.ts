@@ -62,7 +62,7 @@ export function drawGroupPage(groupId: number): void {
             $('div.item.link click=', recall, '.active-scene=', isActive, () => {
                 let icon = icons.scenes[scene.name.toLowerCase()] || icons.empty;
                 icon();
-                $('h2#', admin.value ? scene.fullName : scene.name);
+                $('h2#', scene.name);
                 if (admin.value) {
                     function configure(e: Event): void {
                         e.stopPropagation();

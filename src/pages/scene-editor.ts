@@ -1,4 +1,4 @@
-import { $, proxy, ref, onEach, isEmpty, unproxy, peek, insertCss, copy } from 'aberdeen';
+import { $, proxy, ref, onEach, isEmpty, unproxy, peek, insertCss, copy, clone } from 'aberdeen';
 import { grow, shrink } from 'aberdeen/transitions';
 import * as route from 'aberdeen/route';
 import api from '../api';
@@ -181,8 +181,15 @@ export function drawSceneEditor(group: Group, groupId: number): void {
     })
 
     lazySave(() => {
+		const name = sceneState.shortName;
         return function() {
-            api.updateSceneMetadata(groupId, sceneId, sceneState.shortName, sceneState.triggers);
+            api.send('scene', groupId, sceneId, 'rename', name);
+        }
+    });
+    lazySave(() => {
+		const triggers = clone(sceneState.triggers);
+        return function() {
+            api.send('scene', groupId, sceneId, 'setTriggers', triggers);
         }
     });
 }

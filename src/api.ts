@@ -313,7 +313,7 @@ class Api {
     }
 
     recallScene(groupId: number, sceneId: number) {
-        api.send("scene", groupId, "recall", sceneId);
+        api.send("scene", groupId, sceneId, "recall");
 
         // Do a local prediction, that we'll keep around for 6s or until the server responds
         const patch = applyPrediction(() => {
@@ -514,29 +514,6 @@ class Api {
 
         try {
             await this.send('set-group-timeout', groupId, timeoutSecs);
-        } finally {
-            applyCanon(undefined, [prediction]);
-        }
-    }
-
-    /**
-     * Update scene name and triggers
-     */
-    async updateSceneMetadata(groupId: number, sceneId: number, shortName: string, triggers: Array<{event: string, startTime?: string, endTime?: string}>): Promise<void> {
-        const group = this.store.groups[groupId];
-        if (!group) return;
-        const scene = group.scenes[sceneId];
-        if (!scene) return;
-
-        // Optimistic update
-        const prediction = applyPrediction(() => {
-            scene.name = shortName;
-            scene.triggers = triggers;
-            // Note: fullName will be updated by backend delta
-        });
-
-        try {
-            await this.send('update-scene-metadata', groupId, sceneId, shortName, triggers);
         } finally {
             applyCanon(undefined, [prediction]);
         }

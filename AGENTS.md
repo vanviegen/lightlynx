@@ -47,7 +47,7 @@ Uses Aberdeen's `proxy()` for reactive state. The global store (`api.store`) con
 
 Each group has:
 - `name`, `description`, `lightIds`: Basic info
-- `scenes`: Record of scenes with `name`, `fullName`, `triggers`, `lightStates`
+- `scenes`: Record of scenes with `name`, `triggers`, `lightStates`
 - `timeout`: Auto-off timeout in seconds (or undefined)
 - `activeSceneId`: Currently active scene
 
@@ -67,9 +67,6 @@ The app handles multiple color representations:
 ### Device Types
 - **Lights**: Devices with `lightCaps` property (brightness, color, colorTemp support)
 - **Sensors/Inputs**: Devices without `lightCaps` (buttons, switches, motion sensors)
-
-### Groups
-Groups can contain lights and have associated scenes. Non-light devices can be linked to groups via the `description` field using `lightlynx-groups 1,2,3` syntax.
 
 ## NPM Scripts
 
@@ -100,41 +97,12 @@ The app communicates with Zigbee2MQTT via WebSocket:
 | Command | Arguments | Description |
 |---------|-----------|-------------|
 | `set-state` | `groupId/ieee, state` | Set light state for group or device |
-| `scene` | `groupId, subCommand, value` | Scene operations (recall, store, add, remove) |
+| `scene` | `groupId, sceneId, subCommand, value?` | Scene operations (recall, store, add, remove, rename, setTriggers) |
 | `bridge` | `...path, payload` | Relay commands to Z2M bridge |
 | `patch-config` | `delta` | Update server config (admin only) |
 | `link-toggle-to-group` | `groupId, ieee, linked` | Link/unlink toggle device to group |
 | `set-group-timeout` | `groupId, timeoutSecs` | Set auto-off timeout in seconds (null to clear) |
-| `update-scene-metadata` | `groupId, sceneId, shortName, triggers` | Update scene name and triggers |
 
-### Description Metadata Format
-
-Device and group descriptions can contain `lightlynx-*` metadata lines:
-
-```
-lightlynx-groups 1,2,3      # Toggle devices: linked group IDs
-lightlynx-timeout 1800      # Groups: auto-off timeout in seconds
-```
-
-The backend uses generic `parseMeta()`/`buildMeta()` helpers to parse these. For backward compatibility, timeout parsing supports units: `30m`, `2h`, `1d` (but writes plain seconds).
-
-### Scene Naming Convention
-
-Scene triggers are encoded in the scene name using parentheses suffix:
-```
-Bright (1, time 08:00-22:00)
-```
-Format: `ShortName (trigger1, trigger2 start-end, ...)`
-
-Trigger events: `1`-`5` (tap count), `sensor`, `time`
-
-### Data Model Notes
-
-- `group.timeout`: Auto-off timeout in **seconds** (not milliseconds)
-- `toggle.linkedGroupIds`: Parsed from description metadata, array of group IDs
-- `scene.triggers`: Array of `{event, startTime?, endTime?}` parsed from scene name
-- `scene.name`: Short name (without trigger suffix)
-- `scene.fullName`: Full Z2M scene name (with trigger suffix)
 
 ## Extension
 
@@ -150,8 +118,6 @@ The single `lightlynx` extension provides:
   - Scene triggers (tap patterns, motion, time-based)
   - Lights-off timer for groups
 
-The extension is deployed with a hash in its filename (`lightlynx-<hash>.js`) but installed on Z2M as `lightlynx.js`. The hash is prepended as a comment line (`// hash=<hash>`) for version tracking. The web app auto-upgrades the extension when the hash mismatches
-Version checking via first-line comments (`// lightlynx-<name> v<version>`). Auto-upgrade on version mismatch.
 
 ## Code Conventions
 
