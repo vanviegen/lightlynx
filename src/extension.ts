@@ -30,8 +30,6 @@ const CLICK_COUNTS: Record<string, number> = {
 };
 
 
-
-
 class LightLynx {
     // MQTT and Zigbee references
     // private zigbee: any;
@@ -541,7 +539,7 @@ class LightLynx {
 
         // First send a command to the zigbee group.
         const delta = createZ2MLightDelta({}, state);
-        this.sendMqttCommand(String(groupId), delta);
+        this.sendMqttCommand(`${groupId}/set`, delta);
 
         // Then send more tailored commands to each light in the group, if needed.
         // This may be the case when sending a color command to a light that only
@@ -554,7 +552,7 @@ class LightLynx {
                 if (tailoredDelta[k] === v) delete tailoredDelta[k];
             }
             if (Object.keys(tailoredDelta).length) {
-                this.sendMqttCommand(ieee, tailoredDelta);
+                this.sendMqttCommand(`${ieee}/set`, tailoredDelta);
             }
         }
     }

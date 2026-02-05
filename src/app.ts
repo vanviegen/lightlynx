@@ -201,7 +201,7 @@ function drawTopPage(): void {
 						function onClick(): void {
 							api.recallScene(groupId, sceneId);
 						}
-						const isActive = derive(() => group.activeSceneId === sceneId && group.lightState?.on);
+						const isActive = derive(() => group.activeSceneId === sceneId);
 						const icon = icons.scenes[scene.name.toLowerCase()];
 						if (icon) icon('.link click=', onClick, {'.active-scene': isActive});
 						else $('div.scene.link#', scene.name, {'.active-scene': isActive}, 'click=', onClick);

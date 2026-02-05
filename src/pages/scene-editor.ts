@@ -168,12 +168,12 @@ export function drawSceneEditor(group: Group, groupId: number): void {
     async function save(e: Event): Promise<void> {
         e.stopPropagation();
         if (!await askConfirm(`Are you sure you want to overwrite the '${scene!.name}' scene for group '${group.name}' with the current light state?`)) return;
-        api.send("scene", groupId, "store", {ID: sceneId, name: scene!.name});
+        api.send("scene", groupId, sceneId, "store", scene!.name);
     }
     async function remove(e: Event): Promise<void> {
         e.stopPropagation();
         if (!await askConfirm(`Are you sure you want to delete the '${scene!.name}' scene for group '${group.name}'?`)) return;
-        api.send("scene", groupId, "remove", sceneId);
+        api.send("scene", groupId, sceneId, "remove");
     }
     $('div.list', () => {
         $('div.item.link', icons.save, '#Overwrite scene with current state', 'click=', save);

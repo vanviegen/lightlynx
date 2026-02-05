@@ -38,7 +38,7 @@ export function drawGroupPage(groupId: number): void {
         
         let freeId = 0;
         while(group.scenes[freeId]) freeId++;
-        api.send("scene", groupId, "store", {ID: freeId, name});
+        api.send("scene", groupId, freeId, "store", name);
     }
     
     $(() => {
@@ -58,7 +58,7 @@ export function drawGroupPage(groupId: number): void {
             function recall(): void {
                 api.recallScene(groupId, sceneId);
             }
-            const isActive = derive(() => group.activeSceneId === sceneId && group.lightState?.on);
+            const isActive = derive(() => group.activeSceneId === sceneId);
             $('div.item.link click=', recall, '.active-scene=', isActive, () => {
                 let icon = icons.scenes[scene.name.toLowerCase()] || icons.empty;
                 icon();

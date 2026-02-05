@@ -21,13 +21,11 @@ test.describe('Active Scene', () => {
     const sceneItem = page.locator('.list').locator('.item.link', { hasText: 'Test Scene' });
     await expect(sceneItem).toBeVisible();
 
-    // Initially, scene should NOT be active
-    await expect(sceneItem).not.toHaveClass(/active-scene/);
+    // Scene should be active immediately after storing (it captured the current state)
+    await expect(sceneItem).toHaveClass(/active-scene/);
 
-    // Recall the scene
+    // Verify recalling works
     await sceneItem.click();
-
-    // Now the scene should be marked as active (expect has built-in waiting)
     await expect(sceneItem).toHaveClass(/active-scene/);
   });
 
@@ -61,16 +59,17 @@ test.describe('Active Scene', () => {
     await expect(eveningScene).toBeVisible();
     await expect(morningScene).toBeVisible();
 
-    // Neither scene should be active initially
-    await expect(eveningScene).not.toHaveClass(/active-scene/);
-    await expect(morningScene).not.toHaveClass(/active-scene/);
-
-    // Recall the Evening scene
-    await eveningScene.click();
-
-    // Verify Evening scene is active and Morning is not (expect waits automatically)
+    // Evening scene should be active (most recently stored)
     await expect(eveningScene).toHaveClass(/active-scene/);
+    // Morning scene was stored earlier, so Evening storing made it inactive
     await expect(morningScene).not.toHaveClass(/active-scene/);
+
+    // Recall Morning scene
+    await morningScene.click();
+
+    // Verify Morning scene is now active and Evening is not
+    await expect(morningScene).toHaveClass(/active-scene/);
+    await expect(eveningScene).not.toHaveClass(/active-scene/);
 
     // Navigate back to main page
     await page.locator('header img.logo').click();

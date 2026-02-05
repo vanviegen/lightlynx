@@ -464,7 +464,7 @@ class MockMQTT {
     onMessage(topic: string, message: any) {
         const messageStr = message.toString();
         process.stderr.write(`MockZ2M: MQTT IN: ${topic} -> ${messageStr.substr(0,100)}\n`);
-        eventBus.emitMQTTMessage(topic, messageStr);
+        // eventBus.emitMQTTMessage(topic, messageStr); // Loop prevention
         
         // Internal handling
         const parts = topic.split('/');
@@ -684,6 +684,10 @@ function startPairingProcedure() {
 }
 
 // --- Start ---
+
+eventBus.on('mqttMessage', (data: { topic: string, message: string }) => {
+    mqtt.onMessage(data.topic, data.message);
+});
 
 init().catch(err => {
     console.error('Failed to initialize Mock Z2M:', err);
