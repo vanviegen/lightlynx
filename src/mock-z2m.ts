@@ -220,10 +220,14 @@ class MockState {
     get(entity: MockEntity) { return this.states.get(entity.id) || {}; }
     set(entity: MockEntity, update: any) {
         const current = this.get(entity);
-        const next = { ...current, ...update };
+        
+        // Filter state updates based on device capabilities
+        const filteredUpdate = filterStateByCapabilities(entity, update);
+        
+        const next = { ...current, ...filteredUpdate };
         this.states.set(entity.id, next);
         this._eventBus.emitPublishEntityState(entity, next);
-        this._eventBus.emitStateChange({ entity, from: current, to: next, update });
+        this._eventBus.emitStateChange({ entity, from: current, to: next, update: filteredUpdate });
         return next;
     }
 }
@@ -371,16 +375,23 @@ const devicesData: Record<string, MockDevice> = {
             { name: 'color_hs', type: 'composite', features: [{name:'hue', property:'hue'}, {name:'saturation', property:'saturation'}] }
         ]}
     ]},
-    '0x002': { ieeeAddr: '0x002', friendlyName: 'White Light', model: 'MOCK_WHITE', description: 'White light bulb', vendor: 'Mock', type: 'Router', exposes: [
+    '0x002': { ieeeAddr: '0x002', friendlyName: 'White Light', model: 'MOCK_WHITE', description: 'White light bulb (no color)', vendor: 'Mock', type: 'Router', exposes: [
         { type: 'light', features: [
             { name: 'state', property: 'state', type: 'binary', value_on: 'ON', value_off: 'OFF' },
             { name: 'brightness', property: 'brightness', type: 'numeric', value_min: 0, value_max: 255 }
+        ]}
+    ]},
+    '0x003': { ieeeAddr: '0x003', friendlyName: 'Ambiance Light', model: 'MOCK_AMBIANCE', description: 'Ambiance light (white with temp)', vendor: 'Mock', type: 'Router', exposes: [
+        { type: 'light', features: [
+            { name: 'state', property: 'state', type: 'binary', value_on: 'ON', value_off: 'OFF' },
+            { name: 'brightness', property: 'brightness', type: 'numeric', value_min: 0, value_max: 255 },
+            { name: 'color_temp', property: 'color_temp', type: 'numeric', value_min: 153, value_max: 500 }
         ]}
     ]}
 };
 
 const groupsData: Record<number, MockGroup> = {
-    1: { id: 1, friendlyName: 'Living Room', description: 'Main group', members: ['0x001', '0x002'], scenes: [{id:1, name:'Bright'}, {id:2, name:'Dim'}] },
+    1: { id: 1, friendlyName: 'Living Room', description: 'Main group', members: ['0x001', '0x002', '0x003'], scenes: [{id:1, name:'Bright'}, {id:2, name:'Dim'}] },
     2: { id: 2, friendlyName: 'Kitchen', description: 'Secondary group', members: ['0x002'], scenes: [{id:3, name:'Cooking'}, {id:4, name:'Night'}] }
 };
 
@@ -389,11 +400,13 @@ const sceneStates: Record<number, Record<number, Record<string, any>>> = {
     1: {
         1: { // Bright scene
             '0x001': { state: 'ON', brightness: 255, color: { hue: 30, saturation: 80 } },
-            '0x002': { state: 'ON', brightness: 255 }
+            '0x002': { state: 'ON', brightness: 255 },
+            '0x003': { state: 'ON', brightness: 255, color_temp: 250 }
         },
         2: { // Dim scene
             '0x001': { state: 'ON', brightness: 50, color: { hue: 30, saturation: 50 } },
-            '0x002': { state: 'ON', brightness: 50 }
+            '0x002': { state: 'ON', brightness: 50 },
+            '0x003': { state: 'ON', brightness: 50, color_temp: 400 }
         }
     },
     2: {
@@ -405,6 +418,64 @@ const sceneStates: Record<number, Record<number, Record<string, any>>> = {
         }
     }
 };
+
+// Helper to determine device capabilities from exposes
+function getDeviceCapabilities(entity: MockEntity): { supportsColor: boolean, supportsColorTemp: boolean } {
+    if (!entity.definition?.exposes) return { supportsColor: false, supportsColorTemp: false };
+    
+    let supportsColor = false;
+    let supportsColorTemp = false;
+    
+    for (const expose of entity.definition.exposes) {
+        if (expose.type === 'light' && expose.features) {
+            for (const feature of expose.features) {
+                if (feature.name === 'color_hs' || feature.name === 'color_xy') {
+                    supportsColor = true;
+                }
+                if (feature.name === 'color_temp' || feature.property === 'color_temp') {
+                    supportsColorTemp = true;
+                }
+            }
+        }
+    }
+    
+    return { supportsColor, supportsColorTemp };
+}
+
+// Helper to filter state updates based on device capabilities
+function filterStateByCapabilities(entity: MockEntity, stateUpdate: any): any {
+    if (!entity.isDevice()) return stateUpdate; // Groups can accept any state
+    
+    const caps = getDeviceCapabilities(entity);
+    const filtered = { ...stateUpdate };
+    
+    // Color lights: ignore color_temp
+    if (caps.supportsColor && !caps.supportsColorTemp) {
+        if ('color_temp' in filtered) {
+            process.stderr.write(`MockZ2M: Ignoring color_temp for color-only light ${entity.name}\n`);
+            delete filtered.color_temp;
+        }
+    }
+    
+    // White lights (no color, no temp): ignore color and color_temp
+    if (!caps.supportsColor && !caps.supportsColorTemp) {
+        if ('color' in filtered || 'color_temp' in filtered) {
+            process.stderr.write(`MockZ2M: Ignoring color/color_temp for white-only light ${entity.name}\n`);
+            delete filtered.color;
+            delete filtered.color_temp;
+        }
+    }
+    
+    // Ambiance lights (temp but no color): ignore color
+    if (!caps.supportsColor && caps.supportsColorTemp) {
+        if ('color' in filtered) {
+            process.stderr.write(`MockZ2M: Ignoring color for ambiance light ${entity.name}\n`);
+            delete filtered.color;
+        }
+    }
+    
+    return filtered;
+}
 
 // Initialize
 async function init() {
@@ -516,7 +587,7 @@ class MockMQTT {
                     if (payload.scene_recall !== undefined && entity.isGroup()) {
                         const sceneId = payload.scene_recall;
                         const groupId = entity.id as number;
-                        process.stderr.write(`MockZ2M: Scene recalled: ${sceneId} for group ${groupId}\n`);
+                        process.stderr.write(`MockZ2M: [Zigbee] Scene recall ${sceneId} for GROUP ${entity.name} (${groupId})\n`);
                         
                         // Apply stored scene states to all group members
                         const groupScenes = sceneStates[groupId];
@@ -525,12 +596,13 @@ class MockMQTT {
                         for (const member of entity.members) {
                             const storedState = sceneData?.[member.ieeeAddr];
                             if (storedState) {
+                                process.stderr.write(`MockZ2M: [Zigbee]   -> Member ${member.name} (${member.ieeeAddr}): ${JSON.stringify(storedState)}\n`);
                                 state.set(member, storedState);
-                                process.stderr.write(`MockZ2M: Applied scene state to ${member.name}: ${JSON.stringify(storedState)}\n`);
                             } else {
                                 // Fallback: turn on with default brightness if no stored state
-                                state.set(member, { state: 'ON', brightness: 200 });
-                                process.stderr.write(`MockZ2M: No stored state for ${member.name}, using default\n`);
+                                const defaultState = { state: 'ON', brightness: 200 };
+                                process.stderr.write(`MockZ2M: [Zigbee]   -> Member ${member.name} (${member.ieeeAddr}) [no stored state]: ${JSON.stringify(defaultState)}\n`);
+                                state.set(member, defaultState);
                             }
                             mqtt.publish(`${base}/${member.name}`, state.get(member));
                         }
@@ -557,11 +629,19 @@ class MockMQTT {
                     delete statePayload.scene_add;
                     delete statePayload.scene_remove;
                     if (Object.keys(statePayload).length > 0) {
+                        // Log zigbee command
+                        if (entity.isGroup()) {
+                            process.stderr.write(`MockZ2M: [Zigbee] Sending to GROUP ${entity.name} (${entity.id}): ${JSON.stringify(statePayload)}\n`);
+                        } else {
+                            process.stderr.write(`MockZ2M: [Zigbee] Sending to DEVICE ${entity.name} (${entity.ieeeAddr}): ${JSON.stringify(statePayload)}\n`);
+                        }
+                        
                         state.set(entity, statePayload);
                         
                         // If this is a group, propagate state to all members
                         if (entity.isGroup()) {
                             for (const member of entity.members) {
+                                process.stderr.write(`MockZ2M: [Zigbee]   -> Member ${member.name} (${member.ieeeAddr}): ${JSON.stringify(statePayload)}\n`);
                                 const memberState = state.get(member);
                                 state.set(member, { ...memberState, ...statePayload });
                                 mqtt.publish(`${base}/${member.name}`, state.get(member));
@@ -569,7 +649,7 @@ class MockMQTT {
                         }
                     }
                     // Echo back state
-                    mqtt.publish(`${base}/${entityName}`, state.get(entity));
+                    mqtt.publish(`${base}/${entity.name}`, state.get(entity));
                 } else {
                     process.stderr.write(`MockZ2M: Entity not found: ${entityName}\n`);
                 }

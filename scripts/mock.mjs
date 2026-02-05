@@ -10,6 +10,7 @@ import { fileURLToPath } from 'url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.join(__dirname, '..');
 const lockFile = path.join(rootDir, '.mock-lock.json');
+const logFile = path.join(rootDir, '.mock.log');
 
 const command = process.argv[2];
 
@@ -42,13 +43,17 @@ async function start() {
         const vitePort = await findAvailablePort();
         const localIp = await getLocalIp();
 
+        // Empty the log file on start
+        fs.writeFileSync(logFile, '');
+        const logStream = fs.createWriteStream(logFile, { flags: 'a' });
+
         // Build extension first
         await runCommand('npm', ['run', 'build:extension']);
 
         // Start mock-z2m in background
         const mockZ2m = spawn('node', ['--experimental-strip-types', 'src/mock-z2m.ts'], {
             env: { ...process.env, LIGHTLYNX_PORT: mockZ2mPort.toString(), LIGHTLYNX_INSECURE: 'true' },
-            stdio: 'ignore',
+            stdio: ['ignore', logStream, logStream],
             detached: true,
             cwd: rootDir
         });
@@ -56,7 +61,7 @@ async function start() {
 
         // Start Vite dev server in background
         const vite = spawn('npm', ['run', 'dev', '--', '--port', vitePort.toString()], {
-            stdio: 'ignore',
+            stdio: ['ignore', logStream, logStream],
             detached: true,
             cwd: rootDir
         });

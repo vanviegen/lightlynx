@@ -6,3 +6,4 @@ tmp-*
 .env
 tests-out
 .mock-lock.json
+.mock.log

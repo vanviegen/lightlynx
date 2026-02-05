@@ -575,7 +575,7 @@ class LightLynx {
         }
 
         const delta = createZ2MLightDelta(light.lightState, tailorLightState(state, light.lightCaps))
-        this.sendMqttCommand(ieee, delta);
+        this.sendMqttCommand(`${ieee}/set`, delta);
     }
 
     /** Relay admin commands send to the Zigbee2MQTT 'bridge' virtual device. */
