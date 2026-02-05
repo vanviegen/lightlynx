@@ -662,7 +662,9 @@ class LightLynx {
         const group = this.store.groups[groupId];
         if (!group) throw new Error(`Group ${groupId} not found`);
         
+        const oldTimeout = group.timeout;
         group.timeout = timeoutSecs || undefined;
+        if (oldTimeout && timeoutSecs) this.nudgeGroupAutoOff(group);
     }
 
     /** Called for each incoming WebSocket message. Delegates to appropriate

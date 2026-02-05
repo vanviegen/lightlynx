@@ -7,7 +7,7 @@ import { askConfirm } from '../components/prompt';
 import { lightGroups } from '../app';
 
 export function drawBulbPage(ieee: string): void {
-    let device = api.store.devices[ieee];
+    let device = api.store.lights[ieee];
     if (!device) {
         $('div.empty#No such light');
         return;

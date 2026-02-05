@@ -5,9 +5,6 @@ test.describe('Automation Features', () => {
   test('should show automation UI elements in admin mode', async ({ page }) => {
     await connectToMockServer(page);
     
-    // Ensure we are in admin mode
-    await page.goto('/?admin=y');
-
     // Verify we're connected (Users section shows admin user)
     await expect(page.locator('h2', { hasText: 'admin' })).toBeVisible({ timeout: 15000 });
     

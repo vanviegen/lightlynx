@@ -439,8 +439,8 @@ class Api {
                 groupState.brightness = undefined;
             }
         }
-        copy(group, 'lightCaps', groupCaps);
-        copy(group, 'lightState', groupState);
+        copy(group, 'lightCaps', groupCaps || {});
+        copy(group, 'lightState', groupState || {});
 
         // Subscribe to the lightCaps property we just set, so that in case a server patch
         // somehow overwrites the entire Light, we will be triggered to recalculate.

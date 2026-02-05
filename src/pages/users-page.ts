@@ -99,7 +99,7 @@ export function drawUserEditor(): void {
     const busy = proxy(false);
     $('form div.button-row', () => {
 
-        if (!existing && api.store.me?.name !== userName) {
+        if (existing && api.store.me?.name !== userName) {
             $('button.danger', icons.remove, '#Delete user', 'click=', async () => {
                 if (await askConfirm(`Are you sure you want to delete user '${userName}'?`)) {
                     await api.deleteUser(userName);

@@ -8,8 +8,8 @@ test.describe('User Management', () => {
     // We're already on the main page, just click the create icon in Users heading
     await page.getByRole('heading', { name: 'Users' }).getByRole('img', { name: 'create' }).click();
     
-    // We should be on the New User page
-    await expect(page.locator('h1.title', { hasText: 'New User' })).toBeVisible();
+    // We should be on the Add user page
+    await expect(page.locator('h1.title', { hasText: 'Add' })).toBeVisible();
     
     // Fill in userName
     await page.locator('input[placeholder="UserName"]').fill('testuser');
