@@ -113,10 +113,13 @@ export function drawHeader(
         $(() => {
             icons.reconnect(() => {
                 const state = api.connection.state;
+                const stalling = api.connection.stalling;
                 $({
                     '.spinning': state !== 'connected' && state !== 'idle',
-                    '.on': state === 'connected',
+                    '.on': state === 'connected' && !stalling,
                     '.off': state === 'idle',
+                    '.warning': stalling,
+                    '.pulse': stalling,
                     '.critical': !!api.connection.lastError,
                     '.link': true,
                     'click': () => route.go('/connect'),

@@ -604,7 +604,7 @@ class MockMQTT {
                                 process.stderr.write(`MockZ2M: [Zigbee]   -> Member ${member.name} (${member.ieeeAddr}) [no stored state]: ${JSON.stringify(defaultState)}\n`);
                                 state.set(member, defaultState);
                             }
-                            mqtt.publish(`${base}/${member.name}`, state.get(member));
+                            mqtt.publish(`${base}/${member.name}`, state.get(member), { clientOptions: { retain: true } });
                         }
                     }
                     if (payload.scene_add !== undefined) {
@@ -644,12 +644,12 @@ class MockMQTT {
                                 process.stderr.write(`MockZ2M: [Zigbee]   -> Member ${member.name} (${member.ieeeAddr}): ${JSON.stringify(statePayload)}\n`);
                                 const memberState = state.get(member);
                                 state.set(member, { ...memberState, ...statePayload });
-                                mqtt.publish(`${base}/${member.name}`, state.get(member));
+                                mqtt.publish(`${base}/${member.name}`, state.get(member), { clientOptions: { retain: true } });
                             }
                         }
                     }
                     // Echo back state
-                    mqtt.publish(`${base}/${entity.name}`, state.get(entity));
+                    mqtt.publish(`${base}/${entity.name}`, state.get(entity), { clientOptions: { retain: true } });
                 } else {
                     process.stderr.write(`MockZ2M: Entity not found: ${entityName}\n`);
                 }

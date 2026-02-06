@@ -4,8 +4,8 @@ import http from 'http';
 import https from 'https';
 import dgram from 'dgram';
 import WebSocket, { WebSocketServer } from 'ws';
-import { Config, Group, Light, Scene, Toggle, State, Trigger, User, StripUnderscoreKeys } from './types';
-import { applyDelta, createDelta, deepClone } from './json-merge-patch';
+import { Config, Group, Light, Scene, Toggle, State, Trigger, User, StripUnderscoreKeys, UserWithName } from './types';
+import { applyDelta, createDelta, createDeltaRecurse, deepClone } from './json-merge-patch';
 import { createZ2MLightDelta, tailorLightState, DEFAULT_TRIGGERS } from './colors';
 
 const EXTENSION_VERSION = 1;
@@ -39,7 +39,7 @@ class LightLynx {
     private logger: any;
     private mqttBaseTopic: string;
 
-    private webSocketUsers: Map<WebSocket, User> = new Map();
+    private webSocketUsers: Map<WebSocket, UserWithName> = new Map();
     private pendingBridgeRequests: Map<number, { resolve: (value: any) => void, reject: (reason: any) => void }> = new Map();
     private nextTransactionId = 1;
 
@@ -69,30 +69,32 @@ class LightLynx {
         this.logger = logger;
         this.mqttBaseTopic = _settings.get().mqtt.base_topic;
 
-        let config = {} as Config;
+        let config: Config = {
+            allowRemote: false,
+            automationEnabled: false,
+            latitude: 52.24, // Enschede NL (center of the known universe)
+            longitude: 6.88,
+            users: {
+                admin: {
+                    secret: '',
+                    isAdmin: true,
+                    allowedGroupIds: [],
+                    allowRemote: false
+                },
+            },
+            _sceneStates: {},
+            _groupTimeouts: {},
+            _sceneTriggers: {},
+            _toggleGroupLinks: {},
+        };
         try {
             if (fs.existsSync(CONFIG_PATH)) {
                 this.configJson = fs.readFileSync(CONFIG_PATH, 'utf8');
-                config = JSON.parse(this.configJson);
+                Object.assign(config, JSON.parse(this.configJson));
             }
         } catch (e: any) {
             this.log('error', `Error loading configuration ${CONFIG_PATH}: ${e.message}`);
         }
-        config.automationEnabled ||= false;
-        config.latitude ||= 52.24; // Enschede NL (center of the known universe)
-        config.longitude ||= 6.88;
-        config.users ||= {
-            admin: {
-                name: 'admin',
-                secret: '',
-                isAdmin: true,
-                allowedGroupIds: [],
-                allowRemote: false
-            },
-        };
-        config._groupTimeouts ||= {};
-        config._sceneTriggers ||= {};
-        config._toggleGroupLinks ||= {};
 
         this.store = {
             lights: {},
@@ -151,8 +153,8 @@ class LightLynx {
         // We gather and maintain state based on the outgoing MQTT messages send by Zigbee2MQTT.
         // This feels more robust than trying to hook into Zigbee2MQTT internals.
         this.eventBus.onMQTTMessagePublished(this, (data: any) => this.onOutgoingMQTT(data));
-        for(const data of Object.values(this.mqtt.retainedMessages)) {
-            this.onOutgoingMQTT(data);
+        for(const data of Object.values(this.mqtt.retainedMessages) as {topic: string, payload: string}[]) {
+            this.onOutgoingMQTT({topic: this.mqttBaseTopic + '/' + data.topic, payload: data.payload});
         }
 
         // We hook into incoming MQTT messages (including the simulated ones we send ourselves),
@@ -174,7 +176,6 @@ class LightLynx {
 
         if (this.wss) {
             for (const client of this.wss.clients) {
-                client.send(JSON.stringify({ topic: 'bridge/state', payload: { state: 'offline' } }));
                 client.terminate();
             }
             this.wss.close();
@@ -487,6 +488,7 @@ class LightLynx {
             
             const user = this.store.config.users[userName];
             if (!user || secret !== user.secret) throw new Error('Invalid user name or password.');
+            const userWithName = { name: userName, ...user };
             
             const clientIp = this.getClientIp(req);
             const isRemote = !this.isLocalIp(clientIp) && clientIp !== this.store.config._ssl?.externalIp;
@@ -497,7 +499,7 @@ class LightLynx {
                 throw new Error('Remote access not permitted for user.');
             }
             this.wss!.handleUpgrade(req, socket, head, (ws) => {
-                this.onWebSocketAuthenticated(ws, user);
+                this.onWebSocketAuthenticated(ws, userWithName);
             });
             
         } catch (err: any) {
@@ -511,15 +513,15 @@ class LightLynx {
     /** Called for new WebSocket connections after successful authentication.
      * Attach event handlers and send initial state.
      */
-    private async onWebSocketAuthenticated(ws: WebSocket, user: User) {
+    private async onWebSocketAuthenticated(ws: WebSocket, user: UserWithName) {
         this.webSocketUsers.set(ws, user);
-        this.log('info', `Client connected: ${user?.name}`);
+        this.log('info', `Client connected: ${user.name}`);
 
         ws.on('error', (err) => this.log('error', `WebSocket error: ${err.message}`));
         ws.on('close', () => this.webSocketUsers.delete(ws));
         ws.on('message', (data) => this.onUserMessage(ws, data));
 
-        const delta = createDelta(this.store, {});
+        const delta = createDeltaRecurse(this.store, {});
         delta.me = user;
         ws.send(JSON.stringify(['init', EXTENSION_VERSION, delta]));
     }
@@ -796,8 +798,9 @@ class LightLynx {
     }
 
     /** Called for each MQTT sent by Zigbee2MQTT. We use this to keep this.store up-to-date.*/
-    private onOutgoingMQTT(data: any) {
-        if (!data?.topic || data.options?.meta?.isEntityState || !data.topic.startsWith(`${this.mqttBaseTopic}/`)) return;
+    private onOutgoingMQTT(data: {topic: string, payload: string}) {
+        console.log('Outgoing MQTT:', data?.topic);
+        if (!data.topic.startsWith(`${this.mqttBaseTopic}/`)) return;
         const topic = data.topic.slice(this.mqttBaseTopic.length + 1).split('/');
         let payload: any;
         try { payload = JSON.parse(data.payload); } catch { payload = data.payload; }
@@ -819,7 +822,7 @@ class LightLynx {
             else if (topic[1] === 'devices') this.handleBridgeDevices(payload);
             else if (topic[1] === 'info') this.store.permitJoin = payload.permit_join;
         }
-        else if (topic.length === 2 && topic[1] === topic.endsWith('/availability')) this.handleDeviceAvailability(topic[0], payload);
+        else if (topic.length === 2 && topic[1] === 'availability') this.handleDeviceAvailability(topic[0], payload);
         else if (topic.length === 1) this.handleDeviceState(topic[0], payload);
         this.scheduleEmitChanges();
     }
@@ -1050,7 +1053,9 @@ class LightLynx {
 
     /** Sync this.store to websockets. */
     private emitChangesNow() {
-        const delta = createDelta(this.store, this.storeCopy);
+        const delta = createDelta(this.store, this.storeCopy) || {};
+        this.storeCopy = deepClone(this.store);
+
         const users = delta.config?.users;
         
         for (const [ws, clientInfo] of this.webSocketUsers) {
@@ -1061,15 +1066,25 @@ class LightLynx {
                 if (clientInfo.isAdmin) delta.config!.users = users;
                 else delete delta.config!.users;
                 const me = users[clientInfo.name];
-                if (me) delta.me = me;
-                else delete delta.me;
+                if (me) {
+                    // Update info for currently logged in users
+                    Object.assign(clientInfo, me);
+                    delta.me = clientInfo;
+                }
+                else if (me==null) {
+                    // If the user was deleted, disconnect
+                    this.webSocketUsers.delete(ws)
+                    ws.close();
+                }
+                else {
+                    // This user was not modified, no need to update 'me'
+                    delete delta.me;
+                }
             }
             if (Object.keys(delta).length > 0) {
                 ws.send(JSON.stringify(['store-delta', delta]));
             }
         }
-        // Update storeCopy to reflect what we just sent
-        this.storeCopy = deepClone(this.store);
         // This doesn't need to happen sync:
         setTimeout(() => this.saveConfig(), 20);
     }

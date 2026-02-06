@@ -12,9 +12,11 @@ const ACME_DIRECTORY_URL = "https://acme-v02.api.letsencrypt.org/directory";
 
 const CERT_VALIDITY_DAYS = 90;
 
-// Hard-coded secrets
-const BUNNY_DNS_ZONE_ID = "684184";
-const BUNNY_DNS_API_KEY = "fb28817b-30ad-4820-ba78-e5d8279be8a7a93097b3-a224-4241-96d3-382b00b336e2";
+// Secrets from environment
+// @ts-ignore
+const BUNNY_DNS_ZONE_ID: string = process.env.BUNNY_DNS_ZONE_ID;
+// @ts-ignore
+const BUNNY_ACCESS_KEY: string = process.env.BUNNY_ACCESS_KEY;
 
 // ============================================================================
 // IP CONVERSION
@@ -225,7 +227,7 @@ async function bunnyDNSRequest(
     const url = `${BUNNY_DNS_API_BASE}${path}`;
 
     const headers: Record<string, string> = {
-        AccessKey: BUNNY_DNS_API_KEY,
+        AccessKey: BUNNY_ACCESS_KEY,
         "Content-Type": "application/json",
     };
 

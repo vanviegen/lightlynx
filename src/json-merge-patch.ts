@@ -45,29 +45,21 @@ function deepCompare(a: unknown, b: unknown): boolean {
 
 /** Creates a JSON merge patch (RFC 7386) between two objects. Skips underscore keys. */
 export function createDelta<TCurrent extends object, TOld extends object>(current: TCurrent, old: TOld): DeltaOf<TCurrent, TOld> {
-    const result: Record<string, unknown> = {};
-    for (const key in current) {
-        if (key[0] === '_') continue;
-        const delta = deltaRecurse((current as any)[key], (old as any)[key]);
-        if (delta !== undefined) result[key] = delta;
-    }
-    for (const key in old) {
-        if (key[0] !== '_' && !(key in current)) result[key] = null;
-    }
-    return result as DeltaOf<TCurrent, TOld>;
+    if (current as any === old && typeof current === 'object' && current !== null) return {} as DeltaOf<TCurrent, TOld>;
+    return createDeltaRecurse(current, old) as DeltaOf<TCurrent, TOld>;
 }
-
-function deltaRecurse(current: unknown, old: unknown): unknown {
+export function createDeltaRecurse<T>(current: T, old: unknown): T;
+export function createDeltaRecurse(current: unknown, old: unknown): unknown {
     if (current === old) return undefined;
     if (current == null) return null;
-    if (typeof current !== 'object' || typeof old !== 'object' || old === null) return current;
+    if (typeof current !== 'object' || typeof old !== 'object' || old === null) return deepClone(current);
     if (Array.isArray(current) || Array.isArray(old)) {
-        return deepCompare(current, old) ? undefined : current;
+        return deepCompare(current, old) ? undefined : deepClone(current);
     }
     let result: Record<string, unknown> | undefined;
     for (const key in current) {
         if (key[0] === '_') continue;
-        const delta = deltaRecurse((current as any)[key], (old as any)[key]);
+        const delta = createDeltaRecurse((current as any)[key], (old as any)[key]);
         if (delta !== undefined) (result ??= {})[key] = delta;
     }
     for (const key in old) {

@@ -1,5 +1,5 @@
 import { $, proxy, clone, copy, unproxy, peek, merge, onEach } from "aberdeen";
-import { applyPrediction, applyCanon } from "aberdeen/prediction";
+import { applyPrediction, applyCanon, Patch } from "aberdeen/prediction";
 import * as route from "aberdeen/route";
 import { isHS, tailorLightState }  from "./colors";
 import { LightState, LightCaps, ServerCredentials, Config, GroupWithDerives, ClientState, User } from "./types";
@@ -8,9 +8,13 @@ import { applyDelta } from "./json-merge-patch";
 const REQUIRED_EXTENSION_VERSION = 1;
 const RECOMMENDED_EXTENSION_VERSION = 1;
 
-interface PromiseCallbacks {
+interface PendingSend {
+    args: any[];
     resolve: (result: any) => void;
     reject: (err: Error) => void;
+    prediction?: Patch;
+    predictionDelay: number;
+    sentAt: number;
 }
 
 function ipToHexDomain(ip: string): string {
@@ -37,10 +41,12 @@ class Api {
 
     private tryingSockets?: Set<WebSocket>; // One or two sockets trying to connect
     
-    private awaitingTransactions: Map<number, PromiseCallbacks> = new Map();
+    private pendingSends: PendingSend[] = [];
+    private awaitingReplies: Map<number, PendingSend> = new Map();
     private transactionCount = 0;
 
     private connectTimeout?: ReturnType<typeof setTimeout>;
+    private stallingTimeout?: ReturnType<typeof setTimeout>;
 
     store: ClientState = proxy(createFreshStoreState());
 
@@ -51,7 +57,8 @@ class Api {
         state: "idle" | "connecting" | "initializing" | "connected" | "reconnecting";
         lastError?: string;
         attempts: number;
-    } = proxy({ mode: 'enabled', state: 'idle', attempts: 0 });
+        stalling: boolean;
+    } = proxy({ mode: 'enabled', state: 'idle', attempts: 0, stalling: false });
 
     notifyHandlers: Array<(type: 'error' | 'info' | 'warning', msg: string, channel?: string) => void> = [];
     
@@ -67,7 +74,12 @@ class Api {
         // Load cached data from localStorage
         try {
             const data = localStorage.getItem("lightlynx-store");
-            if (data) merge(this.store, JSON.parse(data));
+            if (data) {
+                merge(this.store, JSON.parse(data));
+                for (const light of Object.values(this.store.lights)) {
+                    if (!light.lightState) light.lightState = {} as any;
+                }
+            }
         } catch(e) {
             console.error("Failed to load lightlynx-store from localStorage:", e);
         }
@@ -144,6 +156,9 @@ class Api {
                     userName: server.userName,
                     secret: server.secret,
                 });
+            } else {
+                // Not going to reconnect; reject anything still pending
+                this.rejectAllPending();
             }
         });
 
@@ -189,8 +204,44 @@ class Api {
             this.socket = undefined;
             socket.close();
         }
+
+        // Move sent-but-unreplied messages back to the front of the queue for retry
+        if (this.awaitingReplies.size) {
+            this.pendingSends.unshift(...this.awaitingReplies.values());
+            this.awaitingReplies.clear();
+        }
         
         this.connection.state = 'idle';
+    }
+
+    /** Reject all pending and queued sends, dropping their predictions */
+    private rejectAllPending(): void {
+        for (const entry of [...this.awaitingReplies.values(), ...this.pendingSends]) {
+            if (entry.prediction) applyCanon(undefined, [entry.prediction]);
+            entry.reject(new Error("Connection lost"));
+        }
+        this.awaitingReplies.clear();
+        this.pendingSends.length = 0;
+        this.connection.stalling = false;
+        clearTimeout(this.stallingTimeout);
+        this.stallingTimeout = undefined;
+    }
+
+    /** Send all queued messages if connected */
+    private flushSends(): void {
+        if (!this.socket || this.socket.readyState !== WebSocket.OPEN) return;
+        while (this.pendingSends.length > 0) {
+            const entry = this.pendingSends.shift()!;
+            const id = ++this.transactionCount;
+            this.socket.send(JSON.stringify([id, ...entry.args]));
+            this.awaitingReplies.set(id, entry);
+            // 7s timeout per send attempt triggers reconnect
+            setTimeout(() => {
+                if (this.awaitingReplies.has(id)) {
+                    this.handleConnectionFailure("Request timed out.");
+                }
+            }, 7000);
+        }
     }
 
     private connect(creds: { localAddress: string; externalAddress?: string; userName?: string; secret?: string }): void {
@@ -236,9 +287,9 @@ class Api {
                 close("Connection lost.");
             });
             
-            socket.addEventListener("error", (e) => {
+            socket.addEventListener("error", (e: any) => {
                 console.error("api/onError", socket.url, e);
-                close(`Connection error: ${e}.`);
+                close(`Connection error: ${e.message || e}.`);
             });
             
             socket.addEventListener("open", () => {
@@ -289,61 +340,87 @@ class Api {
         }
     }
 
+    /**
+     * Send a command to the server. Queues if not yet connected; retries on reconnect.
+     * The last argument may be a prediction function: it will be wrapped in applyPrediction
+     * and the resulting Patch kept until the server replies (+ a delay).
+     * If the prediction function returns a number, that number overrides the default 2000ms
+     * delay before dropping the prediction after the reply arrives.
+     */
     async send(...commandAndArgs: any[]): Promise<void> {
+        // Extract optional prediction function from the end
+        let predictionFn: (() => number | void) | undefined;
+        if (typeof commandAndArgs[commandAndArgs.length - 1] === 'function') {
+            predictionFn = commandAndArgs.pop();
+        }
+
         console.log("api/send", commandAndArgs);
 
-        if (!this.socket || this.socket.readyState !== WebSocket.OPEN) {
-            console.warn("api/send - WebSocket not connected, message dropped");
+        // Apply prediction immediately so UI updates right away
+        let prediction: Patch | undefined;
+        let predictionDelay = 2000;
+        if (predictionFn) {
+            let returnValue: number | void;
+            prediction = applyPrediction(() => {
+                returnValue = predictionFn!();
+            });
+            if (typeof returnValue! === 'number') {
+                predictionDelay = returnValue!;
+            }
+        }
+
+        if (this.connection.mode === 'disabled') {
+            if (prediction) applyCanon(undefined, [prediction]);
             throw new Error("WebSocket not connected");
         }
 
-        const id = ++this.transactionCount;
-        commandAndArgs.unshift(id);
-        this.socket.send(JSON.stringify(commandAndArgs));
+        const hadPending = this.pendingSends.length > 0 || this.awaitingReplies.size > 0;
 
         await new Promise<void>((resolve, reject) => {
-            this.awaitingTransactions.set(id, { resolve, reject });
-            setTimeout(() => {
-                if (this.awaitingTransactions.has(id)) {
-                    this.awaitingTransactions.delete(id);
-                    reject(new Error("Request timed out"));
-                }
-            }, 5000);
+            this.pendingSends.push({ args: commandAndArgs, resolve, reject, prediction, predictionDelay, sentAt: Date.now() });
+            if (!hadPending) {
+                this.stallingTimeout = setTimeout(() => {
+                    if (this.pendingSends.length > 0 || this.awaitingReplies.size > 0) {
+                        this.connection.stalling = true;
+                    }
+                }, 500);
+            }
+            this.flushSends();
         });
     }
 
     recallScene(groupId: number, sceneId: number) {
-        api.send("scene", groupId, sceneId, "recall");
-
-        // Do a local prediction, that we'll keep around for 6s or until the server responds
-        const patch = applyPrediction(() => {
-            const group = api.store.groups[groupId];
+        this.send("scene", groupId, sceneId, "recall", () => {
+            const group = this.store.groups[groupId];
             if (!group) return;
             const scene = group.scenes[sceneId];
             if (!scene || !scene.lightStates) return;
             for (const [ieee, lightState] of Object.entries(scene.lightStates)) {
-                const light = api.store.lights[ieee];
+                const light = this.store.lights[ieee];
                 if (!light) continue;
                 copy(light.lightState, tailorLightState(lightState, light.lightCaps));
             }
+            return 6000;
         });
-        
-        // Revert prediction after 6s. (Usually, the prediction will be dropped earlier if the server responds with new values.)
-        setTimeout(() => applyCanon(undefined, [patch]), 6000);        
     }
 
     /**
      * Request a light state change from user input.
      * Applies optimistic update immediately, then queues for server transmission.
+     * Keeps at most one prediction per target to avoid accumulation during dragging.
      */
     setLightState(target: string | number, lightState: LightState) {
         console.log('api/setLightState', target, lightState);
 
-        // Do a local prediction, that we'll keep around for 3s or until the server responds
-        // with any conflicting or affirming state.
+        // Drop any previous prediction for this target before making a new one
+        const prevPatch = this.setLightStatePredictions.get(target);
+        if (prevPatch) {
+            applyCanon(undefined, [prevPatch]);
+        }
+
+        // Make a new prediction for this target
         const patch = applyPrediction(() => {
             if (typeof target === 'number') {
-                // A group
                 const group = this.store.groups[target];
                 if (!group) return;
                 for(const ieee of group.lightIds) {
@@ -352,15 +429,20 @@ class Api {
                     copy(light.lightState, tailorLightState(lightState, light.lightCaps));
                 }
             } else {
-                // A single light
                 const light = this.store.lights[target];
                 if (!light) return;
                 copy(light.lightState, tailorLightState(lightState, light.lightCaps));
             }
         });
+        this.setLightStatePredictions.set(target, patch);
         
-        // Revert prediction after 3s. (Usually, the prediction will be dropped earlier if the server responds with new values.)
-        setTimeout(() => applyCanon(undefined, [patch]), 3000);
+        // Auto-expire prediction after 3s
+        setTimeout(() => {
+            if (this.setLightStatePredictions.get(target) === patch) {
+                this.setLightStatePredictions.delete(target);
+                applyCanon(undefined, [patch]);
+            }
+        }, 3000);
 
 
         // Send the state, but at most 3 times per second per target
@@ -383,6 +465,7 @@ class Api {
 
     private setLightStateObjects: Map<string|number, LightState> = new Map();
     private setLightStateTimers: Map<string|number, ReturnType<typeof setTimeout>> = new Map();
+    private setLightStatePredictions: Map<string|number, Patch> = new Map();
 
     /**
      * Compute aggregate light state/caps for a group based on its lights.
@@ -460,11 +543,9 @@ class Api {
     }
 
     async patchConfig(patch: any): Promise<void> {
-        const prediction = applyPrediction(() => {
+        await this.send('patch-config', patch, () => {
             copy(this.store.config, patch);
-        })
-        await this.send('patch-config', patch);
-        applyCanon(undefined, [prediction]);
+        });
     }
 
     updateUser(user: User): Promise<void> {
@@ -482,8 +563,7 @@ class Api {
         const toggle = this.store.toggles[ieee];
         if (!toggle) return;
 
-        // Optimistic update
-        const prediction = applyPrediction(() => {
+        await this.send('link-toggle-to-group', groupId, ieee, linked, () => {
             const currentGroups = toggle.linkedGroupIds || [];
             if (linked && !currentGroups.includes(groupId)) {
                 toggle.linkedGroupIds = [...currentGroups, groupId];
@@ -491,14 +571,6 @@ class Api {
                 toggle.linkedGroupIds = currentGroups.filter(id => id !== groupId);
             }
         });
-
-        try {
-            await this.send('link-toggle-to-group', groupId, ieee, linked);
-        } catch (e) {
-            throw e;
-        } finally {
-            applyCanon(undefined, [prediction]);
-        }
     }
 
     /**
@@ -508,15 +580,9 @@ class Api {
         const group = this.store.groups[groupId];
         if (!group) return;
 
-        const prediction = applyPrediction(() => {
+        await this.send('set-group-timeout', groupId, timeoutSecs, () => {
             group.timeout = timeoutSecs || undefined;
         });
-
-        try {
-            await this.send('set-group-timeout', groupId, timeoutSecs);
-        } finally {
-            applyCanon(undefined, [prediction]);
-        }
     }
 
     /**
@@ -554,18 +620,33 @@ class Api {
             if (this.store.me?.isAdmin && version < RECOMMENDED_EXTENSION_VERSION) {
                 this.notify('warning', `Light Lynx Zigbee2MQTT extension version ${version} is outdated. Please consider updating.`);
             }
+            this.flushSends(); // Re-send any queued messages after reconnect
         }
         else if (command === 'reply') {
             const [id, response, error] = args;
 
-            const promises = this.awaitingTransactions.get(id);
-            if (promises) {
-                if (error) {
-                    promises.reject(new Error(error));
-                } else {
-                    promises.resolve(response);
+            const entry = this.awaitingReplies.get(id);
+            if (entry) {
+                this.awaitingReplies.delete(id);
+
+                // Clear stalling when no more pending work
+                if (this.pendingSends.length === 0 && this.awaitingReplies.size === 0) {
+                    this.connection.stalling = false;
+                    clearTimeout(this.stallingTimeout);
+                    this.stallingTimeout = undefined;
                 }
-                this.awaitingTransactions.delete(id);
+
+                // Schedule prediction drop after the configured delay
+                if (entry.prediction) {
+                    const delay = error ? 0 : entry.predictionDelay;
+                    setTimeout(() => applyCanon(undefined, [entry.prediction!]), delay);
+                }
+
+                if (error) {
+                    entry.reject(new Error(error));
+                } else {
+                    entry.resolve(response);
+                }
             }
         }
         else if (command === 'store-delta') {

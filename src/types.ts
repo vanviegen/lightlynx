@@ -96,11 +96,14 @@ export interface Group {
 
 
 export interface User {
-    name: string;
     isAdmin: boolean;
     allowedGroupIds: number[];
     allowRemote: boolean;
     secret: string;
+}
+
+export interface UserWithName extends User {
+    name: string;
 }
 
 export interface ServerCredentials {
@@ -136,12 +139,12 @@ export interface Config {
     latitude: number;  // For sunrise/sunset calculations
     longitude: number;
     users: Record<string, User>;  // Filtered out if user is not admin
-    _externalPort: number | undefined;  // For persistent UPnP mapping
+    _externalPort?: number;  // For persistent UPnP mapping
     _ssl?: SslConfig;
-    _sceneStates?: Record<number, Record<number, Record<string, LightState>>>; // groupId -> sceneId -> ieeeAddress -> LightState
-    _groupTimeouts?: Record<number, number>; // groupId -> timeout in seconds
-    _sceneTriggers?: Record<number, Record<number, Trigger[]>>; // groupId -> sceneId -> triggers
-    _toggleGroupLinks?: Record<string, number[]>; // ieee -> groupId[]
+    _sceneStates: Record<number, Record<number, Record<string, LightState>>>; // groupId -> sceneId -> ieeeAddress -> LightState
+    _groupTimeouts: Record<number, number>; // groupId -> timeout in seconds
+    _sceneTriggers: Record<number, Record<number, Trigger[]>>; // groupId -> sceneId -> triggers
+    _toggleGroupLinks: Record<string, number[]>; // ieee -> groupId[]
 }
 
 // Store interface for the global application state
@@ -158,7 +161,7 @@ export interface State {
     config: Config;
 
     // Different per connection:
-    me?: User;
+    me?: UserWithName;
 }
 
 export interface GroupWithDerives extends Group {

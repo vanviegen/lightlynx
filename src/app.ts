@@ -156,7 +156,7 @@ const groupListClass = insertCss({
 	'&': 'display:flex flex-direction:column',
 	'.group.off h2': 'fg:$textMuted',
 	'h2': 'white-space:nowrap overflow:hidden text-overflow:ellipsis',
-	'.scenes': 'fg:$textMuted display:flex gap:$2 align-items:center overflow-x:auto scrollbar-width:none',
+	'.scenes': 'fg:$textMuted display:flex gap:$2 align-items:center overflow-x:auto scrollbar-width:none white-space:nowrap',
 	'.scenes > *': {
 		'&.active-scene': 'fg:$primary'
 	}

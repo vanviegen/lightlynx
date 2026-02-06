@@ -97,7 +97,9 @@ function drawConnectionDetails(selectedIndex: { value: number }): void {
 
     // Show connection errors
     $(() => {
-        if (api.connection.lastError) {
+        if (api.connection.stalling) {
+            $('div', errorMessageStyle, '#The server is taking longer than usual to respond…');
+        } else if (api.connection.lastError) {
             $('div', errorMessageStyle, '#', api.connection.lastError + " Please check the server address and port.");
         }
     });
