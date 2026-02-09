@@ -107,7 +107,7 @@ export interface UserWithName extends User {
 }
 
 export interface ServerCredentials {
-    instanceId: string;  // Instance code (server-assigned code)
+    instanceId: string;  // Instance ID (server-assigned code)
     userName: string;
     secret: string;
     externalPort?: number; // External port for ext-<instanceId> connections

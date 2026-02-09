@@ -29,6 +29,8 @@ const CLICK_COUNTS: Record<string, number> = {
     many: 5
 };
 
+const NOT_YET_INITIALIZED = {};
+
 
 class LightLynx {
     // MQTT and Zigbee references
@@ -97,9 +99,9 @@ class LightLynx {
         }
 
         this.store = {
-            lights: {},
-            toggles: {},
-            groups: {},
+            lights: NOT_YET_INITIALIZED,
+            toggles: NOT_YET_INITIALIZED,
+            groups: NOT_YET_INITIALIZED,
             permitJoin: false,
             config,
         }
@@ -190,36 +192,38 @@ class LightLynx {
     private saveConfig() {
         const cfg = this.store.config;
         
-        // Copy group timeouts to config
-        cfg._groupTimeouts = {};
-        for (const [id, group] of Object.entries(this.store.groups)) {
-            if (group.timeout) cfg._groupTimeouts[Number(id)] = group.timeout;
-        }
-        
-        // Copy scene triggers to config
-        cfg._sceneTriggers = {};
-        for (const [groupId, group] of Object.entries(this.store.groups)) {
-            for (const [sceneId, scene] of Object.entries(group.scenes)) {
-                if (scene.triggers?.length) {
-                    (cfg._sceneTriggers[Number(groupId)] ||= {})[Number(sceneId)] = scene.triggers;
+        if (this.store.groups === NOT_YET_INITIALIZED || this.store.lights === NOT_YET_INITIALIZED || this.store.toggles === NOT_YET_INITIALIZED) {
+            // Copy group timeouts to config
+            cfg._groupTimeouts = {};
+            for (const [id, group] of Object.entries(this.store.groups)) {
+                if (group.timeout) cfg._groupTimeouts[Number(id)] = group.timeout;
+            }
+            
+            // Copy scene triggers to config
+            cfg._sceneTriggers = {};
+            for (const [groupId, group] of Object.entries(this.store.groups)) {
+                for (const [sceneId, scene] of Object.entries(group.scenes)) {
+                    if (scene.triggers?.length) {
+                        (cfg._sceneTriggers[Number(groupId)] ||= {})[Number(sceneId)] = scene.triggers;
+                    }
                 }
             }
-        }
-        
-        // Copy toggle group links to config
-        cfg._toggleGroupLinks = {};
-        for (const [ieee, toggle] of Object.entries(this.store.toggles)) {
-            if (toggle.linkedGroupIds?.length) {
-                cfg._toggleGroupLinks[ieee] = toggle.linkedGroupIds;
+            
+            // Copy toggle group links to config
+            cfg._toggleGroupLinks = {};
+            for (const [ieee, toggle] of Object.entries(this.store.toggles)) {
+                if (toggle.linkedGroupIds?.length) {
+                    cfg._toggleGroupLinks[ieee] = toggle.linkedGroupIds;
+                }
             }
-        }
-        
-        // Copy scene states to config
-        cfg._sceneStates = {};
-        for (const [groupId, group] of Object.entries(this.store.groups)) {
-            for (const [sceneId, scene] of Object.entries(group.scenes)) {
-                if (scene.lightStates) {
-                    (cfg._sceneStates[Number(groupId)] ||= {})[Number(sceneId)] = scene.lightStates;
+            
+            // Copy scene states to config
+            cfg._sceneStates = {};
+            for (const [groupId, group] of Object.entries(this.store.groups)) {
+                for (const [sceneId, scene] of Object.entries(group.scenes)) {
+                    if (scene.lightStates) {
+                        (cfg._sceneStates[Number(groupId)] ||= {})[Number(sceneId)] = scene.lightStates;
+                    }
                 }
             }
         }
@@ -295,15 +299,15 @@ class LightLynx {
                     this.log('info', `Requesting SSL certificate localIp=${localIp} instanceId=${cfg.instanceId || '(new)'}`);
                     const response = await this.httpRequest('https://cert.lightlynx.eu/create', {
                         method: 'POST',
-                        body: JSON.stringify({ localIp, instanceId: cfg.instanceId }),
+                        body: JSON.stringify({ localIp, instanceId: cfg.instanceId, instanceKey: cfg._ssl?.instanceKey }),
                         headers: { 'Content-Type': 'application/json' }
                     });
                     res = JSON.parse(response.body);
 
-                    // Save the instance code from the cert backend (may be newly generated)
+                    // Save the instance ID from the cert backend (may be newly generated)
                     if (res.instanceId && res.instanceId !== cfg.instanceId) {
                         cfg.instanceId = res.instanceId;
-                        this.log('info', `Instance code assigned: ${cfg.instanceId}`);
+                        this.log('info', `Instance ID assigned: ${cfg.instanceId}`);
                     }
                 }
 

@@ -21,6 +21,7 @@ export default defineConfig(({ mode }) => {
     define: {
       'process.env.BUNNY_DNS_ZONE_ID': JSON.stringify(env.BUNNY_DNS_ZONE_ID),
       'process.env.BUNNY_ACCESS_KEY': JSON.stringify(env.BUNNY_ACCESS_KEY),
+      'process.env.CERT_SERVER_SECRET': JSON.stringify(env.CERT_SERVER_SECRET),
     }
   };
 });

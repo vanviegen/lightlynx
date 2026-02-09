@@ -17,6 +17,8 @@ const CERT_VALIDITY_DAYS = 90;
 const BUNNY_DNS_ZONE_ID: string = process.env.BUNNY_DNS_ZONE_ID;
 // @ts-ignore
 const BUNNY_ACCESS_KEY: string = process.env.BUNNY_ACCESS_KEY;
+// @ts-ignore
+const CERT_SERVER_SECRET: string = process.env.CERT_SERVER_SECRET;
 
 // ============================================================================
 // IP CONVERSION
@@ -337,6 +339,31 @@ function generateInstanceId(): string {
         code += rest[Math.floor(Math.random() * rest.length)];
     }
     return code;
+}
+
+// ============================================================================
+// INSTANCE KEY AUTHENTICATION
+// ============================================================================
+
+async function generateInstanceKey(instanceId: string): Promise<string> {
+    const key = await crypto.subtle.importKey(
+        'raw',
+        new TextEncoder().encode(CERT_SERVER_SECRET),
+        { name: 'HMAC', hash: 'SHA-256' },
+        false,
+        ['sign']
+    );
+    const signature = await crypto.subtle.sign(
+        'HMAC',
+        key,
+        new TextEncoder().encode(instanceId)
+    );
+    return base64UrlEncode(signature);
+}
+
+async function verifyInstanceKey(instanceId: string, instanceKey: string): Promise<boolean> {
+    const expected = await generateInstanceKey(instanceId);
+    return expected === instanceKey;
 }
 
 // ============================================================================
@@ -754,7 +781,7 @@ async function handleCreate(request: Request): Promise<Response> {
             );
         }
 
-        const { localIp, instanceId: providedCode } = await request.json();
+        const { localIp, instanceId: providedCode, instanceKey: providedKey } = await request.json();
 
         if (!localIp) {
             return jsonResponse(
@@ -763,8 +790,28 @@ async function handleCreate(request: Request): Promise<Response> {
             );
         }
 
-        // Use provided instance code or generate a new one
+        // Use provided instance ID or generate a new one
+        const isNew = !providedCode;
         const instanceId = providedCode || generateInstanceId();
+
+        // Verify instanceKey for existing instances
+        if (!isNew) {
+            if (!providedKey) {
+                return jsonResponse(
+                    { success: false, error: "instanceKey is required for existing instances" },
+                    403
+                );
+            }
+            if (!await verifyInstanceKey(instanceId, providedKey)) {
+                return jsonResponse(
+                    { success: false, error: "Invalid instanceKey" },
+                    403
+                );
+            }
+        }
+
+        // Generate the key for this instance
+        const instanceKey = await generateInstanceKey(instanceId);
 
         // Always issue certificates for these domains
         const domains = [
@@ -791,6 +838,7 @@ async function handleCreate(request: Request): Promise<Response> {
 
         return jsonResponse({
             instanceId,
+            instanceKey,
             expiresAt,
             nodeHttpsOptions: {
                 cert: certResult.certificate,

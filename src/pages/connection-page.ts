@@ -112,7 +112,7 @@ function drawConnectionDetails(selectedIndex: { value: number }): void {
         if (api.connection.stalling) {
             $('div', errorMessageStyle, '#The server is taking longer than usual to respond…');
         } else if (api.connection.lastError) {
-            $('div', errorMessageStyle, '#', api.connection.lastError + " Please check the instance code.");
+            $('div', errorMessageStyle, '#', api.connection.lastError + " Please check the instance ID.");
         }
     });
 
@@ -140,8 +140,8 @@ function drawConnectionDetails(selectedIndex: { value: number }): void {
     
     $('form submit=', handleSubmit, () => {
         $('div.field', () => {
-            $('label#Instance Code');
-            $('input placeholder="hostname:port or instance code" required=', true, 'bind=', instanceId);
+            $('label#Instance ID');
+            $('input placeholder="hostname:port or instance ID" required=', true, 'bind=', instanceId);
         });
         $('div.field', () => {
             $('label#UserName');

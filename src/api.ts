@@ -272,7 +272,7 @@ class Api {
             const port = portStr ? parseInt(portStr) : DEFAULT_PORT;
             urls.push(`${protocol}://${host}:${port}/api`);
         } else {
-            // Instance code: try both int- and ext- domains in parallel
+            // Instance ID: try both int- and ext- domains in parallel
             const externalPort = creds.externalPort || DEFAULT_PORT;
             urls.push(`${protocol}://int-${code}.${DOMAIN}:${DEFAULT_PORT}/api`);
             urls.push(`${protocol}://ext-${code}.${DOMAIN}:${externalPort}/api`);
@@ -636,7 +636,7 @@ class Api {
 
             applyDelta(this.store, store);
 
-            // If we connected without an instance id, replace with the real instance code
+            // If we connected without an instance id, replace with the real instance ID
             const server = this.servers[0];
             const realCode = this.store.config.instanceId;
             if (server && !server.instanceId && realCode) {
