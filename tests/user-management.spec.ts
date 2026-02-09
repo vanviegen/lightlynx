@@ -12,7 +12,7 @@ test.describe('User Management', () => {
     await expect(page.locator('h1.title', { hasText: 'Add' })).toBeVisible();
     
     // Fill in userName
-    await page.locator('input[placeholder="UserName"]').fill('testuser');
+    await page.locator('input[placeholder="User name"]').fill('testuser');
     
     // Fill in password
     await page.locator('input[type="password"]').fill('testpass123');
@@ -43,7 +43,7 @@ test.describe('User Management', () => {
 
     // First create a user with password
     await page.getByRole('heading', { name: 'Users' }).getByRole('img', { name: 'create' }).click();
-    await page.locator('input[placeholder="UserName"]').fill('updatetest');
+    await page.locator('input[placeholder="User name"]').fill('updatetest');
     await page.locator('input[type="password"]').fill('password123');
     await page.getByRole('button', { name: 'Save' }).click();
     
@@ -74,7 +74,7 @@ test.describe('User Management', () => {
     const testHash = '9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08'; // SHA-256 hash example
     
     await page.getByRole('heading', { name: 'Users' }).getByRole('img', { name: 'create' }).click();
-    await page.locator('input[placeholder="UserName"]').fill('hashuser');
+    await page.locator('input[placeholder="User name"]').fill('hashuser');
     
     // Enter the hash directly
     await page.locator('input[type="password"]').fill(testHash);
@@ -102,7 +102,7 @@ test.describe('User Management', () => {
     await expect(remoteCheckbox).not.toBeChecked();
     
     // Fill in userName and password
-    await page.locator('input[placeholder="UserName"]').fill('nopassuser');
+    await page.locator('input[placeholder="User name"]').fill('nopassuser');
     await page.locator('input[type="password"]').fill('pass');
     
     // Now we can check the remote checkbox
@@ -116,7 +116,7 @@ test.describe('User Management', () => {
     await page.getByRole('heading', { name: 'Users' }).getByRole('img', { name: 'create' }).click();
     
     // Fill in some data
-    await page.locator('input[placeholder="UserName"]').fill('canceltest');
+    await page.locator('input[placeholder="User name"]').fill('canceltest');
     
     // Click Cancel
     await page.getByRole('button', { name: 'Cancel' }).click();
@@ -131,7 +131,7 @@ test.describe('User Management', () => {
 
     // Create a user
     await page.getByRole('heading', { name: 'Users' }).getByRole('img', { name: 'create' }).click();
-    await page.locator('input[placeholder="UserName"]').fill('deletetest');
+    await page.locator('input[placeholder="User name"]').fill('deletetest');
     await page.locator('input[type="password"]').fill('password');
     await page.getByRole('button', { name: 'Save' }).click();
     
@@ -156,7 +156,7 @@ test.describe('User Management', () => {
 
     // Create a regular user
     await page.getByRole('heading', { name: 'Users' }).getByRole('img', { name: 'create' }).click();
-    await page.locator('input[placeholder="UserName"]').fill('admintest');
+    await page.locator('input[placeholder="User name"]').fill('admintest');
     await page.locator('input[type="password"]').fill('password');
     
     // Enable admin access
@@ -177,7 +177,7 @@ test.describe('User Management', () => {
     
     // Create a user
     await page.getByRole('heading', { name: 'Users' }).getByRole('img', { name: 'create' }).click();
-    await page.locator('input[placeholder="UserName"]').fill('limiteduser');
+    await page.locator('input[placeholder="User name"]').fill('limiteduser');
     await page.locator('input[type="password"]').fill('password');
     
     // Should see Permissions section (because not admin)
@@ -205,7 +205,7 @@ test.describe('User Management', () => {
 
     // Create a user with a known password
     await page.getByRole('heading', { name: 'Users' }).getByRole('img', { name: 'create' }).click();
-    await page.locator('input[placeholder="UserName"]').fill('secrettest');
+    await page.locator('input[placeholder="User name"]').fill('secrettest');
     await page.locator('input[type="password"]').fill('mypassword');
     await page.getByRole('button', { name: 'Save' }).click();
     
@@ -225,7 +225,7 @@ test.describe('User Management', () => {
 
     // Create a user
     await page.getByRole('heading', { name: 'Users' }).getByRole('img', { name: 'create' }).click();
-    await page.locator('input[placeholder="UserName"]').fill('changepass');
+    await page.locator('input[placeholder="User name"]').fill('changepass');
     await page.locator('input[type="password"]').fill('oldpass');
     await page.getByRole('button', { name: 'Save' }).click();
     
@@ -252,7 +252,7 @@ test.describe('User Management', () => {
 
     // Create a user with password
     await page.getByRole('heading', { name: 'Users' }).getByRole('img', { name: 'create' }).click();
-    await page.locator('input[placeholder="UserName"]').fill('clearpass');
+    await page.locator('input[placeholder="User name"]').fill('clearpass');
     await page.locator('input[type="password"]').fill('haspassword');
     await page.getByRole('button', { name: 'Save' }).click();
     

@@ -23,7 +23,7 @@ test.describe('Shareable Connection URL', () => {
     
     // Fill in connection details
     await page.fill('input[placeholder="hostname:port or instance ID"]', 'localhost:43598');
-    await page.fill('label:has-text("UserName") + input', 'admin');
+    await page.fill('label:has-text("User name") + input', 'admin');
     
     // The "Copy direct-connect URL" link should be visible
     const copyLink = page.locator('small.link', { hasText: 'Copy direct-connect URL' });

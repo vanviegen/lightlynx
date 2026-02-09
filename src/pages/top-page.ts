@@ -164,11 +164,6 @@ function drawManagementSection(): void {
 			$('h2#Create group');
 		});
 
-		$('div.item.link', {click: () => api.send('convert', true)}, () => {
-			$('h2#Convert');
-		});
-
-
 		drawRemoteAccessToggle();
 		
 		const automationBusy = proxy(false);

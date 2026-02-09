@@ -245,7 +245,7 @@ class Api {
             // 7s timeout per send attempt triggers reconnect
             setTimeout(() => {
                 if (this.awaitingReplies.has(id)) {
-                    this.handleConnectionFailure("Request timed out.");
+                    this.handleConnectionFailure("Request timed out. Network issues?");
                 }
             }, 7000);
         }
@@ -258,7 +258,7 @@ class Api {
         
         // Timeout for connection attempt
         this.connectTimeout = setTimeout(() => {
-            this.handleConnectionFailure("Connection timed out.");
+            this.handleConnectionFailure("Connection timed out. Please check instance ID and network connection.");
         }, 4000);
 
         // Build the list of URLs to try
@@ -307,7 +307,7 @@ class Api {
             
             socket.addEventListener("error", (e: any) => {
                 console.error("api/onError", socket.url, e);
-                close(`Unable to establish a connection.`);
+                close(`Unable to establish a connection. Please check instance ID and network connection.`);
             });
             
             socket.addEventListener("open", () => {
@@ -338,7 +338,7 @@ class Api {
     private handleConnectionFailure(errorMessage: string): void {
         console.log("api/connectionFailed", errorMessage);
         this.disconnect();
-        this.connection.lastError = errorMessage;
+        this.connection.lastError ||= errorMessage;
         
         if (this.connection.mode === 'try') {
             // Single attempt mode: disable on failure
@@ -682,6 +682,9 @@ class Api {
             const [delta] = args;
             // Apply delta as canonical state so it's not affected by prediction rollbacks
             applyCanon(() => applyDelta(this.store, delta));
+        }
+        else if (command === 'error') {
+            this.handleConnectionFailure(args[0] || "Unknown error from server.");
         }
         else {
             console.warn("api/onMessage - unknown command:", command);

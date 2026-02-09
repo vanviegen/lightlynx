@@ -7,7 +7,7 @@ test.describe('User Permissions', () => {
     
     // Create a limited user with permission only for Kitchen
     await page.getByRole('heading', { name: 'Users' }).getByRole('img', { name: 'create' }).click();
-    await page.locator('input[placeholder="UserName"]').fill('limited');
+    await page.locator('input[placeholder="User name"]').fill('limited');
     await page.locator('input[type="password"]').fill('pass123');
     
     // Give permission only to Kitchen group
@@ -40,7 +40,7 @@ test.describe('User Permissions', () => {
     
     // Create limited user with Kitchen permission only (not Living Room)
     await page.getByRole('heading', { name: 'Users' }).getByRole('img', { name: 'create' }).click();
-    await page.locator('input[placeholder="UserName"]').fill('partial');
+    await page.locator('input[placeholder="User name"]').fill('partial');
     await page.locator('input[type="password"]').fill('pass456');
     // Give permission to Kitchen only
     await page.locator('label:has-text("Kitchen") input[type="checkbox"]').check();
@@ -74,7 +74,7 @@ test.describe('User Permissions', () => {
     
     // Create an admin user
     await page.getByRole('heading', { name: 'Users' }).getByRole('img', { name: 'create' }).click();
-    await page.locator('input[placeholder="UserName"]').fill('adminuser');
+    await page.locator('input[placeholder="User name"]').fill('adminuser');
     await page.locator('input[type="password"]').fill('adminpass');
     
     // Enable admin access
@@ -107,7 +107,7 @@ test.describe('User Permissions', () => {
     await connectToMockServer(page, { admin: true });
     
     await page.getByRole('heading', { name: 'Users' }).getByRole('img', { name: 'create' }).click();
-    await page.locator('input[placeholder="UserName"]').fill('regularuser');
+    await page.locator('input[placeholder="User name"]').fill('regularuser');
     await page.locator('input[type="password"]').fill('regular123');
     
     // Do NOT enable admin access, but give access to all groups so they're not all disabled
@@ -132,7 +132,7 @@ test.describe('User Permissions', () => {
     
     // Create a user with no permissions at all
     await page.getByRole('heading', { name: 'Users' }).getByRole('img', { name: 'create' }).click();
-    await page.locator('input[placeholder="UserName"]').fill('emptyuser');
+    await page.locator('input[placeholder="User name"]').fill('emptyuser');
     await page.locator('input[type="password"]').fill('empty123');
     
     // Don't check any permissions
@@ -161,7 +161,7 @@ test.describe('User Permissions', () => {
     await connectToMockServer(page, { admin: true });
     
     await page.getByRole('heading', { name: 'Users' }).getByRole('img', { name: 'create' }).click();
-    await page.locator('input[placeholder="UserName"]').fill('lightuser');
+    await page.locator('input[placeholder="User name"]').fill('lightuser');
     await page.locator('input[type="password"]').fill('lightpass');
     
     // Give permission to Kitchen group
@@ -198,7 +198,7 @@ test.describe('User Permissions', () => {
     await connectToMockServer(page, { admin: true });
     
     await page.getByRole('heading', { name: 'Users' }).getByRole('img', { name: 'create' }).click();
-    await page.locator('input[placeholder="UserName"]').fill('reverttest');
+    await page.locator('input[placeholder="User name"]').fill('reverttest');
     await page.locator('input[type="password"]').fill('revertpass');
     
     // Give permission to Kitchen group only (NOT Living Room)

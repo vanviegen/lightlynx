@@ -1,4 +1,4 @@
-import { $, proxy, derive, onEach, insertCss } from 'aberdeen';
+import { $, proxy, derive, onEach, insertCss, peek } from 'aberdeen';
 import * as route from 'aberdeen/route';
 import api from '../api';
 import { ServerCredentials } from '../types';
@@ -9,13 +9,11 @@ import { isEqual } from '../utils';
 
 const setupInstructionsStyle = insertCss({
     '&': 'bg:$surface r:8px p:$3 mb:$3 line-height:1.6',
-    'h3': 'mt:0 mb:$2 fg:$primary font-size:1rem',
+    'h3': 'mt:0 mb:$2 font-size:1rem',
     'ol': 'pl:1.5em m:0 fg:$textLight',
     'li': 'mb:$2',
     'code': 'bg:$surfaceLight p: 2px 6px; r:4px font-size:0.9em'
 });
-
-let autoLookupDone = false;
 
 export function drawConnectionPage(): void {
     routeState.title = 'Z2M Connection'
@@ -53,7 +51,7 @@ export function drawConnectionPage(): void {
                         $('#folder');
                     });
                     $('li#Restart Zigbee2MQTT');
-                    $('li#Enter your server address below');
+                    $('li#Have instance ID autodetected below (or copy it from Zigbee2MQTT logs)');
                 });
             });
         }
@@ -97,8 +95,7 @@ function drawConnectionDetails(selectedIndex: { value: number }): void {
     const userName = proxy(orgServer.userName || 'admin');
     const password = proxy(orgServer.secret || '');
 
-    if (!orgServer.instanceId && !autoLookupDone) {
-        autoLookupDone = true;
+    function autoLookup() {
         fetch('https://cert.lightlynx.eu/auto')
             .then(res => res.ok ? res.text() : '')
             .then(code => {
@@ -107,12 +104,14 @@ function drawConnectionDetails(selectedIndex: { value: number }): void {
             .catch(() => {});
     }
 
+    if (!peek(orgServer, 'instanceId')) autoLookup();
+
     // Show connection errors
     $(() => {
         if (api.connection.stalling) {
             $('div', errorMessageStyle, '#The server is taking longer than usual to respond…');
         } else if (api.connection.lastError) {
-            $('div', errorMessageStyle, '#', api.connection.lastError + " Please check the instance ID.");
+            $('div', errorMessageStyle, '#', api.connection.lastError);
         }
     });
 
@@ -134,17 +133,18 @@ function drawConnectionDetails(selectedIndex: { value: number }): void {
     async function handleDelete(): Promise<void> {
         if (await askConfirm('Are you sure you want to remove these credentials?')) {
             api.servers.shift();
-            route.back('/');
         }
     }
     
     $('form submit=', handleSubmit, () => {
         $('div.field', () => {
-            $('label#Instance ID');
-            $('input placeholder="hostname:port or instance ID" required=', true, 'bind=', instanceId);
+            $('label#Instance ID or host:port - ', () => {
+                $('a text=Auto-detect click=', autoLookup);
+            });
+            $('input placeholder="Eg: a0324d3 or 1.2.3.4:43597" required=', true, 'bind=', instanceId);
         });
         $('div.field', () => {
-            $('label#UserName');
+            $('label#User name');
             $('input required=', true, 'bind=', userName);
         });
         $('div.field', () => {
