@@ -2,7 +2,7 @@ import { $, proxy, clone, copy, unproxy, peek, merge, onEach } from "aberdeen";
 import { applyPrediction, applyCanon, Patch } from "aberdeen/prediction";
 import * as route from "aberdeen/route";
 import { isHS, tailorLightState }  from "./colors";
-import { LightState, LightCaps, ServerCredentials, Config, GroupWithDerives, ClientState, User } from "./types";
+import { LightState, LightCaps, ServerCredentials, Config, GroupWithDerives, ClientState, User, UserWithName } from "./types";
 import { applyDelta } from "./json-merge-patch";
 
 const REQUIRED_EXTENSION_VERSION = 1;
@@ -17,13 +17,8 @@ interface PendingSend {
     sentAt: number;
 }
 
-function ipToHexDomain(ip: string): string {
-    const parts = ip.split('.');
-    if (parts.length !== 4) return ip;
-    if (parts.some(p => isNaN(parseInt(p)))) return ip;
-    const hex = parts.map(p => parseInt(p).toString(16).padStart(2, '0')).join('');
-    return `x${hex}.lightlynx.eu`;
-}
+const DEFAULT_PORT = 43597;
+const DOMAIN = 'lightlynx.eu';
 
 function createFreshStoreState() {
     return {
@@ -49,6 +44,8 @@ class Api {
     private stallingTimeout?: ReturnType<typeof setTimeout>;
 
     store: ClientState = proxy(createFreshStoreState());
+
+    lightGroups: Record<string, number[]> = proxy({}); // Reactive list of group ids per ieee
 
     servers: ServerCredentials[] = proxy([]); // Preserved to localStorage. servers[0] is the current server.
 
@@ -109,13 +106,13 @@ class Api {
         // Auto-connect from URL parameters
         // As we're not in any scope, this peek shouldn't do anything, but just for clarity:
         peek(() => {
-            const initialHost = route.current.search.host;
+            const initialInstanceId = route.current.search.instanceId;
             const initialUserName = route.current.search.userName;
-            if (!initialHost || !initialUserName) return;
+            if (!initialInstanceId || !initialUserName) return;
             const initialSecret = route.current.search.secret;
 
-            console.log('Auto-connecting from URL parameters:', initialHost, initialUserName);
-            let server = this.servers.find(s => s.localAddress === initialHost && s.userName === initialUserName);
+            console.log(`Auto-connecting from URL parameters: ${initialUserName}@${initialInstanceId}`);
+            let server = this.servers.find(s => s.instanceId === initialInstanceId && s.userName === initialUserName);
             if (server) {
                 if (initialSecret) server.secret = initialSecret;
                 const index = this.servers.indexOf(server);
@@ -124,20 +121,20 @@ class Api {
                     this.servers.unshift(server);
                 }
             } else {
-                this.servers.unshift({localAddress: initialHost, userName: initialUserName, secret: initialSecret || ''});
+                this.servers.unshift({instanceId: initialInstanceId, userName: initialUserName, secret: initialSecret || ''});
                 this.connection.mode = 'enabled';
             }
             // Remove from the route
-            delete route.current.search.host;
+            delete route.current.search.instanceId;
             delete route.current.search.userName;
             delete route.current.search.secret;
         });
                 
         // Flush store when changing server
-        let prevLocalAddress = peek(() => this.servers[0]?.localAddress);
+        let prevInstanceId = peek(() => this.servers[0]?.instanceId);
         $(() => {
-            if (this.servers[0]?.localAddress !== prevLocalAddress) {
-                prevLocalAddress = this.servers[0]?.localAddress;
+            if (this.servers[0]?.instanceId !== prevInstanceId) {
+                prevInstanceId = this.servers[0]?.instanceId;
                 copy(this.store, createFreshStoreState());
             }
         })
@@ -151,10 +148,10 @@ class Api {
                 // Whenever connection.attempts changes, try to connect again
                 this.connection.attempts;
                 this.connect({
-                    localAddress: server.localAddress,
-                    externalAddress: peek(server, 'externalAddress'), // Don't trigger reconnect when this changes
+                    instanceId: server.instanceId,
                     userName: server.userName,
                     secret: server.secret,
+                    externalPort: server.externalPort,
                 });
             } else {
                 // Not going to reconnect; reject anything still pending
@@ -165,6 +162,16 @@ class Api {
         $(() => {
             onEach(this.store.groups, this.deriveGroupLightState.bind(this));
         })
+
+        $(() => {
+            let result: Record<string, number[]> = {};
+            for (const [groupId, group] of Object.entries(this.store.groups)) {
+                for (const ieee of group.lightIds) {
+                    (result[ieee] = result[ieee] || []).push(parseInt(groupId));
+                }
+            }
+            copy(this.lightGroups, result);
+        });
     }
 
     private cloneLightsWithoutState() {
@@ -244,8 +251,8 @@ class Api {
         }
     }
 
-    private connect(creds: { localAddress: string; externalAddress?: string; userName?: string; secret?: string }): void {
-        console.log("api/connect", creds.localAddress);
+    private connect(creds: { instanceId: string; userName?: string; secret?: string; externalPort?: number }): void {
+        console.log("api/connect", creds.instanceId);
         
         this.connection.state = 'connecting';
         
@@ -254,15 +261,26 @@ class Api {
             this.handleConnectionFailure("Connection timed out.");
         }, 4000);
 
-        this.tryingSockets = new Set();
-        for (const addr of [creds.localAddress, creds.externalAddress]) {
-            if (!addr) continue;
-            const hostname = ipToHexDomain(addr.split(':')[0]!);
-            const port = parseInt(addr.split(':')[1] || '43597');
+        // Build the list of URLs to try
+        const urls: string[] = [];
+        const code = creds.instanceId;
+        const protocol = location.protocol === 'http:' ? 'ws' : 'wss';
+        
+        if (code.includes('.') || code.includes(':')) {
+            // Contains dots or colon: treat as a literal hostname (optionally with :port)
+            const [host, portStr] = code.split(':') as [string, string | undefined];
+            const port = portStr ? parseInt(portStr) : DEFAULT_PORT;
+            urls.push(`${protocol}://${host}:${port}/api`);
+        } else {
+            // Instance code: try both int- and ext- domains in parallel
+            const externalPort = creds.externalPort || DEFAULT_PORT;
+            urls.push(`${protocol}://int-${code}.${DOMAIN}:${DEFAULT_PORT}/api`);
+            urls.push(`${protocol}://ext-${code}.${DOMAIN}:${externalPort}/api`);
+        }
 
-            // Use ws:// if page loaded over http://, otherwise wss://
-            const protocol = location.protocol === 'http:' ? 'ws' : 'wss';
-            const url = new URL(`${protocol}://${hostname}:${port}/api`);
+        this.tryingSockets = new Set();
+        for (const baseUrl of urls) {
+            const url = new URL(baseUrl);
             if (creds.userName) {
                 url.searchParams.append("user", creds.userName);
                 url.searchParams.append("secret", creds.secret || '');
@@ -289,7 +307,7 @@ class Api {
             
             socket.addEventListener("error", (e: any) => {
                 console.error("api/onError", socket.url, e);
-                close(`Connection error: ${e.message || e}.`);
+                close(`Unable to establish a connection.`);
             });
             
             socket.addEventListener("open", () => {
@@ -426,12 +444,12 @@ class Api {
                 for(const ieee of group.lightIds) {
                     const light = this.store.lights[ieee];
                     if (!light) continue;
-                    copy(light.lightState, tailorLightState(lightState, light.lightCaps));
+                    Object.assign(light.lightState, tailorLightState(lightState, light.lightCaps));
                 }
             } else {
                 const light = this.store.lights[target];
                 if (!light) return;
-                copy(light.lightState, tailorLightState(lightState, light.lightCaps));
+                Object.assign(light.lightState, tailorLightState(lightState, light.lightCaps));
             }
         });
         this.setLightStatePredictions.set(target, patch);
@@ -548,7 +566,7 @@ class Api {
         });
     }
 
-    updateUser(user: User): Promise<void> {
+    updateUser(user: UserWithName): Promise<void> {
         return this.send('patch-config', {users: {[user.name]: user}})
     }
 
@@ -617,6 +635,17 @@ class Api {
             this.connectTimeout = undefined;
 
             applyDelta(this.store, store);
+
+            // If we connected without an instance id, replace with the real instance code
+            const server = this.servers[0];
+            const realCode = this.store.config.instanceId;
+            if (server && !server.instanceId && realCode) {
+                server.instanceId = realCode;
+            }
+            if (server) {
+                server.externalPort = this.store.config.externalPort;
+            }
+
             if (this.store.me?.isAdmin && version < RECOMMENDED_EXTENSION_VERSION) {
                 this.notify('warning', `Light Lynx Zigbee2MQTT extension version ${version} is outdated. Please consider updating.`);
             }

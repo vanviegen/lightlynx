@@ -1,24 +1,25 @@
 /// <reference types="vite/client" />
 import './global-style';
-import {$, proxy, copy, clone, onEach, isEmpty, derive, insertCss, peek, disableCreateDestroy} from 'aberdeen';
+import {$, proxy, clone, isEmpty, insertCss, peek, disableCreateDestroy} from 'aberdeen';
 import * as route from 'aberdeen/route';
-import api from './api';
 
-import * as icons from './icons';
-import * as colors from './colors';
-import { drawBulbCircle } from "./components/color-picker";
+import api from './api';
+import { routeState } from './ui';
+import { preventFormNavigation } from './utils';
+
 import { drawToasts, createToast } from './components/toasts';
 import { drawHeader } from './components/header';
+import { drawPromptPage } from './components/prompt';
+
 import { drawLandingPage } from './pages/landing-page';
 import { drawBulbPage } from './pages/bulb-page';
 import { drawGroupPage } from './pages/group-page';
 import { drawConnectionPage } from './pages/connection-page';
-import { drawUsersSection, drawUserEditor } from './pages/users-page';
+import { drawUserEditor } from './pages/users-page';
 import { drawRemoteInfoPage, drawAutomationInfoPage, drawLocationInfoPage, drawBatteriesPage, drawDumpPage } from './pages/info-pages';
-import { routeState, admin, copyToClipboard } from './ui';
-import { askPrompt, drawPromptPage } from './components/prompt';
+import { drawTopPage } from './pages/top-page';
+
 import swUrl from './sw.ts?worker&url';
-import { preventFormNavigation } from './utils';
 
 // Configure Aberdeen
 route.setLog(true);
@@ -47,249 +48,6 @@ if (!import.meta.env.DEV && 'serviceWorker' in navigator) {
 // Register notify handler to show API messages as toasts
 api.notifyHandlers.push(createToast);
 
-export const lightGroups: Record<string, number[]> = {};
-$(() => {
-	let result: Record<string, number[]> = {};
-	for (const [groupId, group] of Object.entries(api.store.groups)) {
-		for (const ieee of group.lightIds) {
-			(result[ieee] = result[ieee] || []).push(parseInt(groupId));
-		}
-	}
-	copy(lightGroups, result);
-});
-
-function drawManagementSection(): void {
-	$('h1#Management');
-	$('div.list', () => {
-		$(() => {
-			const active = api.store.permitJoin;
-			$('div.item.link', {click: active ? disableJoin : permitJoin}, () => {
-				(active ? icons.stop : icons.create)();
-				$('h2#', active ? 'Stop searching for devices' : 'Search for devices');
-			});
-		});
-
-		$('div.item.link', {click: createGroup}, () => {
-			icons.createGroup();
-			$('h2#Create group');
-		});
-
-		drawRemoteAccessToggle();
-		
-		const automationBusy = proxy(false);
-		$('label.item', () => {
-			$({'.busy': automationBusy.value});
-			$('input type=checkbox', {
-				checked: api.store.config.automationEnabled,
-				disabled: automationBusy.value,
-				change: async (e: Event) => {
-					const checked = (e.target as HTMLInputElement).checked;
-					automationBusy.value = true;
-					try {
-						await api.setAutomation(checked);
-					} finally {
-						automationBusy.value = false;
-					}
-				}
-			});
-			$('h2#Automation');
-			icons.info('.link margin-left:auto click=', (e: Event) => {
-				e.stopPropagation();
-				e.preventDefault();
-				route.go(['automation-info']);
-			});
-		});
-
-		drawLocationSetting();
-	});
-}
-
-function drawLocationSetting(): void {
-	$('div.item gap:$2', () => {
-		$('h2 flex:0 #Location:');
-		$('input type=number step=0.01 placeholder=Latitude width:5rem flex:initial', {
-			value: api.store.config.latitude,
-			change: async (e: Event) => {
-				const lat = parseFloat((e.target as HTMLInputElement).value);
-				const lon = api.store.config.longitude ?? 6.88;
-				if (!isNaN(lat)) await api.setLocation(lat, lon);
-			}
-		});
-		$('input type=number step=0.01 placeholder=Longitude width:5rem flex:initial', {
-			value: api.store.config.longitude,
-			change: async (e: Event) => {
-				const lon = parseFloat((e.target as HTMLInputElement).value);
-				const lat = api.store.config.latitude ?? 52.24;
-				if (!isNaN(lon)) await api.setLocation(lat, lon);
-			}
-		});
-		$('a #Use current', {
-			click: (e: Event) => {
-				e.preventDefault();
-				if (!navigator.geolocation) {
-					createToast('error', 'Geolocation not supported', 'location');
-					return;
-				}
-				navigator.geolocation.getCurrentPosition(
-					async (position) => {
-						const lat = Math.round(position.coords.latitude * 100) / 100;
-						const lon = Math.round(position.coords.longitude * 100) / 100;
-						await api.setLocation(lat, lon);
-						createToast('info', `Location set to ${lat}, ${lon}`, 'location');
-					},
-					(error) => {
-						createToast('error', `Location error: ${error.message}`, 'location');
-					},
-					{ enableHighAccuracy: false, timeout: 10000 }
-				);
-			}
-		});
-		icons.info('.link margin-left:auto click=', (e: Event) => {
-			e.stopPropagation();
-			e.preventDefault();
-			route.go(['location-info']);
-		});
-	});
-}
-
-const groupListClass = insertCss({
-	'&': 'display:flex flex-direction:column',
-	'.group.off h2': 'fg:$textMuted',
-	'h2': 'white-space:nowrap overflow:hidden text-overflow:ellipsis',
-	'.scenes': 'fg:$textMuted display:flex gap:$2 align-items:center overflow-x:auto scrollbar-width:none white-space:nowrap',
-	'.scenes > *': {
-		'&.active-scene': 'fg:$primary'
-	}
-});
-
-function drawTopPage(): void {
-	if (isEmpty(api.servers)) return drawLandingPage();
-
-	if (isEmpty(api.store.groups) && api.connection.state !== 'connected') {
-		if (api.connection.state === 'idle') {
-			api.connection.mode = 'try';
-		}
-		$('div.empty#Connecting...');
-	}
-
-	routeState.title = '';
-	routeState.subTitle = '';
-
-	$("div.list mt:$2", groupListClass, () => {
-		onEach(api.store.groups, (group, groupId) => {
-			groupId = parseInt(groupId);
-			
-			$('div.item.group', () => {
-				// Add 'off' class if lights are off
-				$('.off=', derive(() => !group.lightState?.on));
-				// Add 'disabled' class if user cannot control this group (CSS handles pointer-events:none)
-				$('.disabled=', derive(() => !api.canControlGroup(groupId)));
-
-				// Toggle button
-				drawBulbCircle(group, groupId);
-				
-				// Name and chevron (includes spacer, min 20px padding)
-				$('h2.link flex:1 click=', () => route.go(['group', groupId]), () => {
-					$('#', group.name);
-					icons.chevronRight("vertical-align:middle");
-				});
-				
-				// Scene icons (horizontally scrollable)
-				$("div.scenes", () => {
-					onEach(group.scenes, (scene, sceneId) => {
-						sceneId = parseInt(sceneId);
-						function onClick(): void {
-							api.recallScene(groupId, sceneId);
-						}
-						const isActive = derive(() => group.activeSceneId === sceneId);
-						const icon = icons.scenes[scene.name.toLowerCase()];
-						if (icon) icon('.link click=', onClick, {'.active-scene': isActive});
-						else $('div.scene.link#', scene.name, {'.active-scene': isActive}, 'click=', onClick);
-					},  scene => scene.triggers.map(t => t.event).concat([scene.name])); // Sort be trigger event, and then by name
-					
-					if (isEmpty(group.scenes)) {
-						icons.scenes.normal('click=', () => api.setLightState(groupId, {on: false, brightness: 140, color: colors.CT_DEFAULT}));
-					}
-				});
-			});
-		}, group => group.name);
-	});
-	
-	$("div.list", () => {
-		onEach(api.store.lights, (device, ieee) => {
-			$('div.item', () => {
-				// Add 'disabled' class if user is not admin (CSS handles pointer-events:none)
-				$('.disabled=', derive(() => !api.store.me?.isAdmin));
-				drawBulbCircle(device, ieee);
-				$('h2.link#', device.name, 'click=', () => route.go(['bulb', ieee]));
-			});
-		}, (device, ieee) => {
-			return lightGroups[ieee] ? undefined : device.name;
-		});
-	});
-
-	$(() => {
-		if (admin.value) {
-			drawManagementSection();
-			drawUsersSection();
-		}
-	});
-}
-
-function drawRemoteAccessToggle(): void {
-	const remoteBusy = proxy(false);
-	$('label.item', () => {
-		$({'.busy': remoteBusy.value});
-		$('input type=checkbox', {
-			checked: api.store.config.allowRemote,
-			disabled: remoteBusy.value,
-			change: async (e: Event) => {
-				const checked = (e.target as HTMLInputElement).checked;
-				remoteBusy.value = true;
-				try {
-					await api.setRemoteAccess(checked);
-					if (checked) {
-						createToast('info', "Remote access enabled!", 'remote-access');
-					}
-				} catch (e: any) {
-					createToast('error', "Failed to toggle remote access: " + e.message, 'remote-access');
-				} finally {
-					remoteBusy.value = false;
-				}
-			}
-		});
-		$('h2#Remote access');
-		if (api.store.config.allowRemote) {
-			const address = api.store.externalAddress || "No address yet";
-			$('span.link opacity:0.6 #'+address, 'click=', (e: Event) => {
-				e.stopPropagation();
-				e.preventDefault();
-				if (api.store.externalAddress) {
-					copyToClipboard(api.store.externalAddress, 'Address');
-				}
-			});
-		}
-		icons.info('.link margin-left:auto click=', (e: Event) => {
-			e.stopPropagation();
-			e.preventDefault();
-			route.go(['remote-info']);
-		});
-	});
-}
-
-async function createGroup(): Promise<void> {
-	const name = await askPrompt("What should the group be called?");
-	if (!name) return;
-	api.send("bridge", "request", "group", "add", {friendly_name: name});
-}
-
-function permitJoin(): void {
-	api.send("bridge", "request", "permit_join", {time: 254});
-}
-
-function disableJoin(): void {
-	api.send("bridge", "request", "permit_join", {time: 0});
-}
 
 const mainStyle = insertCss({
     '&': 'overflow:auto box-shadow: 0 0 10px $primary; overflow-x:hidden position:absolute z-index:2 transition: transform 0.2s ease-out, opacity 0.2s ease-out; left:0 top:0 right:0 bottom:0 bg:$bg scrollbar-width:none -ms-overflow-style:none',
@@ -321,7 +79,7 @@ $('div', rootStyle, () => {
 		$('.landing-page=', isEmpty(api.servers) && route.current.path === '/');
 	});
 
-	drawHeader(updateAvailable, disableJoin);
+	drawHeader(updateAvailable);
 	
 	$('div', mainContainerStyle, () => {
 		const p = clone(route.current.p); // Subscribe to full 'p', so we'll create new main elements for each page
@@ -352,6 +110,8 @@ $('div', rootStyle, () => {
 					drawAutomationInfoPage();
 				} else if (p[0] === 'location-info') {
 					drawLocationInfoPage();
+				} else if (isEmpty(api.servers)) {
+					drawLandingPage();
 				} else {
 					drawTopPage();
 				}

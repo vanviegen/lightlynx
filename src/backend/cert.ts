@@ -304,6 +304,41 @@ async function setTXTRecords(
     return recordIds;
 }
 
+/** Upsert A records: for each name/value pair, delete existing A records with that name, then create new one. */
+async function setARecords(
+    zoneId: string,
+    entries: { name: string; value: string; ttl?: number }[]
+): Promise<void> {
+    const records = await getDNSRecords(zoneId);
+    for (const entry of entries) {
+        const existing = records.filter(
+            (r) => r.Type === 0 && r.Name === entry.name
+        );
+        for (const record of existing) {
+            // Only delete+recreate if value changed
+            if (record.Value === entry.value && record.Ttl === (entry.ttl || 300)) continue;
+            await deleteDNSRecord(zoneId, record.Id);
+        }
+        // Check if record already exists with correct value
+        const alreadyCorrect = existing.some(r => r.Value === entry.value && r.Ttl === (entry.ttl || 300));
+        if (!alreadyCorrect) {
+            await createDNSRecord(zoneId, 0, entry.name, entry.value, entry.ttl || 300);
+        }
+    }
+}
+
+function generateInstanceId(): string {
+    // Generate a short but very likely unique code: [a-z][a-z0-9]{5}
+    // 26 * 36^5 = ~1.6 billion possibilities
+    const first = 'abcdefghijklmnopqrstuvwxyz';
+    const rest = 'abcdefghijklmnopqrstuvwxyz0123456789';
+    let code = first[Math.floor(Math.random() * first.length)]!;
+    for (let i = 0; i < 5; i++) {
+        code += rest[Math.floor(Math.random() * rest.length)];
+    }
+    return code;
+}
+
 // ============================================================================
 // ACME / LET'S ENCRYPT IMPLEMENTATION
 // ============================================================================
@@ -719,42 +754,50 @@ async function handleCreate(request: Request): Promise<Response> {
             );
         }
 
-        const { localIp, useExternalHost } = await request.json();
+        const { localIp, instanceId: providedCode } = await request.json();
 
-        const domains: string[] = [];
-
-        if (localIp) {
-            const hex = ipToHex(localIp);
-            if (hex) {
-                domains.push(`x${hex}.${DOMAIN}`);
-            }
-        }
-
-        if (useExternalHost) {
-            const hex = ipToHex(originIP);
-            if (hex) {
-                domains.push(`x${hex}.${DOMAIN}`);
-            }
-        }
-
-        if (domains.length === 0) {
+        if (!localIp) {
             return jsonResponse(
-                { success: false, error: "At least one valid IP (localIp or useExternalHost) must be provided" },
+                { success: false, error: "localIp is required" },
                 400
             );
         }
+
+        // Use provided instance code or generate a new one
+        const instanceId = providedCode || generateInstanceId();
+
+        // Always issue certificates for these domains
+        const domains = [
+            `int-${instanceId}.${DOMAIN}`,
+            `ext-${instanceId}.${DOMAIN}`,
+        ];
+
+        // Create/update DNS A records
+        const externalHex = ipToHex(originIP);
+        const aRecords: { name: string; value: string; ttl?: number }[] = [
+            // int-<code> -> internal IP
+            { name: `int-${instanceId}`, value: localIp, ttl: 60 },
+            // ext-<code> -> external IP
+            { name: `ext-${instanceId}`, value: originIP, ttl: 60 },
+        ];
+        // auto-<hex_external_ip> -> internal IP (for auto-discovery)
+        if (externalHex) {
+            aRecords.push({ name: `auto-${externalHex}`, value: localIp, ttl: 60 });
+        }
+        await setARecords(zoneId, aRecords);
 
         const certResult = await issueCertificate(domains, zoneId);
         const expiresAt = certResult.issuedAt + CERT_VALIDITY_DAYS * 24 * 60 * 60 * 1000;
 
         return jsonResponse({
+            instanceId,
             expiresAt,
             nodeHttpsOptions: {
                 cert: certResult.certificate,
                 key: certResult.privateKey,
             },
             localIp,
-            externalIp: useExternalHost ? originIP : undefined,
+            externalIp: originIP,
         }, 201);
     } catch (error) {
         console.error("Create error:", error);
@@ -775,6 +818,20 @@ function jsonResponse<T>(data: T, status: number = 200): Response {
             "Access-Control-Allow-Headers": "Content-Type",
         },
     });
+}
+
+async function findInstanceIdForExternalIp(externalIp: string): Promise<string | undefined> {
+    const hex = ipToHex(externalIp);
+    if (!hex) return undefined;
+    const zoneId = BUNNY_DNS_ZONE_ID;
+    const records = await getDNSRecords(zoneId);
+    const autoRecord = records.find(r => r.Type === 0 && r.Name === `auto-${hex}`);
+    if (!autoRecord?.Value) return undefined;
+
+    const internalIp = autoRecord.Value;
+    const match = records.find(r => r.Type === 0 && r.Value === internalIp && r.Name.startsWith('int-'));
+    if (!match) return undefined;
+    return match.Name.replace(/^int-/, '');
 }
 
 // ============================================================================
@@ -804,6 +861,24 @@ BunnySDK.net.http.serve(async (request: Request): Promise<Response> => {
                     "Access-Control-Allow-Origin": "*",
                 },
             });
+        }
+
+        if (url.pathname === "/auto") {
+            const ip = getClientIP(request);
+            if (!ip) return new Response('', { status: 404 });
+            try {
+                const instanceId = await findInstanceIdForExternalIp(ip);
+                if (!instanceId) return new Response('', { status: 404 });
+                return new Response(instanceId, {
+                    headers: {
+                        "Content-Type": "text/plain",
+                        "Access-Control-Allow-Origin": "*",
+                    },
+                });
+            } catch (error) {
+                console.error("Auto lookup error:", error);
+                return new Response('', { status: 500 });
+            }
         }
 
         if (request.method !== "POST") {

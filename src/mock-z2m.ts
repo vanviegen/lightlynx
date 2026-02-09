@@ -71,7 +71,7 @@ class MockEventBus extends EventEmitter {
     onDevicesChanged(_key: any, cb: any) { this.on('devicesChanged', cb); }
     
     emitMQTTMessage(topic: string, message: string) {
-        this.emit('mqttMessage', { topic, message });
+        this.emit('mqttMessage', { topic, message, _fromMock: true });
     }
     emitMQTTMessagePublished(topic: string, payload: string, options: any = {}) {
         if (typeof mqtt !== 'undefined') mqtt.retainedMessages[topic] = { topic, payload, options };
@@ -535,7 +535,7 @@ class MockMQTT {
     onMessage(topic: string, message: any) {
         const messageStr = message.toString();
         process.stderr.write(`MockZ2M: MQTT IN: ${topic} -> ${messageStr.substr(0,100)}\n`);
-        // eventBus.emitMQTTMessage(topic, messageStr); // Loop prevention
+        eventBus.emitMQTTMessage(topic, messageStr);
         
         // Internal handling
         const parts = topic.split('/');
@@ -765,7 +765,8 @@ function startPairingProcedure() {
 
 // --- Start ---
 
-eventBus.on('mqttMessage', (data: { topic: string, message: string }) => {
+eventBus.on('mqttMessage', (data: { topic: string, message: string, _fromMock?: boolean }) => {
+    if (data._fromMock) return;
     mqtt.onMessage(data.topic, data.message);
 });
 

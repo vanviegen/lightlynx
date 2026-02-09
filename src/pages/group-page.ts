@@ -1,14 +1,34 @@
-import { $, proxy, ref, onEach, isEmpty, derive, partition, peek } from 'aberdeen';
+import { $, proxy, ref, onEach, isEmpty, derive, partition, peek, insertCss } from 'aberdeen';
 import { grow, shrink } from 'aberdeen/transitions';
 import * as route from 'aberdeen/route';
 import api from '../api';
 import * as icons from '../icons';
 import { drawColorPicker, drawBulbCircle } from '../components/color-picker';
-import { Device, Group } from '../types';
+import { Group } from '../types';
 import { routeState, admin, lazySave } from '../ui';
 import { askConfirm, askPrompt } from '../components/prompt';
-import { lightGroups } from '../app';
 import { drawSceneEditor } from './scene-editor';
+import { Trigger } from '../types';
+
+const triggerBadgeClass = insertCss({
+    '&': 'fg:$textMuted font-size:16px font-weight:bold ml:$3',
+    '> *': 'vertical-align:middle fg: inherit !important; ml:$2',
+});
+
+function drawTriggerBadges(triggers: Trigger[]): void {
+    if (!triggers?.length) return;
+    $('span', triggerBadgeClass, () => {
+        for (const trigger of triggers) {
+            if (trigger.event >= '1' && trigger.event <= '5') {
+                $('span #', trigger.event);
+            } else if (trigger.event === 'sensor') {
+                icons.sensor("w:14px h:14px");
+            } else if (trigger.event === 'time') {
+                icons.timer("w:14px h:14px");
+            }
+        }
+    });
+}
 
 // All buttons and sensors, partitioned by group. {groupId: {ieee: Toggle}}. Toggles that belong to
 // no group are placed in '-1'.
@@ -62,7 +82,10 @@ export function drawGroupPage(groupId: number): void {
             $('div.item.link click=', recall, '.active-scene=', isActive, () => {
                 let icon = icons.scenes[scene.name.toLowerCase()] || icons.empty;
                 icon();
-                $('h2#', scene.name);
+                $('h2', () => {
+                    $('#', scene.name);
+                    drawTriggerBadges(scene.triggers);
+                });
                 if (admin.value) {
                     function configure(e: Event): void {
                         e.stopPropagation();
@@ -124,7 +147,7 @@ function drawGroupAddLight(
                 $('h2.link#', device.name, 'click=', () => addDevice(ieee));
             });
         }, (device, ieee) => {
-            let inGroups = lightGroups[ieee] || [];
+            let inGroups = api.lightGroups[ieee] || [];
             if (inGroups.includes(groupId)) return; // Skip, already in this group
             return [inGroups.length ? 1 : 0, device.name];
         });
@@ -206,6 +229,8 @@ function drawGroupConfigurationEditor(
                 $('div.empty#None yet');
             }
         });
+    } else {
+        $('div.empty#Automations must be enabled to add buttons and sensors');
     }
 
     $('h1#Settings');
@@ -246,6 +271,8 @@ function drawGroupConfigurationEditor(
                     });
                 });
             });
+        } else {
+            $('div.empty#Automations must be enabled to set a lights off timer');
         }
     });
 

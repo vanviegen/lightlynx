@@ -57,7 +57,7 @@ export function drawBulbCircle(target: Light | GroupWithDerives, targetId: strin
         api.setLightState(targetId, { on: !target.lightState?.on });
     }
     
-    const isGroup = !!(target as any).members;
+    const isGroup = 'lightIds' in target;
     
     $('div.circle', circleStyle, 'click=', onClick, () => {
         // Reactive scope: only this inner function re-runs on state change
@@ -77,7 +77,7 @@ export function drawBulbCircle(target: Light | GroupWithDerives, targetId: strin
                 }
             }
             bgs.sort();
-            if (bgs.length === 1) {
+            if (bgs.length && bgs.every(color => color === bgs[0])) { // All the same color, no need for gradient
                 knobColor = bgs[0] || knobColor;
             } else if (bgs.length > 1) {
                 knobBackground = `linear-gradient(135deg, ${bgs.join(', ')})`;

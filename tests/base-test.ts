@@ -106,7 +106,7 @@ export async function connectToMockServer(page: Page, options: { admin?: boolean
     // Use direct-connect URL
     const adminParam = admin ? '&admin=y' : '';
     const passwordParam = password ? `&secret=${encodeURIComponent(password)}` : '';
-    await page.goto(`/?host=localhost:43598&userName=${encodeURIComponent(userName)}${passwordParam}${adminParam}`);
+    await page.goto(`/?instanceId=localhost:43598&userName=${encodeURIComponent(userName)}${passwordParam}${adminParam}`);
 }
 
 export async function hashPassword(page: Page, password: string): Promise<string> {

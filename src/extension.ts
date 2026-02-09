@@ -154,7 +154,10 @@ class LightLynx {
         // This feels more robust than trying to hook into Zigbee2MQTT internals.
         this.eventBus.onMQTTMessagePublished(this, (data: any) => this.onOutgoingMQTT(data));
         for(const data of Object.values(this.mqtt.retainedMessages) as {topic: string, payload: string}[]) {
-            this.onOutgoingMQTT({topic: this.mqttBaseTopic + '/' + data.topic, payload: data.payload});
+            const fullTopic = data.topic.startsWith(this.mqttBaseTopic + '/')
+                ? data.topic
+                : this.mqttBaseTopic + '/' + data.topic;
+            this.onOutgoingMQTT({topic: fullTopic, payload: data.payload});
         }
 
         // We hook into incoming MQTT messages (including the simulated ones we send ourselves),
@@ -245,52 +248,40 @@ class LightLynx {
         });
     }
 
-    /** Returns the IP that the outside world sees of us (which differs from getLocalIp when
-     * we're behind a NAT). */
-    private async getExternalHost(): Promise<string | null> {
-        try {
-            return (await this.httpRequest('https://cert.lightlynx.eu/ip')).body.trim();
-        } catch (err) {
-            return null;
-        }
-    }
-
-    /** Obtains initial certificate valid for DNS-ified local and external IPs, or sees if
-     * a renewal is needed. Always renews when any of the IPs have changed.
+    /** Obtains initial certificate valid for instance-code-based domains, or sees if
+     * a renewal is needed. Always renews when the local IP has changed.
      * Stores results in this.store.config._ssl.
-     * Also updates this.store.localAddress and this.store.externalAddress.
+     * Also handles DNS record creation via the cert backend and UPnP port mapping.
+     * In INSECURE mode, skips SSL/cert entirely and leaves instanceId empty.
     */
     private async setupNetworking() {
         const cfg = this.store.config;
+
+        if (INSECURE) {
+            // In insecure mode, leave instanceId empty - clients connect via literal hostname
+            return;
+        }
+
         let ssl = cfg._ssl;
 
         const localIp = await this.getLocalIp();
-        const externalIp = cfg.allowRemote ? await this.getExternalHost() : undefined;
-
-        this.store.localAddress = localIp ? `${localIp}:${PORT}` : undefined;
-
-        // If an IP is unset, while the other remains the same, we don't need to trigger a renewal.
-        const sslExternalIp = (externalIp || ssl?.localIp !== localIp) ? externalIp : ssl?.externalIp;
-        const sslInternalIp = (localIp || ssl?.externalIp !== externalIp) ? localIp : ssl?.localIp;
 
         if (cfg.allowRemote && localIp) {
             // Run UPnP port mapping setup in background. We don't need to wait for this on
             // startup (especially since we may not be behind a UPnP-capable gateway at all).
             (async () => {
-                const port = await this.setupUPnP(localIp, PORT, cfg._externalPort);
-                if (port !== cfg._externalPort) {
-                    cfg._externalPort = port;
+                const port = await this.setupUPnP(localIp, PORT, cfg.externalPort);
+                if (port !== cfg.externalPort) {
+                    cfg.externalPort = port;
                     this.saveConfig();
                     if (port) {
                         this.log('info', `UPnP external port mapped to ${port}`);
-                        this.store.externalAddress = externalIp && cfg._externalPort ? `${externalIp}:${cfg._externalPort}` : undefined;
-                        this.scheduleEmitChanges();
                     }
                 }
             })();
         }
 
-        if (!INSECURE && (externalIp || localIp) && (!ssl || sslInternalIp !== ssl.localIp || sslExternalIp !== ssl.externalIp || ssl.expiresAt - Date.now() < SSL_RENEW_THRESHOLD)) {
+        if (!INSECURE && localIp && (!ssl || ssl.localIp !== localIp || ssl.expiresAt - Date.now() < SSL_RENEW_THRESHOLD)) {
             try {
                 let res: any;
                 if (CERT_FILE) {
@@ -301,21 +292,30 @@ class LightLynx {
                         nodeHttpsOptions: { cert, key }
                     };
                 } else {
-                    this.log('info', `Requesting SSL certificate localIp=${localIp} useExternalHost=${cfg.allowRemote}`);
+                    this.log('info', `Requesting SSL certificate localIp=${localIp} instanceId=${cfg.instanceId || '(new)'}`);
                     const response = await this.httpRequest('https://cert.lightlynx.eu/create', {
                         method: 'POST',
-                        body: JSON.stringify({ localIp, useExternalHost: cfg.allowRemote }),
+                        body: JSON.stringify({ localIp, instanceId: cfg.instanceId }),
                         headers: { 'Content-Type': 'application/json' }
                     });
                     res = JSON.parse(response.body);
+
+                    // Save the instance code from the cert backend (may be newly generated)
+                    if (res.instanceId && res.instanceId !== cfg.instanceId) {
+                        cfg.instanceId = res.instanceId;
+                        this.log('info', `Instance code assigned: ${cfg.instanceId}`);
+                    }
                 }
 
                 if (res && res.nodeHttpsOptions && res.expiresAt) {
                     cfg._ssl = res;
                     this.saveConfig();
-                    this.log('info', `New SSL certificate obtained (expires at ${new Date(res.expiresAt).toISOString()}), restarting...`);
-                    await this.stop();
-                    await this.start();
+                    this.log('info', `New SSL certificate obtained (expires at ${new Date(res.expiresAt).toISOString()})`);
+                    if (this.server) {
+                        this.log('info', `Restarting extension...`);
+                        await this.stop();
+                        await this.start();
+                    }
                 } else {
                     this.log('error', 'SSL certificate request failed: ' + (res.error || JSON.stringify(res)));
                 }
@@ -324,7 +324,6 @@ class LightLynx {
             }
         }
         
-        this.store.externalAddress = externalIp && cfg._externalPort ? `${externalIp}:${cfg._externalPort}` : undefined;
         this.scheduleEmitChanges();
     }
 
@@ -541,7 +540,8 @@ class LightLynx {
 
         // First send a command to the zigbee group.
         const delta = createZ2MLightDelta({}, state);
-        this.sendMqttCommand(`${groupId}/set`, delta);
+        // This *should* work with groupId (which seems more reliable), but doesn't.
+        this.sendMqttCommand(`${group.name}/set`, delta);
 
         // Then send more tailored commands to each light in the group, if needed.
         // This may be the case when sending a color command to a light that only
@@ -778,10 +778,7 @@ class LightLynx {
                     
                     if (triggers.length || name !== scene.name) {
                         scene.triggers = triggers;
-                        bridgeCommands.push(['request', 'group', 'options', {
-                            id: Number(groupId),
-                            options: { scenes: { [sceneId]: { name } } }
-                        }]);
+                        bridgeCommands.push(['mqtt', `${groupId}/set`, { scene_rename: { ID: Number(sceneId), name } }]);
                     }
                 }
             }
@@ -790,7 +787,11 @@ class LightLynx {
         // Execute bridge commands if stripOld is true
         if (stripOld) {
             for (const args of bridgeCommands) {
-                await this.userBridgeCommand(user, ...args);
+                if (args[0] === 'mqtt') {
+                    this.sendMqttCommand(args[1], args[2]);
+                } else {
+                    await this.userBridgeCommand(user, ...args);
+                }
             }
         }
         
@@ -798,12 +799,12 @@ class LightLynx {
     }
 
     /** Called for each MQTT sent by Zigbee2MQTT. We use this to keep this.store up-to-date.*/
-    private onOutgoingMQTT(data: {topic: string, payload: string}) {
-        console.log('Outgoing MQTT:', data?.topic);
-        if (!data.topic.startsWith(`${this.mqttBaseTopic}/`)) return;
+    private onOutgoingMQTT(data: {topic?: string, payload?: string}) {
+        console.log('MQTT OUT:', data.topic);
+        if (!data.topic || !data.topic.startsWith(`${this.mqttBaseTopic}/`)) return;
         const topic = data.topic.slice(this.mqttBaseTopic.length + 1).split('/');
         let payload: any;
-        try { payload = JSON.parse(data.payload); } catch { payload = data.payload; }
+        try { payload = JSON.parse(data.payload || 'null'); } catch { payload = data.payload; }
 
         if (topic[0] === 'bridge') {
             if (topic[1] === 'response' && payload.transaction != null) {
@@ -822,8 +823,8 @@ class LightLynx {
             else if (topic[1] === 'devices') this.handleBridgeDevices(payload);
             else if (topic[1] === 'info') this.store.permitJoin = payload.permit_join;
         }
-        else if (topic.length === 2 && topic[1] === 'availability') this.handleDeviceAvailability(topic[0], payload);
-        else if (topic.length === 1) this.handleDeviceState(topic[0], payload);
+        else if (topic.length === 2 && topic[1] === 'availability') this.handleDeviceAvailability(topic[0]!, payload);
+        else if (topic.length === 1) this.handleDeviceState(topic[0]!, payload);
         this.scheduleEmitChanges();
     }
 
@@ -870,7 +871,7 @@ class LightLynx {
                         lightState: old?.lightState || {},
                         meta: old?.meta || {},
                     };
-                } else if (expose.name === "action") {
+                } else if (expose.name === "action" || expose.name === "occupancy") {
                     const old = this.store.toggles[ieee];
                     toggles[ieee] = {
                         ...dev,
@@ -929,7 +930,8 @@ class LightLynx {
      * delivered to our own incoming MQTT handler. The topic will be auto-prefixed by the 
      * MQTT base topic. */
     sendMqttCommand(topic: string, payload: any) {
-        this.eventBus.emitMQTTMessage(`${this.mqttBaseTopic}/${topic}`, JSON.stringify(payload));
+        console.log('sendMqttCommand', `${this.mqttBaseTopic}/${topic}`, JSON.stringify(payload));
+        this.mqtt.onMessage(`${this.mqttBaseTopic}/${topic}`, Buffer.from(JSON.stringify(payload)));  
     }
 
     /** Translate a Z2M scenes list to a this.store.groups[x].scenes object. */
@@ -1095,7 +1097,7 @@ class LightLynx {
      */
     private async onIncomingMQTT(data: any) {
         /// Handle scene tracking
-        if (!data.topic.startsWith(`${this.mqttBaseTopic}/`)) return;
+        if (!data.topic || !data.topic.startsWith(`${this.mqttBaseTopic}/`)) return;
         const parts = data.topic.slice(this.mqttBaseTopic.length + 1).split('/');
         
         const groupName = parts[0];

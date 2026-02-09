@@ -29,10 +29,10 @@ export function drawUserEditor(): void {
     
     const userName = route.current.p[1]!;
     const existing = userName ? api.store.config.users?.[userName] : undefined;
+    const userNameProxy = proxy(existing ? userName : "");
 
     const user = proxy<User>(
         existing ? clone(unproxy(existing)) : {
-            name: userName || '',
             isAdmin: false,
             allowedGroupIds: [],
             allowRemote: false, // Can't enable without password
@@ -51,7 +51,7 @@ export function drawUserEditor(): void {
         if (!existing) {
             $('div.item', () => {
                 $('h2.form-label#UserName');
-                $('input bind=', ref(user, 'name'), 'placeholder=UserName');
+                $('input bind=', userNameProxy, 'placeholder=UserName');
             });
         }
 
@@ -111,12 +111,12 @@ export function drawUserEditor(): void {
 
         $('button.secondary type=button text=Cancel click=', () => route.up());
         $('button.primary type=button .busy=', busy, 'text=Save click=', async () => {
-            if (!user.name) {
+            if (!userNameProxy.value) {
                 createToast('error', 'User name is required');
             } else {
                 busy.value = true;
                 user.secret = await hashSecret(user.secret);                
-                await api.updateUser(user);
+                await api.updateUser({...user, name: userNameProxy.value});
                 busy.value = false;
                 route.up();
             }

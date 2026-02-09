@@ -4,7 +4,6 @@ import * as icons from '../icons';
 import { drawColorPicker, drawBulbCircle } from '../components/color-picker';
 import { routeState, admin, lazySave } from '../ui';
 import { askConfirm } from '../components/prompt';
-import { lightGroups } from '../app';
 
 export function drawBulbPage(ieee: string): void {
     let device = api.store.lights[ieee];
@@ -47,7 +46,7 @@ export function drawBulbPage(ieee: string): void {
     const removing = proxy(false);
 
     $('div.list', () => {
-        if (!removing.value && lightGroups[ieee]) onEach(lightGroups[ieee], (groupId) => {
+        if (!removing.value && api.lightGroups[ieee]) onEach(api.lightGroups[ieee], (groupId) => {
             const busy = proxy(false);
             const group = api.store.groups[groupId];
             if (group) {

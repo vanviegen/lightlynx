@@ -107,10 +107,10 @@ export interface UserWithName extends User {
 }
 
 export interface ServerCredentials {
-    localAddress: string;  // Server address (ip[:port])
-    externalAddress?: string;  // External address (ip:port)
+    instanceId: string;  // Instance code (server-assigned code)
     userName: string;
     secret: string;
+    externalPort?: number; // External port for ext-<instanceId> connections
 }
 
 // Connection state machine
@@ -134,12 +134,13 @@ export interface SslConfig {
 }
 
 export interface Config {
+    instanceId?: string;  // Unique instance identifier, assigned by cert backend
     allowRemote: boolean;
     automationEnabled: boolean;
     latitude: number;  // For sunrise/sunset calculations
     longitude: number;
     users: Record<string, User>;  // Filtered out if user is not admin
-    _externalPort?: number;  // For persistent UPnP mapping
+    externalPort?: number;  // For persistent UPnP mapping
     _ssl?: SslConfig;
     _sceneStates: Record<number, Record<number, Record<string, LightState>>>; // groupId -> sceneId -> ieeeAddress -> LightState
     _groupTimeouts: Record<number, number>; // groupId -> timeout in seconds
@@ -154,9 +155,6 @@ export interface State {
     toggles: Record<string, Toggle>;  // IEEE address -> Toggle
     groups: Record<number, Group>;  // Group ID -> Group
     permitJoin: boolean;
-    localAddress?: string;
-    externalAddress?: string;
-
     // In our config file:
     config: Config;
 

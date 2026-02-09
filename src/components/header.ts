@@ -33,10 +33,7 @@ insertGlobalCss({
 	}
 });
 
-export function drawHeader(
-    updateAvailable: { value: boolean },
-    disableJoin: () => void
-): void {
+export function drawHeader(updateAvailable: { value: boolean }): void {
     $('header', headerStyle, () => {
         $('img.logo src=', logoUrl, 'click=', () => route.back('/'));
         
@@ -67,7 +64,7 @@ export function drawHeader(
         
         $(() => {
             if (api.store.permitJoin) {
-                icons.create('.on.spinning click=', disableJoin);
+                icons.create('.on.spinning click=', () => api.send("bridge", "request", "permit_join", {time: 0}));
             }
         });
         

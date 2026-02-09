@@ -15,6 +15,8 @@ const setupInstructionsStyle = insertCss({
     'code': 'bg:$surfaceLight p: 2px 6px; r:4px font-size:0.9em'
 });
 
+let autoLookupDone = false;
+
 export function drawConnectionPage(): void {
     routeState.title = 'Z2M Connection'
 
@@ -60,7 +62,7 @@ export function drawConnectionPage(): void {
     $('h1#Select a connection');
     $('div m:$3 div.list', () => {
         onEach(api.servers, (server: ServerCredentials, index: number) => {
-            const name = `${server.userName}@${server.localAddress}`;
+            const name = `${server.userName}@${server.instanceId}`;
             if (isEqual(index, selectedIndex.value)) {
                 $('div.item fg:$primary text=', name);
             } else {
@@ -91,16 +93,26 @@ function drawConnectionDetails(selectedIndex: { value: number }): void {
     const index = selectedIndex.value;
     const orgServer: Partial<ServerCredentials> = api.servers[index] || {};
     
-    const localAddress = proxy(orgServer.localAddress || '');
+    const instanceId = proxy(orgServer.instanceId || '');
     const userName = proxy(orgServer.userName || 'admin');
     const password = proxy(orgServer.secret || '');
+
+    if (!orgServer.instanceId && !autoLookupDone) {
+        autoLookupDone = true;
+        fetch('https://cert.lightlynx.eu/auto')
+            .then(res => res.ok ? res.text() : '')
+            .then(code => {
+                if (!instanceId.value && code) instanceId.value = code.trim();
+            })
+            .catch(() => {});
+    }
 
     // Show connection errors
     $(() => {
         if (api.connection.stalling) {
             $('div', errorMessageStyle, '#The server is taking longer than usual to respond…');
         } else if (api.connection.lastError) {
-            $('div', errorMessageStyle, '#', api.connection.lastError + " Please check the server address and port.");
+            $('div', errorMessageStyle, '#', api.connection.lastError + " Please check the instance code.");
         }
     });
 
@@ -111,10 +123,9 @@ function drawConnectionDetails(selectedIndex: { value: number }): void {
         api.servers.splice(index, 1);
         selectedIndex.value = 0;
         api.servers.unshift({
-            localAddress: localAddress.value,
+            instanceId: instanceId.value,
             userName: userName.value,
             secret: await hashSecret(password.value),
-            externalAddress: localAddress.value !== orgServer.localAddress ? undefined : orgServer.externalAddress,
         });
         api.connection.mode = 'try';
         api.connection.attempts = 0;
@@ -129,8 +140,8 @@ function drawConnectionDetails(selectedIndex: { value: number }): void {
     
     $('form submit=', handleSubmit, () => {
         $('div.field', () => {
-            $('label#Server Address');
-            $('input placeholder="e.g. 192.168.1.5[:port]" required=', true, 'bind=', localAddress);
+            $('label#Instance Code');
+            $('input placeholder="hostname:port or instance code" required=', true, 'bind=', instanceId);
         });
         $('div.field', () => {
             $('label#UserName');
@@ -146,7 +157,7 @@ function drawConnectionDetails(selectedIndex: { value: number }): void {
             $('button.primary type=submit text=Connect .busy=', derive(() => api.connection.mode !== 'disabled'));
         });
         $('small.link text-align:right text="Copy direct-connect URL" click=', async () => {
-            let url = `${location.protocol}//${location.host}/?host=${encodeURIComponent(localAddress.value)}&userName=${encodeURIComponent(userName.value)}`;
+            let url = `${location.protocol}//${location.host}/?instanceId=${encodeURIComponent(instanceId.value)}&userName=${encodeURIComponent(userName.value)}`;
             const secret = await hashSecret(password.value);
             if (secret) url += `&secret=${encodeURIComponent(secret)}`;
             copyToClipboard(url, 'URL');

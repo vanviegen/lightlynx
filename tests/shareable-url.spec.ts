@@ -5,7 +5,7 @@ test.describe('Shareable Connection URL', () => {
 
     // Navigate with URL parameters (host and userName)
     // The app will auto-connect
-    const connectUrl = '/?host=localhost:43598&userName=admin';
+    const connectUrl = '/?instanceId=localhost:43598&userName=admin';
     await page.goto(connectUrl);
 
     // The app should auto-connect and show the main page
@@ -22,7 +22,7 @@ test.describe('Shareable Connection URL', () => {
     await page.goto('/connect');
     
     // Fill in connection details
-    await page.fill('input[placeholder="e.g. 192.168.1.5[:port]"]', 'localhost:43598');
+    await page.fill('input[placeholder="hostname:port or instance code"]', 'localhost:43598');
     await page.fill('label:has-text("UserName") + input', 'admin');
     
     // The "Copy direct-connect URL" link should be visible
@@ -43,14 +43,14 @@ test.describe('Shareable Connection URL', () => {
 
   test('should handle shareable URL with existing server', async ({ page }) => {
     // First connection to establish a server
-    await page.goto('/?host=localhost:43598&userName=admin');
+    await page.goto('/?instanceId=localhost:43598&userName=admin');
     await expect(page.locator('h2', { hasText: 'Kitchen' })).toBeVisible({ timeout: 10000 });
     
     // Disconnect by navigating away
     await page.goto('/');
     
     // Now use the same shareable URL again
-    await page.goto('/?host=localhost:43598&userName=admin');
+    await page.goto('/?instanceId=localhost:43598&userName=admin');
     
     // Should reconnect to the existing server
     await expect(page.locator('h2', { hasText: 'Kitchen' })).toBeVisible({ timeout: 10000 });
@@ -60,7 +60,7 @@ test.describe('Shareable Connection URL', () => {
 
   test('should connect with pre-hashed secret in URL', async ({ page }) => {
     // First, connect as admin to get the app running
-    await page.goto('/?host=localhost:43598&userName=admin');
+    await page.goto('/?instanceId=localhost:43598&userName=admin');
     await expect(page.locator('h2', { hasText: 'Kitchen' })).toBeVisible({ timeout: 10000 });
     
     // Generate a hash using the app's hashing function

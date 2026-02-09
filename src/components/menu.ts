@@ -70,7 +70,7 @@ export function drawMenu(menuOpen: { value: boolean }): void {
                     route.go(['/']);
                 }, () => {
                     icons.reconnect();
-                    $('span#Switch to ' + server.localAddress);
+                    $('span#Switch to ' + server.instanceId);
                 });
             });
 
