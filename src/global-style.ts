@@ -84,8 +84,13 @@ insertGlobalCss({
     
     'input, textarea, select': {
         '&': 'p:$2 r:4px border: 2px solid $border; bg:$surface fg:$text outline:none transition:border-color',
-        '&:focus': 'border-color:$primary',
+        '&:focus': 'border-color:$textMuted',
         '&:disabled': 'opacity:0.5 cursor:not-allowed'
+    },
+    
+    select: {
+        '&': `appearance:none cursor:pointer pr:30px background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23999' stroke-width='2' fill='none'/%3E%3C/svg%3E"); background-repeat:no-repeat background-position: right 8px center;`,
+        'option': 'bg:$surface fg:$text p:$2',
     },
     
     // Standard buttons
@@ -135,7 +140,7 @@ insertGlobalCss({
                 '&:active': 'transform:scale(0.99)'
             },
             
-            '&.active-scene': 'bg: rgba(244, 129, 14, 0.15); border-left: 4px solid $primary; pl: calc($3 - 4px);',
+            '&.active-scene': 'bg: rgba(244, 129, 14, 0.15); border-left: 4px solid $primary; pl: calc(var(--m2) - 4px);',
             
             h2: 'font-size:1rem font-weight:500 flex: 1 0 auto; m:0',
             

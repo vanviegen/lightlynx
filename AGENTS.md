@@ -1,236 +1,112 @@
 # AGENTS.md - Light Lynx
 
-## Project Overview
+Smartphone-optimized web app for controlling Zigbee2MQTT lights. PWA that loads from cache and connects directly to Z2M via a secure WebSocket extension. Features: groups, scenes, color picking, multi-user permissions, optional remote access, and hub-side automation.
 
-**Light Lynx** is a modern, fast web application for controlling Zigbee2MQTT smart lights and devices. It provides a mobile-friendly PWA (Progressive Web App) interface for managing Zigbee smart home lighting with features like color picking, groups, scenes, and device management.
-
-## Tech Stack
-
-- **Language**: TypeScript
-- **UI Framework**: [Aberdeen](https://github.com/vanviegen/aberdeen) - a reactive UI library with proxy-based state management (use the provided Aberdeen Skill to learn how to use it)
-- **Build Tool**: Vite 6.x
-- **Backend**: Connects to Zigbee2MQTT via WebSocket
-- **PWA**: Service Worker for offline caching and stale-while-revalidate strategy
+**Tech**: TypeScript, [Aberdeen](https://github.com/vanviegen/aberdeen) (reactive UI — use the provided Aberdeen Skill), Vite 6, Playwright tests.
 
 ## Project Structure
 
 ```
 src/
-- app.ts   # Main application - routing, UI components, device/group views
-- api.ts   # WebSocket API client for Z2M communication
-- types.ts   # TypeScript interfaces (Device, Group, LightState, ServerCredentials, User, Store, etc.)
-- color-picker.ts   # Color wheel and brightness picker UI components
-- colors.ts   # Color conversion utilities (HSV, RGB, XY, mireds)
-- icons.ts   # SVG icon components
-- sw.ts   # Service Worker for PWA caching
-- style.css   # Application styles
-- index.html   # HTML entry point
-- extensions/   # Z2M extension (deployed to CDN)
-  - lightlynx.ts   # Single extension: user auth, optimized state, permission checking, and optional automation
-- backend/   # Bunny.net edge scripts
-  - cert.ts   # SSL certificate provisioning
-
-build.frontend/   # Generated index.html, css, js bundles and extensions/ directory
-build.backend/   # Generated bunny cert.js script
+  app.ts              # Routing and top-level UI
+  api.ts              # WebSocket client, connection management, reactive store
+  types.ts            # All TypeScript interfaces
+  extension.ts        # Z2M extension: auth, state sync, permissions, automation
+  ui.ts               # Shared UI helpers (admin mode, routeState, lazySave)
+  mock-z2m.ts         # Mock Z2M server for dev/testing
+  colors.ts           # Color conversion (HSV ↔ RGB ↔ XY ↔ mireds)
+  icons.ts            # SVG icon components
+  global-style.ts     # Global CSS
+  sw.ts               # Service worker (stale-while-revalidate, auto-reload)
+  components/         # Reusable UI: color-picker, header, menu, prompt, toasts
+  pages/              # Route pages: top, group, bulb, connection, users, info, etc.
+  backend/cert.ts     # Bunny.net edge script for SSL cert provisioning
+tests/
+  base-test.ts        # Test helpers (connectToMockServer, etc.)
+  *.spec.ts           # Playwright integration tests
+build.frontend/       # Production output (HTML, JS, CSS, extension.js)
+build.backend/        # Generated Bunny edge script
 ```
 
-## Key Concepts
+## Architecture
 
-### State Management
-Uses Aberdeen's `proxy()` for reactive state. The global store (`api.store`) contains:
-- `lights`: Record of lights keyed by IEEE address (devices with `lightCaps`)
-- `toggles`: Record of toggle devices keyed by IEEE address (buttons, sensors)
-- `groups`: Record of groups keyed by group ID
-- `permitJoin`: Boolean for pairing mode
-- `config`: Server configuration (automation, users, etc.)
-- `me`: Current user info
+**State**: `api.store` is an Aberdeen `proxy()`. Contains `lights` (by IEEE), `toggles` (buttons/sensors by IEEE), `groups` (by group ID), `permitJoin`, `config` (users, automation settings, etc.), `me` (current user). UI re-renders automatically on changes.
 
-Each group has:
-- `name`, `description`, `lightIds`: Basic info
-- `scenes`: Record of scenes with `name`, `triggers`, `lightStates`
-- `timeout`: Auto-off timeout in seconds (or undefined)
-- `activeSceneId`: Currently active scene
+**Networking**: Extension listens on port **43597** (override with `LIGHTLYNX_PORT`; tests use 43598). Each server gets an instance ID from the cert backend. External access via `ext-<instanceId>.lightlynx.eu`. Client races local vs external connections. SSL via `cert.lightlynx.eu` (DNS-01 challenges).
 
-### Multi-Server Management
-- Credentials stored in localStorage (`lightlynx-servers`)
-- Support for multiple Z2M server connections using IP-encoded domains
-- Connectivity handled via `x<hex-ip>.lightlynx.eu` where `<hex-ip>` is the hex representation of the IPv4 address
-- The client tries both internal and external domains in parallel ("racing")
-- Automated SSL certificate management via `cert.lightlynx.eu` edge API using DNS-01 challenges (no A-records)
+**Auth**: Client-side PBKDF2 hashing — passwords never leave the device. `user` + `secret` passed as URL search params on WebSocket connect.
 
-### Color Systems
-The app handles multiple color representations:
-- **HSColor**: `{ hue: 0-360, saturation: 0-1 }`
-- **XYColor**: `{ x: number, y: number }` (CIE color space)
-- **Color Temperature**: Mireds (number)
+**Extension**: Single Z2M extension (`extension.ts`) handles everything server-side: WebSocket API, user auth, optimized state payloads, permission filtering, config storage (`data/lightlynx.json`), and optional automation (scene triggers, auto-off timers).
 
-### Device Types
-- **Lights**: Devices with `lightCaps` property (brightness, color, colorTemp support)
-- **Sensors/Inputs**: Devices without `lightCaps` (buttons, switches, motion sensors)
+**Routing**: `aberdeen/route` with paths: `/` (main/landing), `/connect`, `/group/:id`, `/bulb/:ieee`, `/user/:userName`, `/dump` (admin debug).
 
-## NPM Scripts
+**Admin mode**: Toggle via `?admin=y` URL param or three-dot menu. Stored in `admin.value` observable.
 
-```bash
-npm run dev   # Start Vite dev server with hot reload
-npm run build   # Production build to build.frontend/
-npm run watch   # Build in watch mode
-npm run deploy   # Build and deploy to BunnyCDN via SFTP
-npm run purge-cache   # Purge BunnyCDN cache
-```
-
-## Deployment
-
-Requires `.env` file with BunnyCDN credentials (see `.env.example`):
-- `DEPLOY_HOST`, `DEPLOY_USER`, `DEPLOY_PASS_OBSCURED` for SFTP
-- `BUNNY_PZ_ID`, `BUNNY_ACCESS_KEY` for cache purging
-
-## API Communication
-
-The app communicates with Zigbee2MQTT via WebSocket:
-- Connection URL: `wss://x<hex-ip>.lightlynx.eu:43598/api`
-- Authentication: `user` and `secret` (PBKDF2 hash of password) provided as URL search parameters
-- Messages use `api.send(command, ...args)` format
-- Light state changes use optimistic updates via Aberdeen's `applyPrediction`/`applyCanon`
-
-### WebSocket Commands
-
-| Command | Arguments | Description |
-|---------|-----------|-------------|
-| `set-state` | `groupId/ieee, state` | Set light state for group or device |
-| `scene` | `groupId, sceneId, subCommand, value?` | Scene operations (recall, store, add, remove, rename, setTriggers) |
-| `bridge` | `...path, payload` | Relay commands to Z2M bridge |
-| `patch-config` | `delta` | Update server config (admin only) |
-| `link-toggle-to-group` | `groupId, ieee, linked` | Link/unlink toggle device to group |
-| `set-group-timeout` | `groupId, timeoutSecs` | Set auto-off timeout in seconds (null to clear) |
-
-
-## Extension
-
-The single `lightlynx` extension provides:
-- Configuration stored in `lightlynx.json` within Z2M data directory
-- User authentication with client-side PBKDF2 hashing (no raw passwords transmitted or stored)
-- Automated SSL/DNS management using IP-encoded domains (`x<hex-ip>.lightlynx.eu`)
-- Optimized state dump for Light Lynx clients
-- Permission checking (admin, allowedGroups) - groups/devices without permission appear disabled in the UI
-- Remote access control toggle via admin-only MQTT API
-- User management API
-- **Optional automation features** (toggleable via admin UI, off by default):
-  - Scene triggers (tap patterns, motion, time-based)
-  - Lights-off timer for groups
-
-
-## Code Conventions
-
-- Routing via `aberdeen/route` with path-based navigation
-- Icons are SVG functions from `icons.ts`
-- Admin mode toggled via `?admin=y` query parameter or three-dot menu, stored in `admin.value` observable
+**WebSocket commands**: `set-state`, `scene` (recall/store/add/remove/rename/setTriggers), `bridge` (relay to Z2M), `patch-config`, `link-toggle-to-group`, `set-group-timeout`, `update-user`, `set-remote-access`, `set-automation`, `set-location`, `convert`.
 
 ## Development
 
-### Quick Start Development Environment
-
-The `mock` script provides a complete development environment:
-
 ```bash
-npm run mock start
+npm run mock start     # Start mock Z2M + Vite dev server, prints connection URL
+npm run mock stop      # Stop both servers
+npm run dev            # Vite dev server only (port 43599)
+npm run build          # Production build → build.frontend/
+npm test               # Playwright integration tests
 ```
 
-This will start a mock-z2m and a Vite dev server and print the connection URL. If already running, it will just print the URL.
-
-Point the Playwright MCP at this URL to interact with the app.
-
-To stop the servers:
-```bash
-npm run mock stop
-```
+`npm run mock start` is the primary dev workflow. It starts an insecure mock Z2M and Vite, outputs a direct-connect URL. Point Playwright MCP at this URL for interactive testing.
 
 ### Direct-connection URL
 
-You can connect to a server directly via URL parameters. Example:
-
 ```
-http://localhost:5173/?host=192.168.1.94:41791&userName=admin&secret=<hash>
+http://localhost:5173/?instanceId=<host:port or instance-code>&userName=admin&secret=<hash>
 ```
 
-This will connect to the specified server, saving the credentials in localStorage for future use (if they're not there yet).
+Credentials auto-save to localStorage (`lightlynx-servers`).
 
-### Mock Server Configuration
-
-The mock server (`src/mock-z2m.ts`) accepts extensions as command-line arguments:
+### Mock server standalone
 
 ```bash
 LIGHTLYNX_PORT=43598 LIGHTLYNX_INSECURE=true node --experimental-strip-types src/mock-z2m.ts [extension-path...]
 ```
 
-Environment variables:
-- `LIGHTLYNX_PORT`: Port for WebSocket server (default: 43598)
-- `LIGHTLYNX_INSECURE`: If 'true', use HTTP/WS instead of HTTPS/WSS
-
-If no extension paths are provided, it loads `build.frontend/extension.js` by default. You can provide one or more extension paths as command-line arguments to load custom extensions.
+Without extension args, loads `build.frontend/extension.js`.
 
 ## Testing
 
-Integration tests use Playwright and a mock Zigbee2MQTT server (`src/mock-z2m.ts`). The mock server doesn't do any Zigbee, MQTT, or web API, but runs the lightlynx extension (exposing a WebSocket API) and can run automation features.
-
-### Running Tests
+Playwright + mock Z2M. Playwright auto-starts mock on port 43598 and Vite dev server.
 
 ```bash
-npm test  # Run all tests
+npm test
 ```
 
-Playwright automatically starts the mock server and Vite dev server on fixed ports during testing.
+### Diagnosing Failures
 
-### Diagnosing Test Failures
+Results in `tests-out/<test-file>-<start-line>/`:
 
-Each test gets its own results directory named `tests-<status>/<test-file>-<line-number>` where `<status>` can be 'failed' or 'passed', `<test-file>` matches the base name of the .spec.ts file, and <line-number> points at the start of the test function in that file.
+| File | Purpose |
+|------|---------|
+| `error.txt` | Error message + stack trace |
+| `error.body.html` / `error.png` | DOM / screenshot at failure |
+| `NNNN[a-z].body.html` / `.png` | Snapshots at test source line numbers |
+| `*.head.html` | Aberdeen-generated `<style>` tags (rarely needed) |
 
-**Files in a failed test directory:**
-- `NNNN.png` / `NNNN.body.html` / `NNNN.head.html` - Screenshots and HTML snapshots at specific line numbers in the test file. You should usually look at the body html. The head html is mostly useful for checking CSS <style> generated by Aberdeen.
-- `error.png` / `error.body.html` / `error.head.html` - Final page state when the test failed.
-- `error.txt` - Complete error information (error message, stack trace, URL).
+`NNNN` = zero-padded line number, letter suffix = occurrence within that line (e.g. `0010b.png` = second snapshot at line 10).
 
-Read the .html files to understand the DOM structure at steps that may be of interest. Use the .png files for layout work.
+Read `.body.html` to understand DOM state. Use `.png` for visual/layout. Prefer automated tests + artifacts over Playwright MCP for debugging.
 
-### Interactive Testing with Playwright MCP
+### Playwright MCP (interactive)
 
-You can use the Playwright MCP (Model Context Protocol) to interactively test the app:
+1. `npm run mock start` → get URL
+2. `mcp_playwright_browser_navigate(url)` / `_snapshot()` / `_click(element, ref)`
 
-1. Run `npm run mock start`. It outputs a direct-connection URL.
-2. Use Playwright MCP to navigate to that URL.
+If Playwright MCP is unavailable, ask the user.
 
+## Deployment
+
+Requires `.env` (see `.env.example`): `DEPLOY_HOST`, `DEPLOY_USER`, `DEPLOY_PASS_OBSCURED`, `BUNNY_PZ_ID`, `BUNNY_ACCESS_KEY`.
+
+```bash
+npm run deploy         # Build + SFTP upload
+npm run purge-cache    # Purge BunnyCDN cache
 ```
-mcp_playwright_browser_navigate(url)
-mcp_playwright_browser_snapshot()  # Get page structure
-mcp_playwright_browser_click(element, ref)
-```
-
-However, please *prefer* to use the automated tests and diagnostic artifacts for most debugging, as they provide a complete history of test step and provide future value.
-
-If the playwright MCP is not available or not working correctly, ask the user for it.
-
-
-#### Example: Debugging a Failed Test
-
-Relevant files are in `tests-out/integration-0005/` (where integration is the base name of the .spec.ts file, and 0005 is the starting line number of the test in that file).
-
-- error.txt: Error message and stack trace.
-- error.md: Playwright short DOM state dump at error time.
-- error.html: HTML DOM snapshot at error time.
-- error.png: Screenshot at error time.
-- NNNN[a-z].png / NNNN[a-z].html: Screenshots and HTML DOM snapshots at specific line numbers in the test file. So 0010b.png would be the second screenshot created in line 10 of the test file.
-
-## Service Worker
-
-The service worker implements stale-while-revalidate caching:
-- Serves cached responses immediately
-- Revalidates in background
-- Triggers page reload when updates detected
-
-## Key Routes
-
-- `/` - Main view (groups/devices) or landing page if not connected
-- `/connect` - Server connection dialog
-- `/ssl-setup` - SSL setup guide
-- `/group/:id` - Group detail view
-- `/user/:userName` - User editor (admin)
-- `/dump` - Debug state dump (admin)

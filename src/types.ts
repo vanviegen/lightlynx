@@ -64,7 +64,6 @@ export interface Light extends Device {
 
 export interface Toggle extends Device {
     actions: string[];
-    linkedGroupIds: number[]; // IDs of groups this input device controls
 }
 
 export interface Trigger {
@@ -76,8 +75,6 @@ export interface Trigger {
 // Scene interface
 export interface Scene {
     name: string;
-    triggers: Trigger[];
-    lightStates?: Record<string, LightState>; // IEEE address -> LightState
 } 
 
 // Group interface
@@ -88,7 +85,6 @@ export interface Group {
     scenes: Record<number, Scene>;
     description?: string;
     activeSceneId?: number;
-    timeout: number | undefined; // Auto-off timeout in seconds
 
     _autoOffTimer?: NodeJS.Timeout; // Auto off timer
     _lastTimedSceneId?: number | undefined; // Last scene set by a time interval rule (so we don't reapply it)
@@ -131,6 +127,7 @@ export interface SslConfig {
     };
     localIp?: string;
     externalIp?: string;
+    instanceKey?: string;
 }
 
 export interface Config {
@@ -142,10 +139,10 @@ export interface Config {
     users: Record<string, User>;  // Filtered out if user is not admin
     externalPort?: number;  // For persistent UPnP mapping
     _ssl?: SslConfig;
-    _sceneStates: Record<number, Record<number, Record<string, LightState>>>; // groupId -> sceneId -> ieeeAddress -> LightState
-    _groupTimeouts: Record<number, number>; // groupId -> timeout in seconds
-    _sceneTriggers: Record<number, Record<number, Trigger[]>>; // groupId -> sceneId -> triggers
-    _toggleGroupLinks: Record<string, number[]>; // ieee -> groupId[]
+    sceneStates: Record<number, Record<number, Record<string, LightState>>>; // groupId -> sceneId -> ieeeAddress -> LightState
+    groupTimeouts: Record<number, number>; // groupId -> timeout in seconds
+    sceneTriggers: Record<number, Record<number, Trigger[]>>; // groupId -> sceneId -> triggers
+    toggleGroupLinks: Record<string, number[]>; // ieee -> groupId[]
 }
 
 // Store interface for the global application state

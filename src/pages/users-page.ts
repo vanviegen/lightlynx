@@ -51,7 +51,7 @@ export function drawUserEditor(): void {
         if (!existing) {
             $('div.item', () => {
                 $('h2.form-label#User name');
-                $('input bind=', userNameProxy);
+                $('input placeholder=frank bind=', userNameProxy);
             });
         }
 

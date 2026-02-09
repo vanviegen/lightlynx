@@ -4,7 +4,7 @@ import http from 'http';
 import https from 'https';
 import dgram from 'dgram';
 import WebSocket, { WebSocketServer } from 'ws';
-import { Config, Group, Light, Scene, Toggle, State, Trigger, User, StripUnderscoreKeys, UserWithName } from './types';
+import { Config, Group, Light, Scene, Toggle, State, User, StripUnderscoreKeys, UserWithName } from './types';
 import { applyDelta, createDelta, createDeltaRecurse, deepClone } from './json-merge-patch';
 import { createZ2MLightDelta, tailorLightState, DEFAULT_TRIGGERS } from './colors';
 
@@ -84,10 +84,10 @@ class LightLynx {
                     allowRemote: false
                 },
             },
-            _sceneStates: {},
-            _groupTimeouts: {},
-            _sceneTriggers: {},
-            _toggleGroupLinks: {},
+            sceneStates: {},
+            groupTimeouts: {},
+            sceneTriggers: {},
+            toggleGroupLinks: {},
         };
         try {
             if (fs.existsSync(CONFIG_PATH)) {
@@ -191,42 +191,6 @@ class LightLynx {
     /** Sync store data to config and write to file if changed. Called automatically from emitChangesNow. */
     private saveConfig() {
         const cfg = this.store.config;
-        
-        if (this.store.groups === NOT_YET_INITIALIZED || this.store.lights === NOT_YET_INITIALIZED || this.store.toggles === NOT_YET_INITIALIZED) {
-            // Copy group timeouts to config
-            cfg._groupTimeouts = {};
-            for (const [id, group] of Object.entries(this.store.groups)) {
-                if (group.timeout) cfg._groupTimeouts[Number(id)] = group.timeout;
-            }
-            
-            // Copy scene triggers to config
-            cfg._sceneTriggers = {};
-            for (const [groupId, group] of Object.entries(this.store.groups)) {
-                for (const [sceneId, scene] of Object.entries(group.scenes)) {
-                    if (scene.triggers?.length) {
-                        (cfg._sceneTriggers[Number(groupId)] ||= {})[Number(sceneId)] = scene.triggers;
-                    }
-                }
-            }
-            
-            // Copy toggle group links to config
-            cfg._toggleGroupLinks = {};
-            for (const [ieee, toggle] of Object.entries(this.store.toggles)) {
-                if (toggle.linkedGroupIds?.length) {
-                    cfg._toggleGroupLinks[ieee] = toggle.linkedGroupIds;
-                }
-            }
-            
-            // Copy scene states to config
-            cfg._sceneStates = {};
-            for (const [groupId, group] of Object.entries(this.store.groups)) {
-                for (const [sceneId, scene] of Object.entries(group.scenes)) {
-                    if (scene.lightStates) {
-                        (cfg._sceneStates[Number(groupId)] ||= {})[Number(sceneId)] = scene.lightStates;
-                    }
-                }
-            }
-        }
         
         // Only write if changed
         const json = JSON.stringify(cfg, null, 2);
@@ -610,7 +574,24 @@ class LightLynx {
             });
             
             this.sendMqttCommand(topic, payloadWithTransaction);
-            return await responsePromise;
+            const result = await responsePromise;
+            
+            // Clean up config for deleted groups or devices
+            if (args[1] === 'group' && args[2] === 'remove') {
+                const groupId = typeof payload === 'object' ? payload.id : payload;
+                if (typeof groupId === 'number') {
+                    delete this.store.config.groupTimeouts[groupId];
+                    delete this.store.config.sceneStates[groupId];
+                    delete this.store.config.sceneTriggers[groupId];
+                }
+            } else if (args[1] === 'device' && args[2] === 'remove') {
+                const ieee = typeof payload === 'string' ? payload : payload?.id;
+                if (ieee) {
+                    delete this.store.config.toggleGroupLinks[ieee];
+                }
+            }
+            
+            return result;
         } else {
             this.sendMqttCommand(topic, payload);
         }
@@ -628,14 +609,19 @@ class LightLynx {
             // value: Trigger[] - our custom Light Lynx feature
             const scene = group.scenes[sceneId];
             if (!scene) throw new Error(`Scene ${sceneId} not found`);
-            scene.triggers = value;
+            if (!this.store.config.sceneTriggers[groupId]) this.store.config.sceneTriggers[groupId] = {};
+            if (value && value.length) {
+                this.store.config.sceneTriggers[groupId][sceneId] = value;
+            } else {
+                delete this.store.config.sceneTriggers[groupId][sceneId];
+            }
         } else {
             // Standard Z2M scene commands (recall, store, add, remove, rename)
             // Convert value to proper format: string -> {name: value}, object -> {...value, ID: sceneId}, else -> sceneId
             const z2mValue = typeof value === 'string' ? { ID: sceneId, name: value } : (value && typeof value === 'object') ? { ...value, ID: sceneId } : sceneId;
             
             const payload = {[`scene_${subCommand}`]: z2mValue};
-            await this.sendMqttCommand(`${groupId}/set`, payload);
+            await this.sendMqttCommand(`${group.name}/set`, payload);
 
             if (subCommand === 'store' || subCommand === 'add') {
                 // Also store any off-states into the scene (for some reason that doesn't happen by default)
@@ -655,10 +641,14 @@ class LightLynx {
         const toggle = this.store.toggles[ieee];
         if (!toggle) throw new Error(`Toggle device ${ieee} not found`);
         
-        if (linked && !toggle.linkedGroupIds.includes(groupId)) {
-            toggle.linkedGroupIds.push(groupId);
+        const links = this.store.config.toggleGroupLinks;
+        const currentLinks = links[ieee] || [];
+        
+        if (linked && !currentLinks.includes(groupId)) {
+            links[ieee] = [...currentLinks, groupId];
         } else if (!linked) {
-            toggle.linkedGroupIds = toggle.linkedGroupIds.filter(id => id !== groupId);
+            links[ieee] = currentLinks.filter(id => id !== groupId);
+            if (links[ieee].length === 0) delete links[ieee];
         }
     }
 
@@ -668,9 +658,13 @@ class LightLynx {
         const group = this.store.groups[groupId];
         if (!group) throw new Error(`Group ${groupId} not found`);
         
-        const oldTimeout = group.timeout;
-        group.timeout = timeoutSecs || undefined;
-        if (oldTimeout && timeoutSecs) this.nudgeGroupAutoOff(group);
+        const oldTimeout = this.store.config.groupTimeouts[groupId];
+        if (timeoutSecs) {
+            this.store.config.groupTimeouts[groupId] = timeoutSecs;
+        } else {
+            delete this.store.config.groupTimeouts[groupId];
+        }
+        if (oldTimeout && timeoutSecs) this.nudgeGroupAutoOff(groupId);
     }
 
     /** Called for each incoming WebSocket message. Delegates to appropriate
@@ -698,8 +692,6 @@ class LightLynx {
                 this.userLinkToggleToGroup(user, args[0], args[1], args[2]);
             } else if (command === 'set-group-timeout') {
                 this.userSetGroupTimeout(user, args[0], args[1]);
-            } else if (command === 'convert') {
-                response = await this.userConvert(user, args[0]);
             } else {
                 throw new Error(`Unknown command: ${command}`);
             }
@@ -789,7 +781,6 @@ class LightLynx {
                         ...dev,
                         actions: expose.actions,
                         meta: old?.meta || {},
-                        linkedGroupIds: this.store.config._toggleGroupLinks?.[ieee] || [],
                     };
                 }
             }
@@ -803,38 +794,35 @@ class LightLynx {
         this.groupIdsByNames = {};
 
         let groups: Record<number, Group> = {};
+        const newGroupIds = new Set<number>();
         for (let z2mGroup of payload) {
             const id = z2mGroup.id;
+            newGroupIds.add(id);
             const group = this.store.groups[id] || {} as Group;
             groups[id] = group;
 
             group.name = z2mGroup.friendly_name;
             group.description = z2mGroup.description;
-            group.scenes = this.convertZ2mScenes(id, z2mGroup.scenes);
+            group.scenes = this.convertZ2mScenes(z2mGroup.scenes);
             group.lightIds = z2mGroup.members.map((obj: any) => obj.ieee_address);
 
-            // Read timeout from config, but only if not already set
-            // (to avoid overwriting recently-set timeouts before saveConfig() runs)
-            if (group.timeout === undefined) {
-                const timeout = this.store.config._groupTimeouts?.[id];
-                group.timeout = timeout;
-                if (timeout) this.nudgeGroupAutoOff(group);
-            }
-            
             this.groupIdsByNames[group.name] = id;
         }
         this.store.groups = groups;
     }
 
     /** Call this when there's activity for a group, in order to (re)set its auto-off timer. */
-    private nudgeGroupAutoOff(group: Group) {
+    private nudgeGroupAutoOff(groupId: number) {
+        const group = this.store.groups[groupId];
+        if (!group) return;
         if (group._autoOffTimer) clearTimeout(group._autoOffTimer);
         delete group._autoOffTimer
-        if (group.timeout && this.store.config.automationEnabled) {
+        const timeout = this.store.config.groupTimeouts[groupId];
+        if (timeout && this.store.config.automationEnabled) {
             group._autoOffTimer = setTimeout(() => {
                 if (!this.store.config.automationEnabled) return;
                 this.sendMqttCommand(`${group.name}/set`, { state: 'OFF', transition: 30 });
-            }, group.timeout * 1000);
+            }, timeout * 1000);
         }
     }
 
@@ -847,14 +835,12 @@ class LightLynx {
     }
 
     /** Translate a Z2M scenes list to a this.store.groups[x].scenes object. */
-    private convertZ2mScenes(groupId: number, z2mScenes: any): Record<number, Scene> {
+    private convertZ2mScenes(z2mScenes: any): Record<number, Scene> {
         const result: Record<number, Scene> = {};
         for(const z2mScene of z2mScenes) {
             const sceneId = z2mScene.id;
             result[sceneId] = {
                 name: z2mScene.name,
-                triggers: this.store.config._sceneTriggers?.[groupId]?.[sceneId] || [],
-                lightStates: this.store.config._sceneStates?.[groupId]?.[sceneId],
             };
         }
         return result;
@@ -880,7 +866,7 @@ class LightLynx {
         if (light) this.handleLightState(light, payload);
 
         const toggle = this.store.toggles[ieee];
-        if (toggle) this.handleToggleState(ieee, toggle, payload);
+        if (toggle) this.handleToggleState(ieee, payload);
 
         for (const dev of [light, toggle]) {
             if (!dev) continue;
@@ -910,7 +896,7 @@ class LightLynx {
     /** Handle outgoing Z2M state messages for buttons and sensors, by taking
      * automation actions on linked groups.
      */
-    async handleToggleState(ieee: string, device: Toggle, payload: any) {
+    async handleToggleState(ieee: string, payload: any) {
         if (!this.store.config.automationEnabled) return;
 
         let action = payload.action;
@@ -933,7 +919,8 @@ class LightLynx {
         }
 
         // Handle triggers for all associated groups
-        for (const groupId of device.linkedGroupIds) {
+        const linkedGroupIds = this.store.config.toggleGroupLinks[ieee] || [];
+        for (const groupId of linkedGroupIds) {
             const group = this.store.groups[groupId];
             if (!group) continue;
 
@@ -944,13 +931,13 @@ class LightLynx {
                 // The next click should start the count at 1
                 if (this.clickCounts.has(ieee)) this.clickCounts.set(ieee, 0);
             } else {
-                let sceneId = this.findSceneId(group, action);
+                let sceneId = this.findSceneId(groupId, action);
                 newState = sceneId == null ? DEFAULT_TRIGGERS[action] : { scene_recall: sceneId };
             }
 
             if (newState) {
                 newState.transition = 0.4;
-                this.sendMqttCommand(`${groupId}/set`, newState);
+                this.sendMqttCommand(`${group.name}/set`, newState);
             }
         }
     }
@@ -1022,7 +1009,7 @@ class LightLynx {
         if (!group) return;
         
         group.activeSceneId = undefined;
-        this.nudgeGroupAutoOff(group);
+        this.nudgeGroupAutoOff(groupId);
 
         let message: any;
         try { message = JSON.parse(data.message); } catch { return; }
@@ -1039,20 +1026,19 @@ class LightLynx {
                 const s = this.store.lights[id]?.lightState;
                 if (s) states[id] = s;
             }
-            // Store in both places - the scene may not exist yet in group.scenes
-            const scene = group.scenes[sceneId];
-            if (scene) scene.lightStates = states;
-            (this.store.config._sceneStates ||= {})[groupId] ||= {};
-            this.store.config._sceneStates[groupId][sceneId] = states;
+            // Store in config
+            if (!this.store.config.sceneStates[groupId]) this.store.config.sceneStates[groupId] = {};
+            this.store.config.sceneStates[groupId][sceneId] = states;
         }
         else if (message.scene_recall != null) {
             group.activeSceneId = message.scene_recall;
         }
         else if (message.scene_remove != null) {
-            const scene = group.scenes[message.scene_remove];
-            if (scene) scene.lightStates = undefined;
-            if (this.store.config._sceneStates?.[groupId]) {
-                delete this.store.config._sceneStates[groupId][message.scene_remove];
+            if (this.store.config.sceneStates[groupId]) {
+                delete this.store.config.sceneStates[groupId][message.scene_remove];
+            }
+            if (this.store.config.sceneTriggers[groupId]) {
+                delete this.store.config.sceneTriggers[groupId][message.scene_remove];
             }
         }
 
@@ -1111,14 +1097,18 @@ class LightLynx {
      * and is currently within its time range (if any). If there are multiple, pick the
      * one with the narrowest time range. Returns scene id or undefined if none is found.
     */
-    private findSceneId(group: Group, event: string | number): number | undefined {
+    private findSceneId(groupId: number, event: string | number): number | undefined {
+        const group = this.store.groups[groupId];
+        if (!group) return undefined;
         let foundRange = 25*60, foundSceneId;
+        const groupTriggers = this.store.config.sceneTriggers[groupId] || {};
         for(const sceneId in group.scenes) {
-            const scene = group.scenes[sceneId]!;
-            for(const trig of scene.triggers) {
+            const triggers = groupTriggers[Number(sceneId)] || [];
+            for(const trig of triggers) {
                 if (trig.event == event) {
                     let range = trig.startTime && trig.endTime ? this.checkTimeRange(trig.startTime, trig.endTime) : 24*60;
                     if (range!=null && range < foundRange) {
+                        foundRange = range;
                         foundSceneId = parseInt(sceneId);
                     }
                 }
@@ -1130,9 +1120,10 @@ class LightLynx {
     /** Called every 10s. Checks if any new "time" event scene triggers are applicable. */
     private handleTimeTriggers() {
         if (!this.store.config.automationEnabled) return;
-        for(const [groupId, group] of Object.entries(this.store.groups)) {
+        for(const [groupIdStr, group] of Object.entries(this.store.groups)) {
+            const groupId = Number(groupIdStr);
             let newState: Record<string, any> | undefined;
-            let sceneId = this.findSceneId(group, 'time');
+            let sceneId = this.findSceneId(groupId, 'time');
             if (sceneId != null) {
                 // Only recall if different from previous scene, to avoid setting the
                 // scene again when the user has manually changed it.
@@ -1142,9 +1133,9 @@ class LightLynx {
                     group.activeSceneId = group._lastTimedSceneId = sceneId;
                 }
                 // Keep auto-off at bay as long as the time-based scene is active
-                if (sceneId === group.activeSceneId) this.nudgeGroupAutoOff(group);
+                if (sceneId === group.activeSceneId) this.nudgeGroupAutoOff(groupId);
             } else {
-                if (group._lastTimedSceneId != undefined) {
+                if (group._lastTimedSceneId !== undefined) {
                     this.log('info', `Time-based off group=${group.name}`);
                     newState = {state: 'OFF'};
                     group.activeSceneId = group._lastTimedSceneId = undefined;
@@ -1152,7 +1143,7 @@ class LightLynx {
             }
             if (newState) {
                 newState.transition = 20;
-                this.sendMqttCommand(`${groupId}/set`, newState);
+                this.sendMqttCommand(`${group.name}/set`, newState);
             }
         }
     }

@@ -57,7 +57,7 @@ export function drawSceneEditor(group: Group, groupId: number): void {
 
     const sceneState = proxy(peek(() => ({
         shortName: scene.name,
-        triggers: scene.triggers.map(t => ({...t})) // Copy triggers
+        triggers: (api.store.config.sceneTriggers[groupId]?.[sceneId] || []).map(t => ({...t})) // Copy triggers
     })));
     
     $('h1#Scene name');
@@ -111,13 +111,19 @@ export function drawSceneEditor(group: Group, groupId: number): void {
 	$('div.list', () => {
 	    if (!automationEnabled) return;
 		onEach(sceneState.triggers, (trigger, triggerIndex) => {
+			const showTimes = proxy(peek(trigger, 'startTime') != null);
+
+			// Set/delete times when showTimes is toggled.
 			$(() => {
-				// There must be a time range for time-based triggers
-				if (trigger.event === 'time' && !trigger.startTime) {
-					trigger.startTime = '18';
-					trigger.endTime = '22';
+				if (showTimes.value) {
+					if (!peek(trigger, 'startTime')) trigger.startTime = (trigger.event === 'time' ? '18' : '0bs');
+					if (!peek(trigger, 'endTime')) trigger.endTime = (trigger.event === 'time' ? '22' : '0ar');
+				} else {
+					delete trigger.startTime;
+					delete trigger.endTime;
 				}
 			});
+
 			$('div.item flex-direction:column align-items:stretch', () => {
 				$('div display:flex justify-content:space-between gap:$3 align-items: center', () =>{
 					$('select width:inherit bind=', ref(trigger, 'event'), () => {
@@ -132,18 +138,9 @@ export function drawSceneEditor(group: Group, groupId: number): void {
 					
 					$(() => {
 						if (trigger.event !== 'time') {
-							$('label display:flex align-items:center gap:$2', () => {
-								$('input type=checkbox', {checked: !!trigger.startTime}, 'change=', (e: Event) => {
-									const target = e.target as HTMLInputElement;
-									if (target.checked) {
-										trigger.startTime = '0:30bs';
-										trigger.endTime = '22:30';
-									} else {
-										trigger.startTime = undefined;
-										trigger.endTime = undefined;
-									}
-								});
-								$('#Time range');
+							$('label display:flex align-items:center gap:$2 flex:1', () => {
+								$('input type=checkbox bind=', showTimes);
+								$('#Only between...');
 							});
 						}
 					})
@@ -151,7 +148,7 @@ export function drawSceneEditor(group: Group, groupId: number): void {
 					icons.remove('click=', () => sceneState.triggers.splice(triggerIndex, 1));
 				});
 				$(() => {
-					if (trigger.startTime && trigger.endTime) {
+					if (showTimes.value) {
 						$('div', {create: grow, destroy: shrink}, () => {
 							drawTimeEditor("From", trigger, 'startTime');
 							drawTimeEditor("Until", trigger, 'endTime');
@@ -208,9 +205,19 @@ function drawTimeEditor(text: string, trigger: Trigger, field: 'startTime' | 'en
 	
 	$('div display:flex align-items:center gap:$2', () => {
 		$('label flex:1 text-align:right text=', text+" ")
-		$('input width:4em type=number min=0 max=23 bind=', ref(timeState, 'hour'));
+		// $('input width:4em type=number min=0 max=23 bind=', ref(timeState, 'hour'));
+		$('select bind=', ref(timeState, 'hour'), () => {
+			for (let h = 0; h < 24; h++) {
+				$('option value=', h, '#', h.toString().padStart(2, '0'));
+			}
+		})
 		$('b# : ');
-		$('input width:4em type=number min=0 max=59 value=', unproxy(timeState).minute.toString().padStart(2, '0'), 'input=', (event: any) => timeState.minute = parseInt(event.target.value));
+		// $('input width:4em type=number min=0 max=59 value=', unproxy(timeState).minute.toString().padStart(2, '0'), 'input=', (event: any) => timeState.minute = parseInt(event.target.value));
+		$('select bind=', ref(timeState, 'minute'), () => {
+			for (let m = 0; m < 60; m+=5) {
+				$('option value=', m, '#', m.toString().padStart(2, '0'));
+			}
+		});
 		$('select bind=', ref(timeState, 'type'), () => {
 			$('option value=wall #wall time');
 			$('option value=br #before sunrise');

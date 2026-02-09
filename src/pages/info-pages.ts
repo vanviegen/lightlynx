@@ -14,12 +14,16 @@ export function drawRemoteInfoPage(): void {
         $('h1#How');
         $('ul', () => {
             $('li', () => {
+                $('strong#Instance Code: ');
+                $('#Each server gets a unique instance code. This code is used to create a DNS record pointing to your external IP address (ext-<code>.lightlynx.eu).');
+            });
+            $('li', () => {
                 $('strong#UPnP: ');
-                $('#The server automatically asks your home router to forward a random (but consistent) port from the internet to the secure WebSocket endpoint of our Z2M extension.');
+                $('#The server automatically asks your home router to forward a port from the internet to the secure WebSocket endpoint of our Z2M extension.');
             });
             $('li', () => {
                 $('strong#Race-to-connect: ');
-                $('#The app receives the external address whenever it is connected to your server locally. For subsequent connections it will try to connect to both the internal and the external address, preferring whichever is fastest to respond. Transition between Wi-Fi and mobile should be seamless.');
+                $('#When connecting, the app tries both the local IP address and the external domain in parallel, preferring whichever responds first. Transition between Wi-Fi and mobile should be seamless.');
             });
         });
 

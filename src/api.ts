@@ -2,7 +2,7 @@ import { $, proxy, clone, copy, unproxy, peek, merge, onEach } from "aberdeen";
 import { applyPrediction, applyCanon, Patch } from "aberdeen/prediction";
 import * as route from "aberdeen/route";
 import { isHS, tailorLightState }  from "./colors";
-import { LightState, LightCaps, ServerCredentials, Config, GroupWithDerives, ClientState, User, UserWithName } from "./types";
+import { LightState, LightCaps, ServerCredentials, Config, GroupWithDerives, ClientState, UserWithName } from "./types";
 import { applyDelta } from "./json-merge-patch";
 
 const REQUIRED_EXTENSION_VERSION = 1;
@@ -412,8 +412,10 @@ class Api {
             const group = this.store.groups[groupId];
             if (!group) return;
             const scene = group.scenes[sceneId];
-            if (!scene || !scene.lightStates) return;
-            for (const [ieee, lightState] of Object.entries(scene.lightStates)) {
+            if (!scene) return;
+            const lightStates = this.store.config.sceneStates[groupId]?.[sceneId];
+            if (!lightStates) return;
+            for (const [ieee, lightState] of Object.entries(lightStates)) {
                 const light = this.store.lights[ieee];
                 if (!light) continue;
                 copy(light.lightState, tailorLightState(lightState, light.lightCaps));
@@ -582,11 +584,13 @@ class Api {
         if (!toggle) return;
 
         await this.send('link-toggle-to-group', groupId, ieee, linked, () => {
-            const currentGroups = toggle.linkedGroupIds || [];
+            const links = this.store.config.toggleGroupLinks;
+            const currentGroups = links[ieee] || [];
             if (linked && !currentGroups.includes(groupId)) {
-                toggle.linkedGroupIds = [...currentGroups, groupId];
+                links[ieee] = [...currentGroups, groupId];
             } else if (!linked && currentGroups.includes(groupId)) {
-                toggle.linkedGroupIds = currentGroups.filter(id => id !== groupId);
+                links[ieee] = currentGroups.filter(id => id !== groupId);
+                if (links[ieee].length === 0) delete links[ieee];
             }
         });
     }
@@ -599,7 +603,11 @@ class Api {
         if (!group) return;
 
         await this.send('set-group-timeout', groupId, timeoutSecs, () => {
-            group.timeout = timeoutSecs || undefined;
+            if (timeoutSecs) {
+                this.store.config.groupTimeouts[groupId] = timeoutSecs;
+            } else {
+                delete this.store.config.groupTimeouts[groupId];
+            }
         });
     }
 

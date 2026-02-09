@@ -32,7 +32,11 @@ function drawTriggerBadges(triggers: Trigger[]): void {
 
 // All buttons and sensors, partitioned by group. {groupId: {ieee: Toggle}}. Toggles that belong to
 // no group are placed in '-1'.
-const togglesByGroup = partition(api.store.toggles, device => device.linkedGroupIds.length ? device.linkedGroupIds : -1);
+const togglesByGroup = partition(api.store.toggles, device => {
+    const ieee = Object.keys(api.store.toggles).find(key => api.store.toggles[key] === device)!;
+    const linkedGroupIds = api.store.config.toggleGroupLinks[ieee] || [];
+    return linkedGroupIds.length ? linkedGroupIds : -1;
+});
 
 export function drawGroupPage(groupId: number): void {
     const optGroup = api.store.groups[groupId];
@@ -84,7 +88,8 @@ export function drawGroupPage(groupId: number): void {
                 icon();
                 $('h2', () => {
                     $('#', scene.name);
-                    drawTriggerBadges(scene.triggers);
+                    const triggers = api.store.config.sceneTriggers[groupId]?.[sceneId] || [];
+                    drawTriggerBadges(triggers);
                 });
                 if (admin.value) {
                     function configure(e: Event): void {
@@ -94,7 +99,10 @@ export function drawGroupPage(groupId: number): void {
                     icons.configure('click=', configure);
                 }
             });
-        }, (scene) => scene.triggers.map(trigger => trigger.event).concat(scene.name));
+        }, (scene, sceneId) => {
+            const triggers = api.store.config.sceneTriggers[groupId]?.[Number(sceneId)] || [];
+            return triggers.map(trigger => trigger.event).concat(scene.name);
+        });
         $(() => {
             if (isEmpty(group.scenes)) $('div.empty#None yet');
         });
@@ -169,12 +177,12 @@ function drawGroupAddInput(
     
     $("div.list", () => {
         onEach(api.store.toggles, (device, ieee) => { 
-            $("div.item", () => {
+            $('div.item', () => {
                 icons.sensor();
                 $('h2.link#', device.name, 'click=', () => addDevice(ieee));
             });
-        }, (device, _ieee) => {
-            let inGroups = device.linkedGroupIds;
+        }, (device, ieee) => {
+            let inGroups = api.store.config.toggleGroupLinks[ieee] || [];
             if (inGroups.includes(groupId)) return; // Skip, already in this group
             return [inGroups.length ? 1 : 0, device.name];
         });
@@ -187,18 +195,18 @@ function drawGroupConfigurationEditor(
 ): void {
     
     const groupState = proxy(peek(() => {
-        // Convert group.timeout (seconds) back to value/unit for UI
+        // Convert group timeout (seconds from config) back to value/unit for UI
         let timeout: {value: number, unit: 's' | 'm' | 'h' | 'd'} | null = null;
-        if (group.timeout) {
-            const seconds = group.timeout;
-            if (seconds % 86400 === 0) {
-                timeout = {value: seconds / 86400, unit: 'd'};
-            } else if (seconds % 3600 === 0) {
-                timeout = {value: seconds / 3600, unit: 'h'};
-            } else if (seconds % 60 === 0) {
-                timeout = {value: seconds / 60, unit: 'm'};
+        const timeoutSeconds = api.store.config.groupTimeouts[groupId];
+        if (timeoutSeconds) {
+            if (timeoutSeconds % 86400 === 0) {
+                timeout = {value: timeoutSeconds / 86400, unit: 'd'};
+            } else if (timeoutSeconds % 3600 === 0) {
+                timeout = {value: timeoutSeconds / 3600, unit: 'h'};
+            } else if (timeoutSeconds % 60 === 0) {
+                timeout = {value: timeoutSeconds / 60, unit: 'm'};
             } else {
-                timeout = {value: seconds, unit: 's'};
+                timeout = {value: timeoutSeconds, unit: 's'};
             }
         }
         return {

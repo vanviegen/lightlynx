@@ -1,4 +1,4 @@
-import { $, copy, insertCss, onEach, derive, proxy, isEmpty } from "aberdeen";
+import { $, insertCss, onEach, derive, proxy, isEmpty } from "aberdeen";
 import * as route from 'aberdeen/route';
 import api from "../api";
 import * as colors from '../colors';
@@ -60,7 +60,10 @@ export function drawTopPage(): void {
 						const icon = icons.scenes[scene.name.toLowerCase()];
 						if (icon) icon('.link click=', onClick, {'.active-scene': isActive});
 						else $('div.scene.link#', scene.name, {'.active-scene': isActive}, 'click=', onClick);
-					},  scene => scene.triggers.map(t => t.event).concat([scene.name])); // Sort be trigger event, and then by name
+					},  (scene, sceneId) => {
+						const triggers = api.store.config.sceneTriggers[groupId]?.[Number(sceneId)] || [];
+						return triggers.map(t => t.event).sort().concat([scene.name]);
+					}); // Sort be trigger event, and then by name
 					
 					if (isEmpty(group.scenes)) {
 						icons.scenes.normal('click=', () => api.setLightState(groupId, {on: false, brightness: 140, color: colors.CT_DEFAULT}));
@@ -69,7 +72,7 @@ export function drawTopPage(): void {
 			});
 		}, group => group.name);
 	});
-	
+
 	$("div.list", () => {
 		onEach(api.store.lights, (device, ieee) => {
 			$('div.item', () => {
