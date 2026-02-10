@@ -15,7 +15,7 @@ if (!process.env.PW_CLEANUP_DONE) {
 
 export default defineConfig({
   testDir: './video',
-  outputDir: './video-out',
+  outputDir: './build.demo',
   fullyParallel: false,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,

@@ -11,12 +11,11 @@ import { drawToasts, createToast } from './components/toasts';
 import { drawHeader } from './components/header';
 import { drawPromptPage } from './components/prompt';
 
-import { drawLandingPage } from './pages/landing-page';
 import { drawBulbPage } from './pages/bulb-page';
 import { drawGroupPage } from './pages/group-page';
 import { drawConnectionPage } from './pages/connection-page';
 import { drawUserEditor } from './pages/users-page';
-import { drawRemoteInfoPage, drawAutomationInfoPage, drawLocationInfoPage, drawBatteriesPage, drawDumpPage } from './pages/info-pages';
+import { drawBatteriesPage, drawDumpPage } from './pages/info-pages';
 import { drawTopPage } from './pages/top-page';
 
 import swUrl from './sw.ts?worker&url';
@@ -104,14 +103,8 @@ $('div', rootStyle, () => {
 					drawUserEditor();
 				} else if (p[0] === 'dump') {
 					drawDumpPage();
-				} else if (p[0] === 'remote-info') {
-					drawRemoteInfoPage();
-				} else if (p[0] === 'automation-info') {
-					drawAutomationInfoPage();
-				} else if (p[0] === 'location-info') {
-					drawLocationInfoPage();
 				} else if (isEmpty(api.servers)) {
-					drawLandingPage();
+					route.current.path = '/connect';
 				} else {
 					drawTopPage();
 				}

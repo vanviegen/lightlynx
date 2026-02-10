@@ -147,7 +147,7 @@ class LightLynx {
         this.server.on('request', (req, res) => {
             if (req.method === 'GET' && (req.url === '/' || req.url === '')) {
                 res.writeHead(200, { 'Content-Type': 'text/plain' });
-                res.end('Light Lynx API ready. See https://lightlynx.eu/ for info.');
+                res.end('Light Lynx API ready. See https://www.lightlynx.eu/ for info.');
             } else {
                 res.writeHead(404);
                 res.end();

@@ -131,7 +131,7 @@ function drawRemoteAccessToggle(): void {
 		icons.info('.link margin-left:auto click=', (e: Event) => {
 			e.stopPropagation();
 			e.preventDefault();
-			route.go(['remote-info']);
+			window.open('https://www.lightlynx.eu/#remote-access', '_blank');
 		});
 	});
 }
@@ -189,7 +189,7 @@ function drawManagementSection(): void {
 			icons.info('.link margin-left:auto click=', (e: Event) => {
 				e.stopPropagation();
 				e.preventDefault();
-				route.go(['automation-info']);
+				window.open('https://www.lightlynx.eu/#automation', '_blank');
 			});
 		});
 
@@ -240,7 +240,7 @@ function drawLocationSetting(): void {
 		icons.info('.link margin-left:auto click=', (e: Event) => {
 			e.stopPropagation();
 			e.preventDefault();
-			route.go(['location-info']);
+			window.open('https://www.lightlynx.eu/#location', '_blank');
 		});
 	});
 }

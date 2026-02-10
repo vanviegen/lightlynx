@@ -6,7 +6,7 @@ It loads from the browser cache (using a service worker) and connects directly t
 
 ## Installation
 
-To use the app, you must install the **Light Lynx** extension on your Zigbee2MQTT server. You can then access your lights from [https://lightlynx.eu](https://lightlynx.eu).
+To use the app, you must install the **Light Lynx** extension on your Zigbee2MQTT server. You can then access your lights from [https://app.lightlynx.eu](https://app.lightlynx.eu). For more information, visit [https://www.lightlynx.eu](https://www.lightlynx.eu).
 
 1.  **Automatic**: Copy the contents of [lightlynx.js](build.frontend/extensions/) (the hashed filename) and add it as a new "External Extension" in the Zigbee2MQTT web interface (Settings -> External Extensions). Name it `lightlynx.js`.
 2.  **Manual**: Copy the hashed lightlynx JS file from [build.frontend/extensions/](build.frontend/extensions/) to your Zigbee2MQTT `data/extension` directory, renaming it to `lightlynx.js`, and restart Zigbee2MQTT.

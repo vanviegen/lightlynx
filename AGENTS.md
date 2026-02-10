@@ -21,11 +21,17 @@ src/
   components/         # Reusable UI: color-picker, header, menu, prompt, toasts
   pages/              # Route pages: top, group, bulb, connection, users, info, etc.
   backend/cert.ts     # Bunny.net edge script for SSL cert provisioning
+site/
+  index.html          # Static landing page (www.lightlynx.eu)
+  style.css           # Landing page styles
+  main.js             # Interactive JS (screenshot popups, smooth scroll)
 tests/
   base-test.ts        # Test helpers (connectToMockServer, etc.)
   *.spec.ts           # Playwright integration tests
-build.frontend/       # Production output (HTML, JS, CSS, extension.js)
+build.frontend/       # Production output for app (app.lightlynx.eu)
 build.backend/        # Generated Bunny edge script
+build.site/           # Production output for static site (www.lightlynx.eu)
+build.demo/           # Demo video + screenshots (used as publicDir for site)
 ```
 
 ## Architecture
@@ -85,7 +91,7 @@ npm test
 A scripted demo video can be recorded to showcase app functionality:
 
 ```bash
-npm run build:video    # Records ~2 min video → video-out/demo.webm
+npm run build:video    # Records ~2 min video → build.demo/demo.webm
 ```
 
 **How it works:**
@@ -100,7 +106,7 @@ npm run build:video    # Records ~2 min video → video-out/demo.webm
 - `pause(page, ms)` — viewing delay (video only, skipped in test)
 - `swipe(page, locator, direction, distance)` — smooth gesture animation
 
-Output: `video-out/demo.webm` (Playwright's intermediate directory is auto-cleaned)
+Output: `build.demo/demo.webm` (Playwright's intermediate directory is auto-cleaned)
 
 ### Diagnosing Failures
 
@@ -126,7 +132,7 @@ If Playwright MCP is unavailable, ask the user.
 
 ## Deployment
 
-Requires `.env` (see `.env.example`): `BUNNY_STORAGE_ZONE_APP`, `DEPLOY_PASS_OBSCURED`, `BUNNY_PZ_ID`, `BUNNY_ACCESS_KEY`.
+Requires `.env` (see `.env.example`) containing secrets. For backend, some of these are compiled into the js by `vite.backend.config.ts`.
 
 ```bash
 npm run deploy         # Build + SFTP upload

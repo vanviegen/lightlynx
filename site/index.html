@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Light Lynx — Smart Zigbee Light Control</title>
+  <meta name="description" content="Control your Zigbee2MQTT lights with a fast, beautiful app. Scenes, automation, multi-user permissions, optional remote access — all running on your own hardware.">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f4810e">
+  <link rel="icon" href="../src/logo.webp" type="image/webp">
+  <link rel="apple-touch-icon" href="../src/public/logo192.webp">
+
+  <!-- Open Graph -->
+  <meta property="og:title" content="Light Lynx — Smart Zigbee Light Control">
+  <meta property="og:description" content="Like the Philips Hue app, but running entirely on your own hardware.">
+  <meta property="og:image" content="/logo512.webp">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://www.lightlynx.eu/">
+
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+
+<!-- ========== HERO ========== -->
+<section class="hero">
+  <div class="container">
+    <img src="../src/logo.webp" alt="Light Lynx" class="hero-logo" width="96" height="96">
+    <h1>Light <span class="gradient-text">Lynx</span></h1>
+    <p class="tagline">Turn Zigbee2MQTT into a polished light automation solution.<br>Like the Philips Hue app, but running entirely on <em>your own hardware</em>.</p>
+    <div class="hero-buttons">
+      <a href="https://app.lightlynx.eu/" class="btn btn-primary" target="_blank" rel="noopener">Open App</a>
+      <a href="#get-started" class="btn btn-secondary">Get Started</a>
+    </div>
+  </div>
+</section>
+
+<!-- ========== VIDEO + FEATURES ========== -->
+<section class="features-video" id="features">
+  <div class="container fv-grid">
+    <div class="fv-video">
+      <video autoplay loop muted playsinline poster="/main-view.png">
+        <source src="/demo.webm" type="video/webm">
+      </video>
+    </div>
+    <div class="fv-features">
+      <h2>Everything you need, nothing you don't</h2>
+
+      <div class="feature-card">
+        <div class="feature-icon">⚡</div>
+        <div>
+          <h3>Instant &amp; Offline</h3>
+          <p>Opens in under a second from cache. Control your lights even when the internet is down — the app talks directly to your Zigbee2MQTT server on the local network.</p>
+        </div>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon">🎨</div>
+        <div>
+          <h3>Beautiful Color Control</h3>
+          <p>Interactive color wheel, brightness slider, and color temperature picker. Per-bulb markers show each light's position within a group.</p>
+        </div>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon">🎬</div>
+        <div>
+          <h3>Scenes</h3>
+          <p>Save and recall lighting moods with a single tap. Active scene tracking shows you which scene is on. Store, rename, reorder — all from the app.</p>
+        </div>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon">🤖</div>
+        <div>
+          <h3>Automation</h3>
+          <p>Connect Zigbee buttons and motion sensors to scenes. Multi-tap patterns, auto-off timers, sunrise/sunset triggers — configured entirely in the app.</p>
+        </div>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon">👥</div>
+        <div>
+          <h3>Multi-User Permissions</h3>
+          <p>Create accounts for family members with per-group access levels. Kids can control the living room but not the office. Passwords are hashed client-side — they never leave the device.</p>
+        </div>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon">🌍</div>
+        <div>
+          <h3>Optional Remote Access</h3>
+          <p>Control your lights from anywhere. Automatic SSL, UPnP port forwarding, and race-to-connect between local and external paths. Enable per-user.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ========== HOW IT WORKS ========== -->
+<section class="how-it-works" id="how-it-works">
+  <div class="container">
+    <h2>How It Works</h2>
+    <p class="section-intro">Light Lynx is a single JavaScript extension that runs inside your existing Zigbee2MQTT server, paired with a cached web app. No cloud, no hub, no subscription.</p>
+
+    <div class="arch-grid">
+      <div class="arch-card">
+        <h3>🧩 Z2M Extension</h3>
+        <p>A single JS file runs inside Zigbee2MQTT. It intercepts MQTT messages, exposes a WebSocket API, handles authentication, and runs all automation logic. Drop it in, restart, done.</p>
+      </div>
+      <div class="arch-card">
+        <h3>📱 Web App</h3>
+        <p>A lightweight PWA hosted on <code>app.lightlynx.eu</code>, cached locally via service worker. Device state is also cached in localStorage — the app opens instantly and shows your lights even offline.</p>
+      </div>
+      <div class="arch-card">
+        <h3>🔐 Auto SSL</h3>
+        <p>The extension automatically obtains a Let's Encrypt SSL certificate via DNS-01 challenge through the lightlynx.eu infrastructure. Your connection is always encrypted, even on the local network.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ========== GET STARTED ========== -->
+<section class="get-started" id="get-started">
+  <div class="container">
+    <h2>Get Started in 3 Steps</h2>
+
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <div>
+          <h3>Install the Extension</h3>
+          <p>Download <a href="https://app.lightlynx.eu/extension.js" download="lightlynx.js">lightlynx.js</a> and add it to your Zigbee2MQTT <code>data/extension</code> folder. Alternatively, paste the file contents as an External Extension in the Z2M web UI (Settings → External Extensions). Restart Zigbee2MQTT.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div>
+          <h3>Open the App</h3>
+          <p>Go to <a href="https://app.lightlynx.eu/" target="_blank" rel="noopener">app.lightlynx.eu</a>. It will try to auto-detect your server on the local network. Enter your server's IP if needed. Log in as <code>admin</code> (no password initially).</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div>
+          <h3>Configure</h3>
+          <p>Tap the <strong>wrench icon</strong> to enter manage mode. Organize lights into groups, create scenes, link buttons and sensors, set up user accounts.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="cta-row">
+      <a href="https://app.lightlynx.eu/" class="btn btn-primary" target="_blank" rel="noopener">Open App</a>
+      <a href="https://app.lightlynx.eu/extension.js" class="btn btn-secondary" download="lightlynx.js">Download Extension</a>
+    </div>
+  </div>
+</section>
+
+<!-- ========== FEATURE DEEP DIVE ========== -->
+<section class="deep-dive" id="all-features">
+  <div class="container">
+    <h2>Feature Deep Dive</h2>
+    <p class="section-intro">Click any section to expand. Light Lynx packs a lot into a single extension.</p>
+
+    <div class="accordion">
+
+      <details>
+        <summary>
+          <span class="acc-icon">💡</span>
+          Light Control
+        </summary>
+        <div class="acc-body">
+          <ul>
+            <li><strong>Single-tap toggle</strong> — turn individual lights or entire groups on/off with animated color circles.</li>
+            <li><strong>Brightness slider</strong> — drag to adjust, rendered as a real-time gradient canvas.</li>
+            <li><strong>Color temperature</strong> — warm-to-cool mireds slider, adapts its range to each bulb's capabilities.</li>
+            <li><strong>Full color wheel</strong> — interactive HSV picker with hue and saturation control.</li>
+            <li><strong>Per-member markers</strong> — when controlling a group, small dots show where each individual bulb sits on the color wheel and sliders.</li>
+            <li><strong>Optimistic updates</strong> — the UI updates instantly; server reconciliation happens in the background via Aberdeen's prediction system.</li>
+            <li><strong>Smart color conversion</strong> — send a color to a temperature-only bulb and it translates to the closest color temp (and vice versa). HSV ↔ RGB ↔ XY (CIE 1931) ↔ Mireds.</li>
+            <li><strong>Throttled commands</strong> — state changes are batched (max 3/sec per target) to avoid flooding the Zigbee network.</li>
+            <li><strong>Mixed capability groups</strong> — groups can contain a mix of color and temperature-only bulbs; the extension sends tailored per-bulb commands alongside the group command.</li>
+          </ul>
+          <p class="screenshot-hint" data-screenshot="color-picker">See the color picker in action →</p>
+        </div>
+      </details>
+
+      <details>
+        <summary>
+          <span class="acc-icon">🏠</span>
+          Groups &amp; Scenes
+        </summary>
+        <div class="acc-body">
+          <ul>
+            <li><strong>Groups</strong> — organize lights into rooms. Aggregate color circles show a gradient of all member colors.</li>
+            <li><strong>Create / delete / rename</strong> groups from the app.</li>
+            <li><strong>Add / remove lights</strong> from groups.</li>
+            <li><strong>Scenes</strong> — save named lighting presets (Bright, Dim, Cozy, Movie…). Recall with a single tap.</li>
+            <li><strong>Active scene tracking</strong> — the server tracks which scene is currently active per group, highlighted in the UI.</li>
+            <li><strong>Store / overwrite</strong> — save the current state of all lights as a scene.</li>
+            <li><strong>Scene icons</strong> — built-in icons for common names (Bright, Dim, Cozy, Movie, Night, etc.); custom names show text labels.</li>
+            <li><strong>Off-state storage</strong> — scenes explicitly store per-bulb off-states, so recalling a scene can turn specific bulbs off.</li>
+            <li><strong>Ungrouped lights</strong> — lights not in any group appear in a separate section.</li>
+          </ul>
+          <p class="screenshot-hint" data-screenshot="scenes">See scene management →</p>
+        </div>
+      </details>
+
+      <details>
+        <summary>
+          <span class="acc-icon">🤖</span>
+          Automation
+          <span class="acc-badge">No cloud required</span>
+        </summary>
+        <div class="acc-body" id="automation">
+          <ul>
+            <li><strong>Button linking</strong> — connect any Zigbee button or remote to one or more groups.</li>
+            <li><strong>Tap patterns</strong> — single, double, triple, quadruple, or quintuple press to trigger different scenes. First press always toggles on/off.</li>
+            <li><strong>Motion sensor triggers</strong> — occupancy sensors automatically recall scenes.</li>
+            <li><strong>Time-based triggers</strong> — schedule scenes at specific times of day.</li>
+            <li><strong>Sunrise / sunset offsets</strong> — triggers can be relative to solar position (e.g., "30 min before sunset").</li>
+            <li><strong>Time range conditions</strong> — button/sensor triggers can be constrained to a time window (narrowest range wins).</li>
+            <li><strong>Auto-off timers</strong> — per-group timer that turns lights off after inactivity. Configurable in seconds, minutes, hours, or days.</li>
+            <li><strong>Fast execution</strong> — uses Zigbee-native groups and scenes, runs within Zigbee2MQTT. No round-trips to a cloud.</li>
+            <li><strong>Smooth transitions</strong> — time-based triggers use 20-second transitions; auto-off uses 30-second fade-outs.</li>
+            <li><strong>Smart deduplication</strong> — time triggers only fire once per interval and respect manual overrides.</li>
+          </ul>
+          <p class="screenshot-hint" data-screenshot="scene-editor">See the scene trigger editor →</p>
+        </div>
+      </details>
+
+      <details>
+        <summary>
+          <span class="acc-icon">👥</span>
+          Users &amp; Permissions
+        </summary>
+        <div class="acc-body">
+          <ul>
+            <li><strong>Multiple accounts</strong> — create user accounts for each household member.</li>
+            <li><strong>Admin vs. regular</strong> — admins have full access; regular users have granular permissions.</li>
+            <li><strong>Per-group access levels</strong>:
+              <ul>
+                <li><em>No access</em> — group is invisible to the user.</li>
+                <li><em>Control</em> — operate lights, recall scenes.</li>
+                <li><em>Manage</em> — edit scenes, link sensors, configure settings.</li>
+              </ul>
+            </li>
+            <li><strong>Default access</strong> — set a fallback level for groups not explicitly configured.</li>
+            <li><strong>Client-side hashing</strong> — passwords are PBKDF2-hashed (100K iterations, SHA-256) in the browser. The server only stores and verifies hashes.</li>
+            <li><strong>Shareable URLs</strong> — generate a link with embedded credentials for easy onboarding (credentials are in the URL fragment, not sent to the server).</li>
+          </ul>
+          <p class="screenshot-hint" data-screenshot="user-management">See user management →</p>
+        </div>
+      </details>
+
+      <details>
+        <summary>
+          <span class="acc-icon">🌍</span>
+          Remote Access
+        </summary>
+        <div class="acc-body" id="remote-access">
+          <ul>
+            <li><strong>Instance code</strong> — each server gets a unique code. DNS resolves <code>ext-&lt;code&gt;.lightlynx.eu</code> to your external IP.</li>
+            <li><strong>UPnP port forwarding</strong> — the extension automatically asks your router to forward a random port from the internet to the local WebSocket endpoint.</li>
+            <li><strong>Race-to-connect</strong> — the app tries both the local IP and external domain in parallel, preferring whichever responds first. Wi-Fi ↔ mobile transitions are seamless.</li>
+            <li><strong>Automatic SSL</strong> — Let's Encrypt certificates via DNS-01 challenge. Renewed automatically before expiry.</li>
+            <li><strong>Per-user toggle</strong> — remote access must be enabled both system-wide and per-user. Password required.</li>
+            <li><strong>Random port</strong> — the external port is random and not publicly listed, adding an extra layer of obscurity.</li>
+            <li><strong>No intermediary</strong> — your data flows directly from client to server. No cloud relay, no third-party in the data path.</li>
+          </ul>
+        </div>
+      </details>
+
+      <details>
+        <summary>
+          <span class="acc-icon">⚡</span>
+          Performance &amp; Offline
+        </summary>
+        <div class="acc-body">
+          <ul>
+            <li><strong>Service worker</strong> — stale-while-revalidate caching. App loads from cache immediately, checks for updates in the background.</li>
+            <li><strong>State caching</strong> — light states, groups, and config are persisted to localStorage. The app renders your setup instantly on launch.</li>
+            <li><strong>Delta sync</strong> — after the initial full state, the server sends only JSON merge-patch deltas, minimizing bandwidth.</li>
+            <li><strong>Auto-update</strong> — when a new version is detected, a subtle reload icon appears in the header. One tap to update.</li>
+            <li><strong>PWA installable</strong> — add to home screen for a native app experience. Includes web manifest with icons.</li>
+            <li><strong>Debounced server emit</strong> — state changes are batched before broadcasting to WebSocket clients.</li>
+            <li><strong>Lazy config saves</strong> — config file writes only happen when content actually changes.</li>
+          </ul>
+        </div>
+      </details>
+
+      <details>
+        <summary>
+          <span class="acc-icon">🔧</span>
+          Device Management
+        </summary>
+        <div class="acc-body">
+          <ul>
+            <li><strong>Device discovery</strong> — enable permit-join to pair new Zigbee devices (pulsing icon in header).</li>
+            <li><strong>Rename devices</strong> — give friendly names to bulbs via the app.</li>
+            <li><strong>Remove devices</strong> — delete from Z2M with force-delete fallback.</li>
+            <li><strong>Battery monitoring</strong> — dedicated batteries page sorted by level, with warning badges (≤15%) and critical alerts (≤5%, pulsing) in the header.</li>
+            <li><strong>Device info</strong> — view model, vendor, description, link quality, and firmware update status.</li>
+          </ul>
+        </div>
+      </details>
+
+    </div><!-- .accordion -->
+  </div>
+</section>
+
+<!-- ========== LOCATION INFO ========== -->
+<section class="info-section" id="location">
+  <div class="container">
+    <h2>Location Settings</h2>
+    <div class="info-grid">
+      <div class="info-card">
+        <h3>What's this for?</h3>
+        <p>Your location coordinates (latitude and longitude) are used to calculate accurate sunrise and sunset times for time-based automation.</p>
+      </div>
+      <div class="info-card">
+        <h3>How to set</h3>
+        <ul>
+          <li><strong>Use current location</strong> — click "Use current" to auto-detect via browser geolocation.</li>
+          <li><strong>Manual entry</strong> — enter latitude and longitude manually from any online map.</li>
+        </ul>
+      </div>
+      <div class="info-card">
+        <h3>Privacy</h3>
+        <ul>
+          <li>Coordinates are stored locally on your Zigbee2MQTT server only.</li>
+          <li>Rounded to 2 decimal places (~1 km accuracy) — more than enough for sunrise/sunset.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ========== TECHNICAL ========== -->
+<section class="technical" id="technical">
+  <div class="container">
+    <h2>Under the Hood</h2>
+    <p class="section-intro">For the technically curious. Light Lynx is built with simplicity and performance in mind.</p>
+
+    <div class="tech-grid">
+
+      <div class="tech-card">
+        <h3>Architecture</h3>
+        <p>One Z2M extension + one static web app. The extension creates its own HTTP(S) server and WebSocket endpoint on port 43597 (configurable). It intercepts outgoing MQTT messages from Z2M to gather device state, and injects messages back to send commands. Config is stored in <code>data/lightlynx.json</code>.</p>
+      </div>
+
+      <div class="tech-card">
+        <h3>Reactive UI</h3>
+        <p>Built with <a href="https://github.com/vanviegen/aberdeen" target="_blank" rel="noopener">Aberdeen</a>, a lightweight reactive UI library. The global store is an Aberdeen <code>proxy()</code> — the UI re-renders surgically when any value changes. Optimistic updates via Aberdeen's prediction/rollback system.</p>
+      </div>
+
+      <div class="tech-card">
+        <h3>WebSocket Protocol</h3>
+        <p>Binary-efficient JSON over WebSocket. Commands: <code>set-state</code>, <code>scene</code> (recall/store/add/remove/rename/setTriggers), <code>bridge</code> (relay to Z2M), <code>patch-config</code>, <code>update-user</code>, and more. Server responds with <code>init</code> (full state) then <code>delta</code> (JSON merge-patch) messages.</p>
+      </div>
+
+      <div class="tech-card">
+        <h3>Authentication</h3>
+        <p>PBKDF2 key derivation (100K iterations, SHA-256, fixed salt) happens entirely in the browser. The server only receives and stores the hash. Credentials are passed as URL search params on the WebSocket connection.</p>
+      </div>
+
+      <div class="tech-card">
+        <h3>SSL &amp; DNS</h3>
+        <p>Each server gets an instance ID from the cert backend (Bunny.net edge script). The backend creates DNS records (<code>int-&lt;id&gt;</code> for local, <code>ext-&lt;id&gt;</code> for external) and obtains Let's Encrypt certificates via ACME DNS-01 challenges. Certificates auto-renew 10 days before expiry.</p>
+      </div>
+
+      <div class="tech-card">
+        <h3>Color Pipeline</h3>
+        <p>Full conversion pipeline: HSV ↔ RGB ↔ XY (CIE 1931) ↔ Mireds (color temperature). Binary search for RGB → Mireds. The <code>tailorLightState</code> function adapts any color format to what a specific bulb supports, including warm-white fallbacks for temperature-only lights.</p>
+      </div>
+
+      <div class="tech-card">
+        <h3>Service Worker</h3>
+        <p>Stale-while-revalidate with a 1-second delay before revalidating (to not compete with the initial page load). Full text comparison for change detection — not just ETags. Sends <code>UPDATE_AVAILABLE</code> to all window clients on new content.</p>
+      </div>
+
+      <div class="tech-card">
+        <h3>Automation Engine</h3>
+        <p>Click counting with 1-second timeout for multi-press detection. Time triggers polled every 10 seconds. Sunrise/sunset calculated from coordinates using solar position formulas. Rules stored in Z2M device descriptions and scene names — they survive Z2M restarts and are visible to other tools.</p>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ========== COMPARISON ========== -->
+<section class="comparison" id="comparison">
+  <div class="container">
+    <h2>Why Light Lynx?</h2>
+    <div class="compare-table-wrap">
+      <table class="compare-table">
+        <thead>
+          <tr>
+            <th></th>
+            <th>Light Lynx</th>
+            <th>Hue App</th>
+            <th>Home Assistant</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Runs on your hardware</td>
+            <td class="yes">✓</td>
+            <td class="no">✗</td>
+            <td class="yes">✓</td>
+          </tr>
+          <tr>
+            <td>Works offline</td>
+            <td class="yes">✓</td>
+            <td class="no">✗</td>
+            <td class="yes">✓</td>
+          </tr>
+          <tr>
+            <td>No cloud account required</td>
+            <td class="yes">✓</td>
+            <td class="no">✗</td>
+            <td class="yes">✓</td>
+          </tr>
+          <tr>
+            <td>Zero-config setup</td>
+            <td class="yes">✓</td>
+            <td class="yes">✓</td>
+            <td class="no">✗</td>
+          </tr>
+          <tr>
+            <td>Automatic SSL</td>
+            <td class="yes">✓</td>
+            <td class="na">—</td>
+            <td class="no">✗</td>
+          </tr>
+          <tr>
+            <td>Multi-user permissions</td>
+            <td class="yes">✓</td>
+            <td class="no">✗</td>
+            <td class="yes">✓</td>
+          </tr>
+          <tr>
+            <td>Scene automation</td>
+            <td class="yes">✓</td>
+            <td class="yes">✓</td>
+            <td class="yes">✓</td>
+          </tr>
+          <tr>
+            <td>No subscription fees</td>
+            <td class="yes">✓</td>
+            <td class="no">✗</td>
+            <td class="yes">✓</td>
+          </tr>
+          <tr>
+            <td>Lightweight (single file)</td>
+            <td class="yes">✓</td>
+            <td class="na">—</td>
+            <td class="no">✗</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ========== FOOTER ========== -->
+<footer>
+  <div class="container">
+    <div class="footer-grid">
+      <div>
+        <img src="../src/logo.webp" alt="Light Lynx" width="40" height="40">
+        <p>Light Lynx is open source and self-hosted.<br>No cloud, no subscription, no tracking.</p>
+      </div>
+      <div>
+        <h4>Links</h4>
+        <ul>
+          <li><a href="https://app.lightlynx.eu/" target="_blank" rel="noopener">Open App</a></li>
+          <li><a href="https://app.lightlynx.eu/extension.js" download="lightlynx.js">Download Extension</a></li>
+          <li><a href="https://github.com/nicegram/nicegram-android" target="_blank" rel="noopener">GitHub</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4>Sections</h4>
+        <ul>
+          <li><a href="#features">Features</a></li>
+          <li><a href="#how-it-works">How It Works</a></li>
+          <li><a href="#get-started">Get Started</a></li>
+          <li><a href="#all-features">All Features</a></li>
+          <li><a href="#technical">Technical</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <p>© 2026 Light Lynx. Built by <a href="https://vanviegen.net" target="_blank" rel="noopener">Frank van Viegen</a>.</p>
+    </div>
+  </div>
+</footer>
+
+<!-- Screenshot popup on hover -->
+<div class="screenshot-popup" id="screenshot-popup">
+  <img src="" alt="Screenshot">
+</div>
+
+<script src="./main.js" type="module"></script>
+</body>
+</html>
