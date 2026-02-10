@@ -4,7 +4,7 @@ import * as route from 'aberdeen/route';
 import api from '../api';
 import * as icons from '../icons';
 import { Group, Trigger } from '../types';
-import { routeState, admin, lazySave } from '../ui';
+import { routeState, manage, lazySave } from '../ui';
 import { askConfirm } from '../components/prompt';
 
 // Parse individual time string into structured format for editing
@@ -39,7 +39,7 @@ const scenePresetsClass = insertCss({
 // Enhanced scene automation editor
 export function drawSceneEditor(group: Group, groupId: number): void {
 
-	if (!admin.value || route.current.p[3] == null) {
+	if (!manage.value || route.current.p[3] == null || api.canControlGroup(groupId) !== 'manage') {
 		route.up();
 		return;
 	}

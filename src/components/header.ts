@@ -3,7 +3,7 @@ import * as route from 'aberdeen/route';
 import * as icons from '../icons';
 import api from '../api';
 import logoUrl from '../logo.webp';
-import { routeState, admin } from '../ui';
+import { routeState, manage } from '../ui';
 import { createToast } from './toasts';
 
 const headerStyle = insertCss({
@@ -90,19 +90,39 @@ export function drawHeader(updateAvailable: { value: boolean }): void {
             const server = api.servers[0];
             if (!server) return;
             const user = api.store.config.users?.[server.userName];
-            if (!user?.isAdmin) return;
+            if (!user) return;
+
+            // Determine if manage toggle should be shown:
+            // - Always for admin users
+            // - On group pages where user has 'manage' access
+            // - On bulb pages where the bulb belongs to a group with 'manage' access
+            let showManage = !!user.isAdmin;
+            if (!showManage) {
+                const p = route.current.p;
+                if (p[0] === 'group' && p[1]) {
+                    showManage = api.canControlGroup(parseInt(p[1])) === 'manage';
+                } else if (p[0] === 'bulb' && p[1]) {
+                    const groups = api.lightGroups[p[1]] || [];
+                    showManage = groups.some(gid => api.canControlGroup(gid) === 'manage');
+                }
+            }
+
+            if (!showManage) {
+                manage.value = false;
+                return;
+            }
             
             let holdTimeout: any;
             icons.admin({
-                '.on': admin.value,
+                '.on': manage.value,
                 'mousedown': () => { holdTimeout = setTimeout(() => route.go(['dump']), 1000); },
                 'mouseup': () => clearTimeout(holdTimeout),
                 'mouseleave': () => clearTimeout(holdTimeout),
                 'touchstart': () => { holdTimeout = setTimeout(() => route.go(['dump']), 1000); },
                 'touchend': () => clearTimeout(holdTimeout),
                 'click': () => {
-                    admin.value = !admin.value;
-                    createToast('info', admin.value ? 'Entered admin mode' : 'Left admin mode');
+                    manage.value = !manage.value;
+                    createToast('info', manage.value ? 'Entered manage mode' : 'Left manage mode');
                 },
             });
         });

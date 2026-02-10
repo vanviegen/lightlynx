@@ -14,13 +14,13 @@ export const routeState = proxy<RouteState>({
     drawIcons: undefined
 });
 
-export const admin = proxy(!!route.current.search.admin);
+export const manage = proxy(!!route.current.search.manage);
 
-// Keep admin state in sync with URL
+// Keep manage state in sync with URL
 $(() => {
-    route.current.search.admin; // subscribe to this, so we'll force-update it when it changes
-    if (admin.value) route.current.search.admin = 'y';
-    else delete route.current.search.admin;
+    route.current.search.manage; // subscribe to this, so we'll force-update it when it changes
+    if (manage.value) route.current.search.manage = 'y';
+    else delete route.current.search.manage;
 });
 
 export async function hashSecret(password: string): Promise<string> {

@@ -5,7 +5,7 @@ import api from '../api';
 import * as icons from '../icons';
 import { drawColorPicker, drawBulbCircle } from '../components/color-picker';
 import { Group } from '../types';
-import { routeState, admin, lazySave } from '../ui';
+import { routeState, manage, lazySave } from '../ui';
 import { askConfirm, askPrompt } from '../components/prompt';
 import { drawSceneEditor } from './scene-editor';
 import { Trigger } from '../types';
@@ -72,8 +72,8 @@ export function drawGroupPage(groupId: number): void {
     
     drawColorPicker(group, groupId);
     
-    $("h1#Scenes", () => {
-        if (admin.value) icons.create('.link click=', createScene);
+    $('h1#Scenes', () => {
+        if (manage.value && api.canControlGroup(groupId) === 'manage') icons.create('.link click=', createScene);
     });
     
     $('div.list', () => {
@@ -91,7 +91,7 @@ export function drawGroupPage(groupId: number): void {
                     const triggers = api.store.config.sceneTriggers[groupId]?.[sceneId] || [];
                     drawTriggerBadges(triggers);
                 });
-                if (admin.value) {
+                if (manage.value && api.canControlGroup(groupId) === 'manage') {
                     function configure(e: Event): void {
                         e.stopPropagation();
                         route.go(['group', groupId, 'scene', sceneId]);
@@ -109,7 +109,7 @@ export function drawGroupPage(groupId: number): void {
     });
 
     $("h1#Bulbs", () => {
-        if (admin.value) icons.create('.link click=', () => route.go(['group', groupId, 'addLight']));
+        if (manage.value && api.store.me?.isAdmin) icons.create('.link click=', () => route.go(['group', groupId, 'addLight']));
     });
     
     $("div.list", () => {
@@ -127,9 +127,9 @@ export function drawGroupPage(groupId: number): void {
         }
     });
 
-    // Group configuration section for admin users
+    // Group configuration section for users with manage access
     $(() => {
-        if (admin.value) {
+        if (manage.value && api.canControlGroup(groupId) === 'manage') {
             drawGroupConfigurationEditor(group, groupId);
         }
     });
@@ -243,12 +243,15 @@ function drawGroupConfigurationEditor(
 
     $('h1#Settings');
     
-    // Group name
+    // Group name (admin only - uses bridge command)
     $('div.list', () => {
 
-        $('div.item', () => {
-            $('h2#Name');
-            $('input type=text placeholder="Group name" bind=', ref(groupState, 'name'));
+        $(() => {
+            if (!api.store.me?.isAdmin) return;
+            $('div.item', () => {
+                $('h2#Name');
+                $('input type=text placeholder="Group name" bind=', ref(groupState, 'name'));
+            });
         });
         
         if (automationEnabled) {
@@ -284,11 +287,14 @@ function drawGroupConfigurationEditor(
         }
     });
 
-    $('h1#Actions');
-    $('div.list div.item.link', icons.remove, '#Delete group', 'click=', async () => {
-        if (!await askConfirm(`Are you sure you want to delete group '${group.name}'?`)) return;
-        api.send("bridge", "request", "group", "remove", {id: group.name});
-        route.back('/');
+    $(() => {
+        if (!api.store.me?.isAdmin) return;
+        $('h1#Actions');
+        $('div.list div.item.link', icons.remove, '#Delete group', 'click=', async () => {
+            if (!await askConfirm(`Are you sure you want to delete group '${group.name}'?`)) return;
+            api.send("bridge", "request", "group", "remove", {id: group.name});
+            route.back('/');
+        });
     });
 
     lazySave(() => {

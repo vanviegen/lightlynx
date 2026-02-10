@@ -2,7 +2,7 @@ import { $, proxy, clone, copy, unproxy, peek, merge, onEach } from "aberdeen";
 import { applyPrediction, applyCanon, Patch } from "aberdeen/prediction";
 import * as route from "aberdeen/route";
 import { isHS, tailorLightState }  from "./colors";
-import { LightState, LightCaps, ServerCredentials, Config, GroupWithDerives, ClientState, UserWithName } from "./types";
+import { LightState, LightCaps, ServerCredentials, Config, GroupWithDerives, ClientState, UserWithName, GroupAccess } from "./types";
 import { applyDelta } from "./json-merge-patch";
 
 const REQUIRED_EXTENSION_VERSION = 1;
@@ -612,10 +612,16 @@ class Api {
     }
 
     /**
-     * Check if the current user can control a group (reactive)
+     * Check if the current user can control a group (reactive).
+     * Returns false, true, or 'manage'.
      */
-    canControlGroup(groupId: number): boolean {
-        return this.store.me ? (this.store.me.isAdmin || this.store.me.allowedGroupIds.includes(groupId)) : false;
+    canControlGroup(groupId: number): GroupAccess {
+        const me = this.store.me;
+        if (!me) return false;
+        if (me.isAdmin) return 'manage';
+        const perGroup = me.groupAccess?.[groupId];
+        if (perGroup !== undefined) return perGroup;
+        return me.defaultGroupAccess ?? false;
     }
 
     private onMessage = (event: MessageEvent): void => {

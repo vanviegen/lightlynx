@@ -2,7 +2,7 @@ import { $, proxy, unproxy, onEach } from 'aberdeen';
 import api from '../api';
 import * as icons from '../icons';
 import { drawColorPicker, drawBulbCircle } from '../components/color-picker';
-import { routeState, admin, lazySave } from '../ui';
+import { routeState, manage, lazySave } from '../ui';
 import { askConfirm } from '../components/prompt';
 
 export function drawBulbPage(ieee: string): void {
@@ -25,7 +25,7 @@ export function drawBulbPage(ieee: string): void {
     
     drawColorPicker(device, ieee);
 
-    if (!admin.value) return;
+    if (!manage.value || !api.store.me?.isAdmin) return;
 
     $('h1#Settings');
     const name = proxy(unproxy(device).name);

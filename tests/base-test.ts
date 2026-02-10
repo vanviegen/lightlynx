@@ -101,12 +101,12 @@ async function showOverlayBanner(page: Page, text: string, type: 'info' | 'error
     }, { text, type });
 }
 
-export async function connectToMockServer(page: Page, options: { admin?: boolean; userName?: string; password?: string } = {}): Promise<void> {
-    const { admin = true, userName = 'admin', password = '' } = options;
+export async function connectToMockServer(page: Page, options: { manage?: boolean; userName?: string; password?: string } = {}): Promise<void> {
+    const { manage = true, userName = 'admin', password = '' } = options;
     // Use direct-connect URL
-    const adminParam = admin ? '&admin=y' : '';
+    const manageParam = manage ? '&manage=y' : '';
     const passwordParam = password ? `&secret=${encodeURIComponent(password)}` : '';
-    await page.goto(`/?instanceId=localhost:43598&userName=${encodeURIComponent(userName)}${passwordParam}${adminParam}`);
+    await page.goto(`/?instanceId=localhost:43598&userName=${encodeURIComponent(userName)}${passwordParam}${manageParam}`);
 }
 
 export async function hashPassword(page: Page, password: string): Promise<string> {

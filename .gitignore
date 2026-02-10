@@ -5,5 +5,6 @@ tmp
 tmp-*
 .env
 tests-out
+video-out
 .mock-lock.json
 .mock.log

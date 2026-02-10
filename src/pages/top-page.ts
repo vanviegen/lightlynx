@@ -3,7 +3,7 @@ import * as route from 'aberdeen/route';
 import api from "../api";
 import * as colors from '../colors';
 import { drawBulbCircle } from "../components/color-picker";
-import { routeState, admin, copyToClipboard } from '../ui';
+import { routeState, manage, copyToClipboard } from '../ui';
 import { drawUsersSection } from "./users-page";
 import { askPrompt } from "../components/prompt";
 import { createToast } from "../components/toasts";
@@ -87,7 +87,7 @@ export function drawTopPage(): void {
 	});
 
 	$(() => {
-		if (admin.value) {
+		if (manage.value && api.store.me?.isAdmin) {
 			drawManagementSection();
 			drawUsersSection();
 		}

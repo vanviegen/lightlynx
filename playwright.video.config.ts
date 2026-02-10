@@ -1,4 +1,3 @@
-
 import { defineConfig, devices } from '@playwright/test';
 import { execSync } from 'child_process';
 
@@ -15,31 +14,37 @@ if (!process.env.PW_CLEANUP_DONE) {
 }
 
 export default defineConfig({
-  testDir: './tests',
-  testMatch: ['**/*.spec.ts'], // Include both tests/ and video/ directories
-  outputDir: './tests-out',  // Our custom test framework manages this
+  testDir: './video',
+  outputDir: './video-out',
   fullyParallel: false,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
   workers: 1,
   reporter: 'line',
-  timeout: 60000,
+  timeout: 300000, // 5 minutes for slow scripted demos
   expect: {
     timeout: 5000,
   },
   use: {
     baseURL: 'http://localhost:25833',
     trace: 'on-first-retry',
-    screenshot: 'off', // We capture our own screenshots
+    screenshot: 'off',
     actionTimeout: 5000,
     ignoreHTTPSErrors: true,
+    viewport: { width: 450, height: 800 },
+    video: {
+      mode: 'on',
+      size: { width: 450, height: 800 },
+    },
   },
   projects: [
     {
       name: 'chromium',
       use: {
-        ...devices['Desktop Chrome'],
         viewport: { width: 450, height: 800 },
+        launchOptions: {
+          args: ['--window-size=450,800'],
+        },
       },
     },
   ],

@@ -127,6 +127,9 @@ insertGlobalCss({
         '&::-webkit-scrollbar': 'display:none'
     },
 
+    '.icon': 'w:24px h:24px',
+    'button .icon': 'vertical-align:middle mr:$1',
+
     // List and item styles
     '.list': {
         '&': 'display:flex flex-direction:column gap:$2',
@@ -145,7 +148,7 @@ insertGlobalCss({
             h2: 'font-size:1rem font-weight:500 flex: 1 0 auto; m:0',
             
             '.icon': {
-                '&': 'flex:none w:24px h:24px  background-color:#0000',
+                '&': 'flex:none background-color:#0000',
                 '&:first-child': 'w:28px h:28px'
             },
             '& > input': 'flex:2 min-width:2rem',

@@ -184,10 +184,10 @@ test.describe('User Management', () => {
     await expect(page.locator('h1', { hasText: 'Permissions' })).toBeVisible();
     
     // Check the Kitchen group (already exists in mock)
-    await page.locator('label:has-text("Kitchen") input[type="checkbox"]').check();
+    await page.locator('div.item:has(h2:text("Kitchen")) select').first().selectOption('true');
     
     // Also check Living Room
-    await page.locator('label:has-text("Living Room") input[type="checkbox"]').check();
+    await page.locator('div.item:has(h2:text("Living Room")) select').first().selectOption('true');
     
     await page.getByRole('button', { name: 'Save' }).click();
     
@@ -196,8 +196,8 @@ test.describe('User Management', () => {
     
     // Re-open to verify permissions were saved
     await page.locator('h2', { hasText: 'limiteduser' }).click();
-    await expect(page.locator('label:has-text("Kitchen") input[type="checkbox"]')).toBeChecked();
-    await expect(page.locator('label:has-text("Living Room") input[type="checkbox"]')).toBeChecked();
+    await expect(page.locator('div.item:has(h2:text("Kitchen")) select').first()).toHaveValue('true');
+    await expect(page.locator('div.item:has(h2:text("Living Room")) select').first()).toHaveValue('true');
   });
 
   test('should show existing secret in password field when editing user', async ({ page }) => {

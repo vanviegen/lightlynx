@@ -80,7 +80,8 @@ class LightLynx {
                 admin: {
                     secret: '',
                     isAdmin: true,
-                    allowedGroupIds: [],
+                    defaultGroupAccess: false,
+                    groupAccess: {},
                     allowRemote: false
                 },
             },
@@ -110,6 +111,14 @@ class LightLynx {
 
     private log(level: 'info' | 'error' | 'warning', message: string) {
         this.logger[level](`Light Lynx: ${message}`);
+    }
+
+    /** Check if a user can control a group. Returns false, true, or 'manage'. */
+    private canControlGroup(user: User, groupId: number): false | true | 'manage' {
+        if (user.isAdmin) return 'manage';
+        const perGroup = user.groupAccess?.[groupId];
+        if (perGroup !== undefined) return perGroup;
+        return user.defaultGroupAccess ?? false;
     }
 
     /** Called by Zigbee2MQTT. */
@@ -504,7 +513,7 @@ class LightLynx {
     private async userSetGroupState(user: User, groupId: number, state: any) {
         const group = this.store.groups[groupId];
         if (!group) throw new Error(`Group ${groupId} not found`);
-        if (!user.isAdmin && !user.allowedGroupIds?.includes(groupId)) throw new Error("Permission denied for group");
+        if (!this.canControlGroup(user, groupId)) throw new Error("Permission denied for group");
 
         // First send a command to the zigbee group.
         const delta = createZ2MLightDelta({}, state);
@@ -533,10 +542,8 @@ class LightLynx {
         if (!light) throw new Error(`Light ${ieee} not found`);
         if (!clientInfo.isAdmin) {
             let allow = false;
-            for (const groupId of clientInfo.allowedGroupIds) {
-                const group = this.store.groups[groupId];
-                if (!group) continue;
-                if (group.lightIds.includes(ieee)) {
+            for (const [groupId, group] of Object.entries(this.store.groups)) {
+                if (group.lightIds.includes(ieee) && this.canControlGroup(clientInfo, Number(groupId))) {
                     allow = true;
                     break;
                 }
@@ -601,9 +608,9 @@ class LightLynx {
         const group = this.store.groups[groupId];
         if (!group) throw new Error(`Group ${groupId} not found`);
 
-        if (!user.isAdmin && (subCommand !== 'recall' || !user.allowedGroupIds.includes(groupId))) {
-            throw new Error('Permission denied');
-        }
+        const access = this.canControlGroup(user, groupId);
+        if (!access) throw new Error('Permission denied');
+        if (subCommand !== 'recall' && access !== 'manage') throw new Error('Permission denied: manage access required');
 
         if (subCommand === 'setTriggers') {
             // value: Trigger[] - our custom Light Lynx feature
@@ -637,7 +644,7 @@ class LightLynx {
 
     /** Link or unlink a toggle device to/from a group. */
     private userLinkToggleToGroup(user: User, groupId: number, ieee: string, linked: boolean) {
-        if (!user.isAdmin) throw new Error('Permission denied: not an admin user');
+        if (this.canControlGroup(user, groupId) !== 'manage') throw new Error('Permission denied: manage access required');
         const toggle = this.store.toggles[ieee];
         if (!toggle) throw new Error(`Toggle device ${ieee} not found`);
         
@@ -654,7 +661,7 @@ class LightLynx {
 
     /** Set or clear the auto-off timeout for a group. */
     private userSetGroupTimeout(user: User, groupId: number, timeoutSecs: number | null) {
-        if (!user.isAdmin) throw new Error('Permission denied: not an admin user');
+        if (this.canControlGroup(user, groupId) !== 'manage') throw new Error('Permission denied: manage access required');
         const group = this.store.groups[groupId];
         if (!group) throw new Error(`Group ${groupId} not found`);
         

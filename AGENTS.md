@@ -80,6 +80,28 @@ Playwright + mock Z2M. Playwright auto-starts mock on port 43598 and Vite dev se
 npm test
 ```
 
+### Demo Video Recording
+
+A scripted demo video can be recorded to showcase app functionality:
+
+```bash
+npm run build:video    # Records ~2 min video → video-out/demo.webm
+```
+
+**How it works:**
+- Uses the same test script as `npm test` ([video/demo.spec.ts](video/demo.spec.ts))
+- In video mode: records 450×800 px video with touch ripples, transitions enabled, and viewing pauses
+- In test mode: runs fast without video, ripples, transitions, or pauses
+- Mode detection via `window.__VIDEO_MODE__` flag set by [video/video-helpers.ts](video/video-helpers.ts)
+
+**Video helpers:**
+- `tap(page, locator, delayMs)` — click with visual ripple (video) or instant (test)
+- `slowType(page, locator, text, charDelayMs)` — char-by-char (video) or instant fill (test)
+- `pause(page, ms)` — viewing delay (video only, skipped in test)
+- `swipe(page, locator, direction, distance)` — smooth gesture animation
+
+Output: `video-out/demo.webm` (Playwright's intermediate directory is auto-cleaned)
+
 ### Diagnosing Failures
 
 Results in `tests-out/<test-file>-<start-line>/`:
@@ -104,7 +126,7 @@ If Playwright MCP is unavailable, ask the user.
 
 ## Deployment
 
-Requires `.env` (see `.env.example`): `DEPLOY_HOST`, `DEPLOY_USER`, `DEPLOY_PASS_OBSCURED`, `BUNNY_PZ_ID`, `BUNNY_ACCESS_KEY`.
+Requires `.env` (see `.env.example`): `BUNNY_STORAGE_ZONE_APP`, `DEPLOY_PASS_OBSCURED`, `BUNNY_PZ_ID`, `BUNNY_ACCESS_KEY`.
 
 ```bash
 npm run deploy         # Build + SFTP upload

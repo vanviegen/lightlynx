@@ -91,9 +91,12 @@ export interface Group {
 }
 
 
+export type GroupAccess = false | true | 'manage';
+
 export interface User {
     isAdmin: boolean;
-    allowedGroupIds: number[];
+    defaultGroupAccess: GroupAccess;
+    groupAccess: Record<number, GroupAccess>;
     allowRemote: boolean;
     secret: string;
 }

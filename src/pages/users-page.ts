@@ -34,7 +34,8 @@ export function drawUserEditor(): void {
     const user = proxy<User>(
         existing ? clone(unproxy(existing)) : {
             isAdmin: false,
-            allowedGroupIds: [],
+            defaultGroupAccess: false,
+            groupAccess: {},
             allowRemote: false, // Can't enable without password
             secret: ''
         }
@@ -78,18 +79,37 @@ export function drawUserEditor(): void {
     $(() => {
         if (user.isAdmin) return;
 
-        $('h1#Permissions');
-        $('h2#Allowed Groups');
+        $('h1#Group Permissions');
         $('div.list', () => {
+            $('div.item', () => {
+                $('h2 flex:1 font-weight:bold #Default group access');
+                $('select change=', (e: Event) => {
+                    const val = (e.target as HTMLSelectElement).value;
+                    user.defaultGroupAccess = val === 'manage' ? 'manage' : val === 'true' ? true : false;
+                }, () => {
+                    $('option value=false #No access', 'selected=', user.defaultGroupAccess === false);
+                    $('option value=true #Control', 'selected=', user.defaultGroupAccess === true);
+                    $('option value=manage #Manage', 'selected=', user.defaultGroupAccess === 'manage');
+                });
+            });
             onEach(api.store.groups, (group, groupId) => {
-                $('label.item', () => {
+                $('div.item', () => {
                     const gid = parseInt(groupId);
-                    const checked = user.allowedGroupIds.includes(gid);
-                    $('input type=checkbox', 'checked=', checked, 'change=', (e: any) => {
-                        if (e.target.checked) user.allowedGroupIds.push(gid);
-                        else user.allowedGroupIds = user.allowedGroupIds.filter((id: number) => id !== gid);
+                    $('h2 flex:1 #', group.name);
+                    $('select change=', (e: Event) => {
+                        const val = (e.target as HTMLSelectElement).value;
+                        if (val === 'default') {
+                            delete user.groupAccess[gid];
+                        } else {
+                            user.groupAccess[gid] = val === 'manage' ? 'manage' : val === 'true' ? true : false;
+                        }
+                    }, () => {
+                        const current = user.groupAccess[gid];
+                        $('option value=default #Use default', 'selected=', current === undefined);
+                        $('option value=false #No access', 'selected=', current === false);
+                        $('option value=true #Control', 'selected=', current === true);
+                        $('option value=manage #Manage', 'selected=', current === 'manage');
                     });
-                    $('h2#', group.name);
                 });
             });
             $(() => { if (isEmpty(api.store.groups)) $('div.empty#No groups'); });
