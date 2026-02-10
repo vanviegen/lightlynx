@@ -4,9 +4,9 @@ import http from 'http';
 import https from 'https';
 import dgram from 'dgram';
 import WebSocket, { WebSocketServer } from 'ws';
-import { Config, Group, Light, Scene, Toggle, State, User, StripUnderscoreKeys, UserWithName } from './types';
+import { Config, Group, Light, LightState, Scene, Toggle, State, User, StripUnderscoreKeys, UserWithName, Z2MLightDelta, LightCaps } from './types';
 import { applyDelta, createDelta, createDeltaRecurse, deepClone } from './json-merge-patch';
-import { createZ2MLightDelta, tailorLightState, DEFAULT_TRIGGERS } from './colors';
+import { limitLightStateToCaps, rgbToHsv, DEFAULT_TRIGGERS, lightStateToZ2M, miredsToHs, xyToHs, getHsDistance } from './colors';
 
 const EXTENSION_VERSION = 1;
 const CONFIG_PATH = path.join(process.env.ZIGBEE2MQTT_DATA || path.join(__dirname, '..', '..', 'data'), 'lightlynx.json');
@@ -510,29 +510,97 @@ class LightLynx {
     }
 
     /** Handle set-state command from user for a zigbee group. */
-    private async userSetGroupState(user: User, groupId: number, state: any) {
+    private async userSetGroupState(user: User, groupId: number, state: LightState) {
         const group = this.store.groups[groupId];
         if (!group) throw new Error(`Group ${groupId} not found`);
         if (!this.canControlGroup(user, groupId)) throw new Error("Permission denied for group");
 
-        // First send a command to the zigbee group.
-        const delta = createZ2MLightDelta({}, state);
-        // This *should* work with groupId (which seems more reliable), but doesn't.
-        this.sendMqttCommand(`${group.name}/set`, delta);
+        const ieees = new Map<Light, string>();
+        const lights: Light[] = [];
+        for(const id of group.lightIds) {
+            const light = this.store.lights[id];
+            if (light) {
+                lights.push(light);
+                ieees.set(light, id);
+            }
+        }
 
-        // Then send more tailored commands to each light in the group, if needed.
-        // This may be the case when sending a color command to a light that only
-        // supports color temperature.
-        for (const ieee of group.lightIds) {
-            const light = this.store.lights[ieee];
-            if (!light) continue;
-            const tailoredDelta = createZ2MLightDelta(light.lightState, tailorLightState(state, light.lightCaps));
-            for(const [k,v] of Object.entries(delta) as [keyof typeof delta, any][]) {
-                if (tailoredDelta[k] === v) delete tailoredDelta[k];
+        const groupDelta: LightState = {};
+
+        if (state.on != null) {
+            const targets = lights.filter(l => l.lightState.on !== state.on);
+            if (targets.length) groupDelta.on = state.on;
+        }
+        if (state.brightness != null) {
+            const targets = lights.filter(l => l.lightCaps.brightness && l.lightState.brightness !== state.brightness);
+            if (targets.length) groupDelta.brightness = state.brightness;
+        }
+        const lightDeltas: Record<string, LightState> = {};
+        if (state.mireds) {
+            const targets = lights.filter(l => (l.lightCaps.mireds && l.lightState.mireds !== state.mireds));
+            if (targets.length) {
+                const fakes = targets.filter(l => l.lightCaps._fakeMireds);
+                if (fakes.length === targets.length) {
+                    // All targets only have fake temperature, so we'll send color to the group
+                    Object.assign(groupDelta, miredsToHs(state.mireds));
+                }
+                else {
+                    if (targets.length > fakes.length) {
+                        // At least some target have real temperature. We'll send that to the group, and fake color to the rest
+                        groupDelta.mireds = state.mireds;
+                    }
+                    if (fakes.length) {
+                        // Some targets have fake temperature. We'll send color to those individually
+                        const value = miredsToHs(state.mireds);
+                        for (const fake of fakes) {
+                            lightDeltas[ieees.get(fake)!] = value;
+                        }
+                    }
+                }
             }
-            if (Object.keys(tailoredDelta).length) {
-                this.sendMqttCommand(`${ieee}/set`, tailoredDelta);
+        }
+        else if (state.hue != null && state.saturation != null) {
+            // Setting both is easy
+            const targets = lights.filter(l => l.lightCaps.color && (l.lightState.hue !== state.hue || l.lightState.saturation !== state.saturation));
+            if (targets.length) Object.assign(groupDelta, {hue: state.hue, saturation: state.saturation});
+        }
+        else if (state.hue != null || state.saturation != null) {
+            // Setting only hue or only saturation. This is tricky, as we'll want to preserve the other, but this is a single Zigbee property.
+            const prop = state.hue != null ? 'hue' : 'saturation';
+            const other = prop === 'hue' ? 'saturation' : 'hue';
+            const targets = lights.filter(l => l.lightCaps.color);
+            let commonOther: number | undefined = targets[0]?.lightState[other];
+            for(const target of targets) {
+                if (target.lightState[other] !== commonOther) commonOther = undefined;
             }
+            if (commonOther !== undefined) {
+                // A group command can be sent. Only do so if any value actually needs changing
+                if (targets.some(l => l.lightState[prop] !== state[prop])) {
+                    Object.assign(groupDelta, {[prop]: state[prop], [other]: commonOther} as {hue: number, saturation: number});
+                }
+            } else {
+                // We'll need to send individual commands, for different `other` values
+                for(const target of targets) {
+                    if (target.lightState[prop] !== state[prop]) {
+                        lightDeltas[ieees.get(target)!] = {[prop]: state[prop], [other]: target.lightState[other]};
+                    }
+                }
+            }
+        }
+
+        // Optimistically update the light state for each of our lights. We does this partly to preserve
+        // our 'virtual' state, such as when mapping mireds to colors.
+        for(const light of lights) {
+            Object.assign(light.lightState, limitLightStateToCaps(state, light.lightCaps));
+        }
+
+        // Now ask Z2M to do the updates, first for the group and then to individual devices
+        if (Object.keys(groupDelta).length) {
+            // This *should* work with groupId (which seems more reliable), but doesn't.
+            this.sendMqttCommand(`${group.name}/set`, lightStateToZ2M(groupDelta));
+        }
+        for(const [ieee, lightDelta] of Object.entries(lightDeltas)) {
+            this.sendMqttCommand(`${ieee}/set`, lightStateToZ2M(lightDelta));
         }
     }
 
@@ -551,8 +619,21 @@ class LightLynx {
             if (!allow) throw new Error("Permission denied for device");
         }
 
-        const delta = createZ2MLightDelta(light.lightState, tailorLightState(state, light.lightCaps))
-        this.sendMqttCommand(`${ieee}/set`, delta);
+
+        const old = light.lightState;
+        const delta: LightState = {};
+        if (state.on != null && old.on !== state.on) delta.on = state.on;
+        if (state.brightness != null && old.brightness !== state.brightness) delta.brightness = state.brightness;
+        if (state.mireds != null && old.mireds !== state.mireds) delta.mireds = state.mireds;
+        if (state.hue != null && old.hue !== state.hue) delta.hue = state.hue;
+        if (state.saturation != null && old.saturation !== state.saturation) delta.saturation = state.saturation;
+
+        // Optimistically update the light state for each of our lights. We does this partly to preserve
+        // our 'virtual' state, such as when mapping mireds to colors.
+        Object.assign(light.lightState, limitLightStateToCaps(state, light.lightCaps));
+
+        // Now ask Z2M to do the update
+        this.sendMqttCommand(`${ieee}/set`, lightStateToZ2M(delta));
     }
 
     /** Relay admin commands send to the Zigbee2MQTT 'bridge' virtual device. */
@@ -762,19 +843,16 @@ class LightLynx {
                     for (const feature of (expose.features || [])) {
                         features[feature.name] = {};
                         if (feature.value_max !== undefined) {
-                            features[feature.name].valueMin = feature.value_min;
-                            features[feature.name].valueMax = feature.value_max;
+                            features[feature.name].min = feature.value_min;
+                            features[feature.name].max = feature.value_max;
                         }
                     }
-                    const lightCaps = {
-                        supportsBrightness: !!features.brightness,
-                        supportsColor: !!(features.color_hs || features.color_xy),
-                        supportsColorTemp: !!features.color_temp,
+                    const lightCaps: LightCaps = {
                         brightness: features.brightness,
-                        colorTemp: features.color_temp,
-                        colorHs: !!features.color_hs,
-                        colorXy: !!features.color_xy
+                        mireds: features.color_temp || (features.color_hs || features.color_xy ? { min: 150, max: 500 } : undefined),
+                        color: Boolean(features.color_hs || features.color_xy)
                     };
+                    if (lightCaps.mireds && !features.color_temp) lightCaps._fakeMireds = true;
                     const old = this.store.lights[ieee];
                     lights[ieee] = {
                         ...dev,
@@ -886,17 +964,23 @@ class LightLynx {
     /** Translate outgoing Z2M light state messages to this.store.lights[x]. */
     private handleLightState(dev: Light, payload: any) {
         if (payload.state == null) return;
+        const old = dev.lightState;
         dev.lightState = {
             on: payload.state === 'ON',
             brightness: payload.brightness,
-            color: undefined,
         };
+
         if (payload.color_mode === 'color_temp') {
-            dev.lightState.color = payload.color_temp;
-        } else if (payload.color?.hue) {
-            dev.lightState.color = { hue: payload.color.hue, saturation: payload.color.saturation / 100 };
-        } else if (payload.color?.x) {
-            dev.lightState.color = payload.color;
+            dev.lightState.mireds = payload.color_temp;
+        } else if (payload.color && (payload.color.x || payload.color.hue)) {
+            const hs = payload.color.x ? xyToHs(payload.color.x, payload.color.y) : {hue: payload.color.hue, saturation: Math.round(payload.color.saturation * 100)};
+            if (old.mireds != null && dev.lightCaps._fakeMireds && getHsDistance(miredsToHs(old.mireds), hs) < 0.05) {
+                // If we're faking mireds, and this color comes close to the mireds value that was set earlier,
+                // we'll just keep the mireds value.
+                dev.lightState.mireds = old.mireds;
+            } else {
+                Object.assign(dev.lightState, hs);
+            }
         }
     }
 

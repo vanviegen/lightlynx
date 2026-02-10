@@ -7,15 +7,13 @@ export function drawBatteriesPage(): void {
     
     routeState.title = 'Batteries';
     $('div.list', () => {
-        onEach(api.store.devices, (device, ieee) => {
-            if (device.lightCaps) return;
+        onEach(api.store.toggles, (device, ieee) => {
             const b = device.meta?.battery;
             $('div.item.link', 'click=', () => route.go(['bulb', ieee]), () => {
                 $('h2#', device.name);
                 $('p font-weight:bold flex:0 #', b !== undefined ? `${Math.round(b)}%` : 'Unknown', b==undefined ? '' : b <= 5 ? '.critical' : b <= 15 ? '.warning' : '');
             });
         }, (device) => {
-            if (device.lightCaps) return;
             return [(device.meta?.battery ?? 101), device.name]; 
         });
     });

@@ -66,7 +66,7 @@ export function drawTopPage(): void {
 					}); // Sort be trigger event, and then by name
 					
 					if (isEmpty(group.scenes)) {
-						icons.scenes.normal('click=', () => api.setLightState(groupId, {on: false, brightness: 140, color: colors.CT_DEFAULT}));
+						icons.scenes.normal('click=', () => api.setLightState(groupId, {on: false, brightness: 140, mireds: colors.CT_DEFAULT}));
 					}
 				});
 			});

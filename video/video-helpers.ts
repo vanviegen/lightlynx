@@ -4,23 +4,9 @@ import * as fs from 'fs';
 
 export { type Page, expect } from '@playwright/test';
 
-const SCREENSHOT_DIR = path.join(process.cwd(), 'build.demo');
-
 // Detect if we're running in video recording mode
 function isVideoMode(testInfo: TestInfo): boolean {
     return testInfo.project.use.video !== undefined && testInfo.project.use.video !== 'off';
-}
-
-/**
- * Capture a named screenshot to build.demo/<name>.png for use on the landing page.
- */
-export async function captureScreenshot(page: Page, name: string): Promise<void> {
-    if (!fs.existsSync(SCREENSHOT_DIR)) {
-        fs.mkdirSync(SCREENSHOT_DIR, { recursive: true });
-    }
-    const filePath = path.join(SCREENSHOT_DIR, `${name}.png`);
-    await page.screenshot({ path: filePath });
-    console.log(`📸 Screenshot saved: ${filePath}`);
 }
 
 // Custom test fixture that adapts to video or test mode

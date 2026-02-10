@@ -1,4 +1,4 @@
-import { test, expect, connectToMockServer, tap, slowType, pause, swipe, captureScreenshot } from './video-helpers';
+import { test, expect, connectToMockServer, tap, slowType, pause, swipe } from './video-helpers';
 
 test.describe('Light Lynx Demo Video', () => {
   test('full app demo (~2 minutes)', async ({ page }) => {
@@ -9,7 +9,6 @@ test.describe('Light Lynx Demo Video', () => {
     await connectToMockServer(page, { manage: false });
     await expect(page.locator('header h1')).toContainText('Light Lynx');
     await pause(page, 3000); // Let viewer take in the main page
-    await captureScreenshot(page, 'main-view');
 
     // Toggle Living Room group on
     const livingRoomGroup = page.locator('.item.group').filter({
@@ -36,7 +35,6 @@ test.describe('Light Lynx Demo Video', () => {
     await tap(page, livingRoomLink);
     await expect(page.locator('header h1')).toContainText('Living Room');
     await pause(page, 3000); // Show color picker and scenes
-    await captureScreenshot(page, 'color-picker');
 
     // Turn on the group so we can see color changes
     const groupCircle = page.locator('.circle').first();
@@ -60,11 +58,13 @@ test.describe('Light Lynx Demo Video', () => {
     await swipe(page, tempSlider, 'left', 120);
     await pause(page, 2000);
 
-    // Swipe on color wheel
-    const colorWheel = page.locator('canvas').nth(2);
-    await swipe(page, colorWheel, 'right', 80);
+    // Swipe on hue slider
+    const hueSlider = page.locator('canvas').nth(2);
+    await swipe(page, hueSlider, 'right', 80);
     await pause(page, 800);
-    await swipe(page, colorWheel, 'down', 80);
+    // Swipe on saturation slider
+    const satSlider = page.locator('canvas').nth(3);
+    await swipe(page, satSlider, 'left', 80);
     await pause(page, 1500);
 
     // ===== Scenes =====
@@ -83,18 +83,16 @@ test.describe('Light Lynx Demo Video', () => {
     const dimScene = page.locator('.item.link', { hasText: 'Dim' }).first();
     await tap(page, dimScene);
     await pause(page, 1500);
-    await captureScreenshot(page, 'scenes');
 
     // ===== Individual Bulb =====
     const bulbLink = page.locator('h2.link', { hasText: 'Color Light' }).first();
     await tap(page, bulbLink);
     await expect(page.locator('header h1')).toContainText('Color Light');
     await pause(page, 2500);
-    await captureScreenshot(page, 'individual-bulb');
 
-    // Swipe on color picker
-    const bulbColorWheel = page.locator('canvas').nth(2);
-    await swipe(page, bulbColorWheel, 'left', 100);
+    // Swipe on hue slider
+    const bulbHueSlider = page.locator('canvas').nth(2);
+    await swipe(page, bulbHueSlider, 'left', 100);
     await pause(page, 1500);
 
     // Go back to group
@@ -112,7 +110,6 @@ test.describe('Light Lynx Demo Video', () => {
     const manageIcon = page.locator('header svg[aria-label="admin"]');
     await tap(page, manageIcon);
     await pause(page, 2500); // Management and Users sections appear
-    await captureScreenshot(page, 'manage-mode');
 
     // Scroll down to show the Management section
     await page.evaluate(() => {
@@ -154,7 +151,6 @@ test.describe('Light Lynx Demo Video', () => {
     const sceneConfigIcon = sceneItem.locator('svg').last();
     await tap(page, sceneConfigIcon);
     await pause(page, 2500); // Show scene editor
-    await captureScreenshot(page, 'scene-editor');
 
     // Go back from scene editor
     await page.goBack();
@@ -192,7 +188,6 @@ test.describe('Light Lynx Demo Video', () => {
     await tap(page, adminUserItem);
     await expect(page.locator('.subTitle')).toHaveText('user');
     await pause(page, 2000);
-    await captureScreenshot(page, 'user-management');
 
     // Go back
     await page.goBack();

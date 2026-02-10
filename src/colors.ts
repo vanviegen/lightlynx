@@ -1,4 +1,4 @@
-import { XYColor, HSColor, LightState, LightCaps, Z2MLightDelta, ColorValue } from './types';
+import { LightState, LightCaps, Z2MLightDelta } from './types';
 
 export const CT_DEFAULT = 300;
 
@@ -9,6 +9,31 @@ export function hsvToRgb(h: number, s: number, v: number): [number, number, numb
         let k = (n + h / 60) % 6;
         return Math.max(0, Math.min(255, Math.round((v - v * s * Math.max(Math.min(k, 4 - k, 1), 0)) * 255)));
     }) as [number, number, number];
+}
+
+export function xyvToRgb(x: number, y: number, v: number): [number, number, number] {
+    const z = 1.0 - x - y;
+    const Y = 1.0;
+    const X = (Y / y) * x;
+    const Z = (Y / y) * z;
+    let red = X * 1.656492 - Y * 0.354851 - Z * 0.255038;
+    let green = -X * 0.707196 + Y * 1.655397 + Z * 0.036152;
+    let blue = X * 0.051713 - Y * 0.121364 + Z * 1.011530;
+    const maxVal = Math.max(red, green, blue, 1.0);
+    return [Math.max(0, red / maxVal) * v, Math.max(0, green / maxVal) * v, Math.max(0, blue / maxVal) * v];
+}
+
+export function xyToHs(x: number, y: number): {hue: number, saturation: number} {
+    const [h, s] = rgbToHsv(xyvToRgb(x, y, 255));
+    return { hue: Math.round(h), saturation: Math.round(s * 100) };
+}
+
+/** Calculate the distance between two HS (hue, saturation) values as a value 0..2. Accounts for
+ * hue being circular.
+ */
+export function getHsDistance(hs1: {hue: number, saturation: number}, hs2: {hue: number, saturation: number}): number {
+    const d = Math.abs(hs1.hue - hs2.hue)/360;
+    return (d < 0.5 ? d : 1-d) + Math.abs(hs1.saturation - hs2.saturation)/100;
 }
 
 export function rgbToHsv([r, g, b]: [number, number, number]): [number, number, number] {
@@ -34,77 +59,6 @@ export function rgbToHsv([r, g, b]: [number, number, number]): [number, number, 
     return [hue, sat, max];
 }
 
-// From: https://github.com/usolved/cie-rgb-converter/blob/master/cie_rgb_converter.js
-export function rgbToXy([r, g, b]: [number, number, number]): XYColor {
-    // RGB values to XYZ using the Wide RGB D65 conversion formula
-    const X = r * 0.664511 + g * 0.154324 + b * 0.162028;
-    const Y = r * 0.283881 + g * 0.668433 + b * 0.047685;
-    const Z = r * 0.000088 + g * 0.072310 + b * 0.986039;
-    const sum = X + Y + Z;
-
-    const retX = (sum == 0) ? 0 : X / sum;
-    const retY = (sum == 0) ? 0 : Y / sum;
-
-    return { x: retX, y: retY };
-}
-
-export function xyToRgb({ x, y }: XYColor, brightness: number = 1): [number, number, number] {
-    const z = 1.0 - x - y;
-    const Y = Number(brightness.toFixed(2));
-    const X = (Y / y) * x;
-    const Z = (Y / y) * z;
-
-    // Convert to RGB using Wide RGB D65 conversion
-    let red = X * 1.656492 - Y * 0.354851 - Z * 0.255038;
-    let green = -X * 0.707196 + Y * 1.655397 + Z * 0.036152;
-    let blue = X * 0.051713 - Y * 0.121364 + Z * 1.011530;
-
-    // If red, green or blue is larger than 1.0 set it back to the maximum of 1.0
-    if (red > blue && red > green && red > 1.0) {
-        green = green / red;
-        blue = blue / red;
-        red = 1.0;
-    } else if (green > blue && green > red && green > 1.0) {
-        red = red / green;
-        blue = blue / green;
-        green = 1.0;
-    } else if (blue > red && blue > green && blue > 1.0) {
-        red = red / blue;
-        green = green / blue;
-        blue = 1.0;
-    }
-
-    // This fixes situation when due to computational errors value get slightly below 0, or NaN in case of zero-division.
-    red = (isNaN(red) || red < 0) ? 0 : red;
-    green = (isNaN(green) || green < 0) ? 0 : green;
-    blue = (isNaN(blue) || blue < 0) ? 0 : blue;
-
-    return [red * 255, green * 255, blue * 255];
-}
-
-export function hsToXy(hsColor: HSColor): XYColor {
-    let [r, g, b] = hsvToRgb(hsColor.hue, hsColor.saturation, 1);
-    return rgbToXy([r, g, b]);
-}
-
-export function xyToHsv(xy: XYColor): [number, number, number] {
-    return rgbToHsv(xyToRgb(xy));
-}
-
-export function xyToHs(xy: XYColor): HSColor {
-    console.log('xy', xy);
-    console.log('rgb', xyToRgb(xy));
-    console.log('hsv', rgbToHsv(xyToRgb(xy)));
-    console.log('hs', rgbToHsv(xyToRgb(xy)).slice(0, 2));
-    const [h, s] = rgbToHsv(xyToRgb(xy)).slice(0, 2) as [number, number];
-    return { hue: h, saturation: s };
-}
-
-export function miredsToHs(mireds: number): HSColor {
-    const [h, s] = rgbToHsv(miredsToRgb(mireds, 1)).slice(0, 2) as [number, number];
-    return { hue: h, saturation: s };
-}
-
 export function miredsToRgb(mireds: number, brightness: number = 1): [number, number, number] {
     let temp = 10000 / mireds; // in hundreds of kelvins
 
@@ -119,122 +73,62 @@ export function miredsToRgb(mireds: number, brightness: number = 1): [number, nu
     return rgb;
 }
 
-export function rgbToMireds(rgb: [number, number, number], maxDelta: number = 50, min: number = 10, max: number = 1000): number | undefined {
-    const maxStep = 7;
-
-    let bestI = 0;
-    let results: Array<{ delta: number; mireds: number }> = [];
-    for (let i = 0; i <= maxStep; i++) {
-        let mireds = Math.round((max - min) / maxStep * i + min);
-        let rgb2 = miredsToRgb(mireds);
-        let delta = Math.abs(rgb2[0] - rgb[0]) + Math.abs(rgb2[1] - rgb[1]) + Math.abs(rgb2[2] - rgb[2]);
-        results.push({ delta, mireds });
-        if (delta < results[bestI]!.delta) bestI = i;
-    }
-    if (Math.abs(max - min) <= maxStep) {
-        return results[bestI]!.delta <= maxDelta ? results[bestI]!.mireds : undefined;
-    }
-    let nextI = bestI == maxStep || (bestI > 0 && results[bestI - 1]!.delta < results[bestI + 1]!.delta) ? bestI - 1 : bestI + 1;
-    return rgbToMireds(rgb, maxDelta, results[bestI]!.mireds, results[nextI]!.mireds);
-}
-
 export function rgbToHex(rgb: [number, number, number]): string {
     return '#' + rgb.map(c => Math.max(0, Math.min(255, Math.round(c))).toString(16).padStart(2, '0')).join('');
 }
 
-export function toRgb(color: number | HSColor | XYColor | null | undefined, brightness: number = 1): [number, number, number] {
-    if (isHS(color)) return hsvToRgb(color.hue, color.saturation, brightness);
-    if (isXY(color)) return xyToRgb(color, brightness);
-    return miredsToRgb((color as number) || CT_DEFAULT, brightness);
+/** Convert a LightState to an RGB color for display purposes. */
+export function stateToRgb(state: LightState, brightness: number = 1): [number, number, number] {
+    if (state.hue != null) return hsvToRgb(state.hue, (state.saturation ?? 100) / 100, brightness);
+    return miredsToRgb(state.mireds ?? CT_DEFAULT, brightness);
 }
 
 
-// Helper functions for color type checking
-export function isHS(color: any): color is HSColor {
-    return color && typeof color === 'object' && 'hue' in color;
-}
 
-export function isXY(color: any): color is XYColor {
-    return color && typeof color === 'object' && 'x' in color;
-}
-
-function colorsEqual(a?: ColorValue, b?: ColorValue): boolean {
-    if (a === b) return true;
-    if (!a || !b) return false;
-    if (isHS(a) && isHS(b)) {
-        return a.hue === b.hue && a.saturation === b.saturation;
-    }
-    if (isXY(a) && isXY(b)) {
-        return a.x === b.x && a.y === b.y;
-    }
-    return false;
-}
-
-export function createZ2MLightDelta(o: LightState, n: LightState): Z2MLightDelta {
+export function lightStateToZ2M(state: LightState): Z2MLightDelta {
     let delta: Z2MLightDelta = {};
-    if (n.on != null && o.on !== n.on) {
-        delta.state = n.on ? 'ON' : 'OFF';
+    if (state.on != null) {
+        delta.state = state.on ? 'ON' : 'OFF';
     }
-    if (n.brightness != null && o.brightness !== n.brightness) {
-        delta.brightness = n.brightness;
+    if (state.brightness != null) {
+        delta.brightness = state.brightness;
     }
-    if (n.color != null && !colorsEqual(n.color, o.color)) {
-        if (isHS(n.color)) {
-            delta.color = { hue: Math.round(n.color.hue), saturation: Math.round(n.color.saturation * 100) };
-        } else if (isXY(n.color)) {
-            delta.color = n.color;
-        } else {
-            delta.color_temp = n.color as number;
-        }
+    if (state.mireds != null) {
+        delta.color_temp = state.mireds;
+    }
+    if (state.hue != null && state.saturation != null) {
+        delta.color = { hue: Math.round(state.hue), saturation: Math.round(state.saturation)/100 };
     }
     return delta;
+}
+
+export function miredsToHs(temperature: number): {hue: number, saturation: number} {
+    const hsv = rgbToHsv(miredsToRgb(temperature, 1));
+    return { hue: Math.round(hsv[0]), saturation: Math.round(hsv[1] * 100) };
 }
 
 /**
  * Given a generic light state and a certain light's capability, return a light state that
  * fits what the light can handle.
  */
-export function tailorLightState(from: LightState, cap: LightCaps): LightState {
+export function limitLightStateToCaps(from: LightState, cap: LightCaps): LightState {
     let to: LightState = {};
 
-    if (from.on != null) {
-        to.on = from.on;
+    if (from.on != null) to.on = from.on;
+    if (from.brightness != null && cap.brightness) to.brightness = Math.min(cap.brightness.max, Math.max(cap.brightness.min, 1, from.brightness));
+    if (from.hue != null && cap.color) {
+        to.hue = from.hue;
+        to.mireds = undefined; // Clear mireds if we're setting hue, since they conflict
     }
-
-    if (isHS(from.color)) {
-        if (cap.colorHs) {
-            to.color = from.color;
-        }
-        else if (cap.colorXy) {
-            to.color = hsToXy(from.color as HSColor);
-        }
+    if (from.saturation != null && cap.color) {
+        to.saturation = from.saturation;
+        to.mireds = undefined; // Clear mireds if we're setting saturation, since they conflict
     }
-    else if (typeof from.color === 'number') {
-        if (cap.colorTemp) {
-            to.color = from.color;
-        }
-        else if (cap.colorHs) {
-            const hsColor = miredsToHs(from.color);
-            to.color = hsColor;
-        }
-        else if (cap.colorXy) {
-            const hsColor = miredsToHs(from.color);
-            to.color = hsToXy(hsColor);
-        }
+    if (from.mireds != null && cap.mireds) {
+        to.mireds = Math.min(cap.mireds.max, Math.max(cap.mireds.min, from.mireds));
+        to.hue = undefined; // Clear hue/sat if we're setting mireds, since they conflict
+        to.saturation = undefined;
     }
-    else if (isXY(from.color)) {
-        to.color = from.color;
-    }
-    if (cap.colorTemp && typeof to.color === 'number') {
-        to.color = Math.min(cap.colorTemp.valueMax, Math.max(cap.colorTemp.valueMin, to.color));
-    }
-
-    if (from.brightness != null) {
-        if (cap.brightness) {
-            to.brightness = Math.min(cap.brightness.valueMax, Math.max(cap.brightness.valueMin, 1, from.brightness));
-        }
-    }
-    // console.log('tailorLightState', 'from', from, 'to', to, 'cap', cap)
 
     return to;
 }

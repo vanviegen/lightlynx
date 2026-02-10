@@ -15,7 +15,7 @@
     "deploy:purge-cdn": "dotenv -- bash -c 'for ID in $BUNNY_PZ_ID_APP $BUNNY_PZ_ID_SITE; do curl --request POST --url https://api.bunny.net/pullzone/$ID/purgeCache --header \"AccessKey: $BUNNY_ACCESS_KEY\" --header \"accept: application/json\" --header \"content-type: application/json\" --data \"{}\"; done'",
     "deploy:cert": "npm run build:cert && dotenv -- bash -c 'node scripts/deploy-bunny-script.cjs $BUNNY_SSL_SCRIPT_ID $BUNNY_ACCESS_KEY build.backend/cert.js'",
     "deploy:dns": "dotenv -- bash -c 'node scripts/deploy-bunny-script.cjs $BUNNY_DNS_SCRIPT_ID $BUNNY_ACCESS_KEY src/backend/dns.js'",
-    "deploy": "npm run build && npm run deploy:app && npm run deploy:site && npm run deploy:cert && npm run deploy:dns && npm run deploy:purge-cdn",
+    "deploy": "npm run build && if [ ! -f build.demo/demo.webm ] ; then npm run build:video ; fi && if [ ! -f build.demo/color-picker.png ] ; then npm run test ; fi && npm run deploy:app && npm run deploy:site && npm run deploy:cert && npm run deploy:dns && npm run deploy:purge-cdn",
     "deploy:app": "dotenv -- bash -c 'rclone sync build.frontend/ :sftp,host=storage.bunnycdn.com,user=$BUNNY_STORAGE_ZONE_APP,pass=$BUNNY_STORAGE_PASS_OBSCURED_APP,key_use_agent=false:/ --progress --inplace --sftp-shell-type=none'",
     "deploy:site": "dotenv -- bash -c 'rclone sync build.site/ :sftp,host=storage.bunnycdn.com,user=$BUNNY_STORAGE_ZONE_SITE,pass=$BUNNY_STORAGE_PASS_OBSCURED_SITE,key_use_agent=false:/ --progress --inplace --sftp-shell-type=none'",
     "test": "rm -rf tests-out/* && playwright test",

@@ -1,7 +1,7 @@
 import { $, proxy, clone, copy, unproxy, peek, merge, onEach } from "aberdeen";
 import { applyPrediction, applyCanon, Patch } from "aberdeen/prediction";
 import * as route from "aberdeen/route";
-import { isHS, tailorLightState }  from "./colors";
+import { limitLightStateToCaps }  from "./colors";
 import { LightState, LightCaps, ServerCredentials, Config, GroupWithDerives, ClientState, UserWithName, GroupAccess } from "./types";
 import { applyDelta } from "./json-merge-patch";
 
@@ -418,7 +418,7 @@ class Api {
             for (const [ieee, lightState] of Object.entries(lightStates)) {
                 const light = this.store.lights[ieee];
                 if (!light) continue;
-                copy(light.lightState, tailorLightState(lightState, light.lightCaps));
+                copy(light.lightState, lightState);
             }
             return 6000;
         });
@@ -446,12 +446,12 @@ class Api {
                 for(const ieee of group.lightIds) {
                     const light = this.store.lights[ieee];
                     if (!light) continue;
-                    Object.assign(light.lightState, tailorLightState(lightState, light.lightCaps));
+                    copy(light.lightState, limitLightStateToCaps(lightState, light.lightCaps));
                 }
             } else {
                 const light = this.store.lights[target];
                 if (!light) return;
-                Object.assign(light.lightState, tailorLightState(lightState, light.lightCaps));
+                copy(light.lightState, limitLightStateToCaps(lightState, light.lightCaps));
             }
         });
         this.setLightStatePredictions.set(target, patch);
@@ -464,7 +464,6 @@ class Api {
             }
         }, 3000);
 
-
         // Send the state, but at most 3 times per second per target
         const actuallySendState = () => {
             const value = this.setLightStateObjects.get(target);
@@ -472,6 +471,10 @@ class Api {
                 this.send('set-state', target, value);
                 this.setLightStateTimers.set(target, setTimeout(actuallySendState, 333));
                 this.setLightStateObjects.delete(target);
+                // If we've actually send the state out, we don't want to drop the prediction when shifting
+                // a slider a bit further. Instead, we keep it around until the server confirms/invalidates it.
+                // Until then, it will act as the basis for more predictions on top.
+                this.setLightStatePredictions.delete(target);
             } else {
                 this.setLightStateTimers.delete(target);
             }
@@ -480,7 +483,7 @@ class Api {
         const org = this.setLightStateObjects.get(target) || {};
         this.setLightStateObjects.set(target, { ...org, ...lightState });
 
-        actuallySendState();
+        if (!this.setLightStateTimers.has(target)) actuallySendState();
     }
 
     private setLightStateObjects: Map<string|number, LightState> = new Map();
@@ -509,9 +512,9 @@ class Api {
             for(const [name,obj] of Object.entries(light.lightCaps||{}) as [keyof LightCaps, any][]) {
                 if (obj && typeof obj === 'object') {
                     const cap = (groupCaps[name] ||= clone(obj));
-                    if (obj.valueMin != null && cap.valueMin != null) {
-                        cap.valueMin = Math.min(cap.valueMin, obj.valueMin);
-                        cap.valueMax = Math.max(cap.valueMax, obj.valueMax);
+                    if (obj.min != null && cap.min != null) {
+                        cap.min = Math.min(cap.min, obj.min);
+                        cap.max = Math.max(cap.max, obj.max);
                     }
                 } else {
                     // For booleans (supportsBrightness, etc), use OR (any member supports it)
@@ -524,16 +527,24 @@ class Api {
             const lightState = light.lightState;
             groupState.on = groupState.on || lightState.on;
 
-            if (typeof groupState.color === 'number' && typeof lightState.color === 'number' && Math.abs(groupState.color-lightState.color)<10) {
+            if (groupState.mireds != null && lightState.mireds != null && Math.abs(groupState.mireds - lightState.mireds) < 10) {
                 // Color temp similar enough! Take the average.
-                groupState.color = Math.round((groupState.color * lightIndex + lightState.color) / (lightIndex+1));
+                groupState.mireds = Math.round((groupState.mireds * lightIndex + lightState.mireds) / (lightIndex + 1));
+            } else if (groupState.mireds != null || lightState.mireds != null) {
+                // Mismatched color modes or too different
+                groupState.mireds = undefined;
             }
-            else if (isHS(groupState.color) && isHS(lightState.color) && Math.abs(lightState.color.hue-groupState.color.hue)<20 && Math.abs(lightState.color.saturation-groupState.color.saturation)<0.1) {
-                // Hue/saturation are close enough! Take the average.
-                groupState.color.hue = Math.round((groupState.color.hue * lightIndex + lightState.color.hue) / (lightIndex+1));
-                groupState.color.saturation = Math.round((groupState.color.saturation * lightIndex + lightState.color.saturation) / (lightIndex+1));
-            } else {
-                groupState.color = undefined;
+
+            if (groupState.hue != null && lightState.hue != null && Math.abs(groupState.hue - lightState.hue) < 20) {
+                groupState.hue = Math.round((groupState.hue * lightIndex + lightState.hue) / (lightIndex + 1));
+            } else if (groupState.hue != null || lightState.hue != null) {
+                groupState.hue = undefined;
+            }
+
+            if (groupState.saturation != null && lightState.saturation != null && Math.abs(groupState.saturation - lightState.saturation) < 0.1) {
+                groupState.saturation = (groupState.saturation * lightIndex + lightState.saturation) / (lightIndex + 1);
+            } else if (groupState.saturation != null || lightState.saturation != null) {
+                groupState.saturation = undefined;
             }
 
             if (groupState.brightness!==undefined && lightState.brightness!==undefined && Math.abs(groupState.brightness - lightState.brightness) < 0.2) {

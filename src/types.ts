@@ -1,47 +1,33 @@
 // Shared type definitions for the lighting application
 
-// Color can be represented in multiple ways
-export interface XYColor {
-    x: number;
-    y: number;
-}
-
-export interface HSColor {
-    hue: number;
-    saturation: number;
-}
-
-export type ColorValue = /* color temperature */ number | HSColor | XYColor;
-
 export interface LightState {
     on?: boolean;
     brightness?: number;  // Standardized brightness property (0-255)
-    color?: ColorValue;
+    hue?: number;         // 0-360 degrees
+    saturation?: number;  // 0-100
+    mireds?: number; // Color temperature in mireds. When set, hue/saturation should be unset, and vice versa.
 }
 
 export interface Z2MLightDelta {
     state?: 'ON' | 'OFF';
     brightness?: number;
-    color?: { hue: number; saturation: number } | XYColor;
+    color?: { hue: number; saturation: number };
     color_temp?: number;
     transition?: number;
 }
 
 export interface LightCaps {
     colorModes?: string[];
-    supportsColor?: boolean;
-    supportsBrightness?: boolean;
-    supportsColorTemp?: boolean;
     brightness?: {
-        valueMin: number;
-        valueMax: number;
+        min: number;
+        max: number;
     };
-    colorTemp?: {
-        valueMin: number;
-        valueMax: number;
+    mireds?: { // Color temperature
+        min: number;
+        max: number;
     };
-    colorHs?: boolean;
-    colorXy?: boolean;
+    _fakeMireds?: true; // true when temperature is emulated via color
+    color?: boolean;
 }
 
 // Device interface

@@ -2,8 +2,7 @@ import { $, clean, onEach, insertCss } from "aberdeen"
 import * as icons from '../icons'
 import * as colors from "../colors"
 import api from "../api"
-import { LightState, XYColor, HSColor, Device, GroupWithDerives, Light } from '../types'
-import { isHS, isXY } from '../colors'
+import { LightState, Device, GroupWithDerives, Light } from '../types'
 
 const CT_MIN = 100, CT_MAX = 550;
 
@@ -21,9 +20,6 @@ const circleStyle = insertCss({
 	},
     '&.interacting': 'border-color:$primaryHover box-shadow: 0 0 5px $primaryHover',
 });
-
-// Color wheel container styles
-const wheelStyle = insertCss('position:relative');
 
 // Handle/marker styles
 const handleStyle = insertCss('position:absolute transition: all 0.1s; r:50% border: 2px solid #fff; box-shadow: 0 0 0 1px #000 inset; touch-action:none user-select:none -webkit-touch-callout:none -webkit-tap-highlight-color:transparent');
@@ -44,7 +40,7 @@ export function getBulbRgb(target: Light | GroupWithDerives): string {
         return "#000000";
     } else {
         const brightness = state.brightness || 255;
-        return colors.rgbToHex(colors.toRgb(state.color as number | HSColor | XYColor | null | undefined, 0.3 + brightness / 255 * 0.7));
+        return colors.rgbToHex(colors.stateToRgb(state, 0.3 + brightness / 255 * 0.7));
     }
 }
 
@@ -99,136 +95,46 @@ export function drawBulbCircle(target: Light | GroupWithDerives, targetId: strin
     });
 }
 
-function drawColorWheelMarker(state: LightState, size: number = 24): void {
-    $('div', handleStyle, () => {
-        let color = state.color;
-
-        if (typeof color === 'number') {
-            color = colors.miredsToHs(color);
-        }
-        else if (color == null) {
-            $('display:none');
-            return;
-        }
-        else if (isXY(color)) {
-            color = colors.xyToHs(color as XYColor);
-        }
-        
-        if (!isHS(color)) {
-            $('display:none');
-            return;
-        }
-
-        let lsize = state.on ? size : size / 4;
-        let hueRadians = color.hue * (Math.PI / 180);
-        let left = Math.cos(hueRadians) * color.saturation * 50 + 50;
-        let top = Math.sin(hueRadians) * color.saturation * 50 + 50;
-
-        $(`display:block h:${lsize}px w:${lsize}px mt:${-lsize/2}px ml:${-lsize/2}px top:${top}% left:${left}%`);
-    });
-}
-
-export function drawColorWheel(target: Light | GroupWithDerives, targetId: string | number): void {
-    const state = target.lightState;
-    if (!state) return;
-    
-    let canvas: HTMLCanvasElement;
-
-    $('div', wheelStyle, () => {
-        let canvasEl = $('canvas w:100% mousedown=', startTrack, 'touchstart=', startTrack, {
-            width: 1,
-            height: 1
-        }) as HTMLCanvasElement;
-
-        canvas = canvasEl;
-        setTimeout(paintColorWheelCanvas, 0);
-
-        window.addEventListener('resize', paintColorWheelCanvas);
-        clean(() => {
-            window.removeEventListener('resize', paintColorWheelCanvas);
-        })
-
-        drawColorWheelMarker(state);
-        if ('lightIds' in target) onEach(target.lightIds, ieee => {
-            let memberState = api.store.lights[ieee]?.lightState;
-            if (memberState) {
-                drawColorWheelMarker(memberState, 8);
-            }
-        });
-    });
-
-    function startTrack(event: MouseEvent | TouchEvent): void {
-        tracking = { event, setPosition };
-    }
-
-    function setPosition(pageX: number, pageY: number = 0): void {
-        let bounding = canvas.getBoundingClientRect();
-
-        let radius = bounding.width / 2;
-        let relX = (pageX - bounding.left - radius) / radius;
-        let relY = (pageY - bounding.top - radius) / radius;
-
-        let hue = Math.atan2(relY, relX) * 180 / Math.PI;
-        if (hue < 0) hue += 360;
-        let saturation = Math.sqrt(relX * relX + relY * relY);
-        api.setLightState(targetId, { color: { hue, saturation }, on: true });
-    }
-
-    function paintColorWheelCanvas(): void {
-        let radius = canvas.offsetWidth / 2;
-        canvas.height = canvas.width = radius * 2;
-        let ctx = canvas.getContext("2d")!;
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-        let step = 0.5 * Math.atan(1 / radius);
-
-        for (let rad = -Math.PI; rad < Math.PI; rad += step) {
-            let hue = rad / Math.PI * 180;
-
-            let x = radius * Math.cos(rad),
-                y = radius * Math.sin(rad);
-
-            ctx.strokeStyle = 'hsl(' + hue + ', 100%, 50%)';
-
-            ctx.beginPath();
-            ctx.moveTo(radius, radius);
-            ctx.lineTo(radius + x, radius + y);
-            ctx.stroke();
-        }
-
-        let grd = ctx.createRadialGradient(radius, radius, 0, radius, radius, radius);
-        grd.addColorStop(0, 'rgba(255, 255, 255, 1)');
-        grd.addColorStop(1, 'rgba(255, 255, 255, 0)');
-        ctx.fillStyle = grd;
-        ctx.beginPath();
-        ctx.arc(radius, radius, radius, 0, Math.PI * 2, true);
-        ctx.closePath();
-        ctx.fill();
-    }
-}
-
-function drawScaleMarker(state: LightState, colorTempRange?: [number, number], size: number = 24): void {
+function drawScaleMarker(state: LightState, mode: 'brightness' | 'temperature' | 'hue' | 'saturation', tempRange?: [number, number], size: number = 24): void {
     $('div', handleStyle, () => {
         let lsize = size;
         let fraction: number;
         
-        if (colorTempRange) {
-            let colorTemp = state.color;
-
-            if (isHS(colorTemp)) {
-                const brightness = state.brightness || 255;
-                let rgb = colors.hsvToRgb(colorTemp.hue, colorTemp.saturation, brightness / 255);
-                colorTemp = colors.rgbToMireds(rgb, 50, CT_MIN, CT_MAX);
-                lsize = Math.min(lsize, 8);
+        if (mode === 'brightness') {
+            fraction = (state.brightness || 255) / 255;
+        } else if (mode === 'temperature') {
+            const temp = state.mireds;
+            if (temp == null) {
+                // HS color light shown on temperature slider: show approximate position (small marker)
+                if (state.hue != null) {
+                    const rgb = colors.hsvToRgb(state.hue, (state.saturation ?? 100) / 100, 1);
+                    const approxMireds = approximateTemperature(rgb, tempRange);
+                    if (approxMireds != null) {
+                        fraction = (approxMireds - tempRange![0]) / (tempRange![1] - tempRange![0]);
+                        lsize = Math.min(lsize, 8);
+                    } else {
+                        $('display:none');
+                        return;
+                    }
+                } else {
+                    $('display:none');
+                    return;
+                }
+            } else {
+                fraction = (temp - tempRange![0]) / (tempRange![1] - tempRange![0]);
             }
-            if (colorTemp == null || typeof colorTemp !== 'number') {
+        } else if (mode === 'hue') {
+            if (state.hue == null) {
                 $('display:none');
                 return;
             }
-            fraction = (colorTemp - colorTempRange[0]) / (colorTempRange[1] - colorTempRange[0]);
-        } else {
-            const brightness = state.brightness || 255;
-            fraction = brightness / 255;
+            fraction = state.hue / 360;
+        } else { // saturation
+            if (state.saturation == null) {
+                $('display:none');
+                return;
+            }
+            fraction = state.saturation / 100;
         }
         
         if (!state.on) {
@@ -239,8 +145,22 @@ function drawScaleMarker(state: LightState, colorTempRange?: [number, number], s
     });
 }
 
-export function drawColorPicker(device: Light, ieee: string): void;
-export function drawColorPicker(group: GroupWithDerives, groupId: number): void;
+/** Try to approximate an RGB color as a color temperature in mireds. */
+function approximateTemperature(rgb: [number, number, number], tempRange?: [number, number]): number | undefined {
+    if (!tempRange) return undefined;
+    const maxStep = 7;
+    let bestI = 0;
+    let results: Array<{ delta: number; mireds: number }> = [];
+    for (let i = 0; i <= maxStep; i++) {
+        let mireds = Math.round((tempRange[1] - tempRange[0]) / maxStep * i + tempRange[0]);
+        let rgb2 = colors.miredsToRgb(mireds);
+        let delta = Math.abs(rgb2[0] - rgb[0]) + Math.abs(rgb2[1] - rgb[1]) + Math.abs(rgb2[2] - rgb[2]);
+        results.push({ delta, mireds });
+        if (delta < results[bestI]!.delta) bestI = i;
+    }
+    return results[bestI]!.delta <= 50 ? results[bestI]!.mireds : undefined;
+}
+
 export function drawColorPicker(target: Light | GroupWithDerives, targetId: string | number): void {
 
     const capabilities = target.lightCaps;
@@ -252,27 +172,28 @@ export function drawColorPicker(target: Light | GroupWithDerives, targetId: stri
                 drawBulbCircle(target as GroupWithDerives, targetId as string);
             }
             if (capabilities.brightness) {
-                drawScale(target, targetId);
+                drawScale(target, targetId, 'brightness');
             }
         });
 
-        if (capabilities.colorTemp || capabilities.colorXy || capabilities.colorHs) {
-            let temps: [number, number] = capabilities.colorTemp ? 
-                [capabilities.colorTemp.valueMin, capabilities.colorTemp.valueMax] : 
+        if (capabilities.mireds || capabilities.colorXy || capabilities.color) {
+            let temps: [number, number] = capabilities.mireds ? 
+                [capabilities.mireds.min, capabilities.mireds.max] : 
                 [CT_MIN, CT_MAX];
-            drawScale(target, targetId, temps);
+            drawScale(target, targetId, 'temperature', temps);
         }
             
-        if (capabilities.colorXy || capabilities.colorHs) {
-            drawColorWheel(target, targetId);
+        if (capabilities.colorXy || capabilities.color) {
+            drawScale(target, targetId, 'hue');
+            drawScale(target, targetId, 'saturation');
         }
     });
 }
 
-function drawScale(target: Light | GroupWithDerives, targetId: string | number, colorTempRange?: [number, number]): void {
+function drawScale(target: Light | GroupWithDerives, targetId: string | number, mode: 'brightness' | 'temperature' | 'hue' | 'saturation', tempRange?: [number, number]): void {
     $('div', scaleStyle, () => {
 
-        let state = target.lightState || {};
+        let state = target.lightState || {} as LightState;
 
         let canvasEl = $('canvas h:100% w:100%', {
             width: 300,
@@ -280,52 +201,96 @@ function drawScale(target: Light | GroupWithDerives, targetId: string | number, 
         }) as HTMLCanvasElement;
 
         let ctx = canvasEl.getContext("2d")!;
-        var imageData = ctx.getImageData(0, 0, canvasEl.width, canvasEl.height);
-        let pixels = imageData.data;
 
-        let pos = 0;
-
-        let baseColor: [number, number, number] | undefined;
-        if (!colorTempRange) {
-            baseColor = colors.toRgb(state.color as number | HSColor | XYColor | null | undefined);
-        }
-
-        for (let x = 0; x <= 300; x++) {
-            let rgb: [number, number, number];
-            if (colorTempRange) {
-                rgb = colors.miredsToRgb(x / 300 * (colorTempRange[1] - colorTempRange[0]) + colorTempRange[0]);
-            } else {
-                rgb = baseColor!.map(v => Math.round(v / 300 * x)) as [number, number, number];
+        if (mode === 'hue') {
+            // Rainbow hue gradient — static, doesn't depend on state
+            var imageData = ctx.getImageData(0, 0, canvasEl.width, canvasEl.height);
+            let pixels = imageData.data;
+            let pos = 0;
+            for (let x = 0; x <= 300; x++) {
+                const rgb = colors.hsvToRgb(x / 300 * 360, 1, 1);
+                pixels[pos++] = rgb[0];
+                pixels[pos++] = rgb[1];
+                pixels[pos++] = rgb[2];
+                pixels[pos++] = 255;
             }
-            pixels[pos++] = rgb[0];
-            pixels[pos++] = rgb[1];
-            pixels[pos++] = rgb[2];
-            pixels[pos++] = 255; // alpha
+            ctx.putImageData(imageData, 0, 0);
+        } else if (mode === 'saturation') {
+            // Saturation gradient: white → fully saturated color at current hue
+            var imageData = ctx.getImageData(0, 0, canvasEl.width, canvasEl.height);
+            let pixels = imageData.data;
+            let pos = 0;
+            const hue = state.hue ?? 0;
+            for (let x = 0; x <= 300; x++) {
+                const sat = x / 300;
+                const rgb = colors.hsvToRgb(hue, sat, 1);
+                pixels[pos++] = rgb[0];
+                pixels[pos++] = rgb[1];
+                pixels[pos++] = rgb[2];
+                pixels[pos++] = 255;
+            }
+            ctx.putImageData(imageData, 0, 0);
+        } else {
+            var imageData = ctx.getImageData(0, 0, canvasEl.width, canvasEl.height);
+            let pixels = imageData.data;
+            let pos = 0;
+
+            if (mode === 'temperature') {
+                for (let x = 0; x <= 300; x++) {
+                    const rgb = colors.miredsToRgb(x / 300 * (tempRange![1] - tempRange![0]) + tempRange![0]);
+                    pixels[pos++] = rgb[0];
+                    pixels[pos++] = rgb[1];
+                    pixels[pos++] = rgb[2];
+                    pixels[pos++] = 255;
+                }
+            } else {
+                // Brightness: use current color
+                const baseColor = colors.stateToRgb(state);
+                for (let x = 0; x <= 300; x++) {
+                    pixels[pos++] = Math.round(baseColor[0] / 300 * x);
+                    pixels[pos++] = Math.round(baseColor[1] / 300 * x);
+                    pixels[pos++] = Math.round(baseColor[2] / 300 * x);
+                    pixels[pos++] = 255;
+                }
+            }
+            ctx.putImageData(imageData, 0, 0);
         }
 
-        ctx.putImageData(imageData, 0, 0);
-
-        drawScaleMarker(state, colorTempRange);
+        drawScaleMarker(state, mode, tempRange);
 
         if ('lightIds' in target) onEach(target.lightIds, ieee => {
             let memberState = api.store.lights[ieee]?.lightState;
             if (memberState) {
-                drawScaleMarker(memberState, colorTempRange, 8);
+                drawScaleMarker(memberState, mode, tempRange, 8);
             }
         });
 
 
         function setPosition(pageX: number): void {
             let bounding = canvasEl.getBoundingClientRect();
-            let fraction = (pageX - bounding.left) / bounding.width;
-            let state = colorTempRange ? {
-                on: true,
-                color: Math.min(colorTempRange[1], Math.max(colorTempRange[0], Math.round(fraction * (colorTempRange[1] - colorTempRange[0]) + colorTempRange[0]))),
-            } : {
-                on: true,
-                brightness: Math.min(255, Math.max(0, Math.round(fraction * 255))),
-            };
-            api.setLightState(targetId, state);
+            let fraction = Math.min(1, Math.max(0, (pageX - bounding.left) / bounding.width));
+            
+            if (mode === 'temperature') {
+                api.setLightState(targetId, {
+                    on: true,
+                    mireds: Math.round(fraction * (tempRange![1] - tempRange![0]) + tempRange![0]),
+                });
+            } else if (mode === 'brightness') {
+                api.setLightState(targetId, {
+                    on: true,
+                    brightness: Math.round(fraction * 255),
+                });
+            } else if (mode === 'hue') {
+                api.setLightState(targetId, {
+                    on: true,
+                    hue: Math.round(fraction * 360),
+                });
+            } else { // saturation
+                api.setLightState(targetId, {
+                    on: true,
+                    saturation: Math.round(fraction * 100),
+                });
+            }
         }
 
         function startTrack(event: MouseEvent | TouchEvent): void {
