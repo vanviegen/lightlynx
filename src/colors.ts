@@ -11,52 +11,52 @@ export function hsvToRgb(h: number, s: number, v: number): [number, number, numb
     }) as [number, number, number];
 }
 
-export function xyvToRgb(x: number, y: number, v: number): [number, number, number] {
-    const z = 1.0 - x - y;
-    const Y = 1.0;
-    const X = (Y / y) * x;
-    const Z = (Y / y) * z;
-    let red = X * 1.656492 - Y * 0.354851 - Z * 0.255038;
-    let green = -X * 0.707196 + Y * 1.655397 + Z * 0.036152;
-    let blue = X * 0.051713 - Y * 0.121364 + Z * 1.011530;
-    const maxVal = Math.max(red, green, blue, 1.0);
-    return [Math.max(0, red / maxVal) * v, Math.max(0, green / maxVal) * v, Math.max(0, blue / maxVal) * v];
-}
-
+/** Convert CIE xy chromaticity to hue/saturation.
+ * Uses the Wide RGB D65 gamut matrix (Zigbee/Hue) for the xy→RGB step,
+ * then extracts HSV hue and saturation from the resulting RGB.
+ */
 export function xyToHs(x: number, y: number): {hue: number, saturation: number} {
-    const [h, s] = rgbToHsv(xyvToRgb(x, y, 255));
-    return { hue: Math.round(h), saturation: Math.round(s * 100) };
+    // CIE xy → XYZ (with Y=1)
+    const X = x / y;
+    const Z = (1 - x - y) / y;
+
+    // XYZ → RGB (Wide RGB D65 gamut matrix)
+    let r = X *  1.656492 - 0.354851 - Z * 0.255038;
+    let g = X * -0.707196 + 1.655397 + Z * 0.036152;
+    let b = X *  0.051713 - 0.121364 + Z * 1.011530;
+
+    // Normalize so max component is 1, clamp negatives
+    const scale = Math.max(r, g, b, 1.0);
+    r = Math.max(0, r / scale);
+    g = Math.max(0, g / scale);
+    b = Math.max(0, b / scale);
+
+    // RGB → HSV hue and saturation
+    const max = Math.max(r, g, b);
+    const min = Math.min(r, g, b);
+    const chroma = max - min;
+
+    let hue: number;
+    if (chroma === 0) {
+        hue = 0;
+    } else if (max === r) {
+        hue = (60 * ((g - b) / chroma) + 360) % 360;
+    } else if (max === g) {
+        hue = (60 * ((b - r) / chroma) + 120) % 360;
+    } else {
+        hue = (60 * ((r - g) / chroma) + 240) % 360;
+    }
+    const saturation = max === 0 ? 0 : 1 - min / max;
+
+    return { hue: Math.round(hue), saturation: Math.round(saturation * 100) };
 }
 
-/** Calculate the distance between two HS (hue, saturation) values as a value 0..2. Accounts for
+/** Calculate the distance between two HS (hue, saturation) values as a value 0..1.5. Accounts for
  * hue being circular.
  */
 export function getHsDistance(hs1: {hue: number, saturation: number}, hs2: {hue: number, saturation: number}): number {
     const d = Math.abs(hs1.hue - hs2.hue)/360;
     return (d < 0.5 ? d : 1-d) + Math.abs(hs1.saturation - hs2.saturation)/100;
-}
-
-export function rgbToHsv([r, g, b]: [number, number, number]): [number, number, number] {
-    r /= 255;
-    g /= 255;
-    b /= 255;
-    const max = Math.max(r, g, b);
-    const min = Math.min(r, g, b);
-    let hue: number;
-    if (max === min) {
-        hue = 0;
-    } else if (max === r) {
-        hue = (60 * ((g - b) / (max - min)) + 360) % 360;
-    } else if (max === g) {
-        hue = (60 * ((b - r) / (max - min)) + 120) % 360;
-    } else if (max === b) {
-        hue = (60 * ((r - g) / (max - min)) + 240) % 360;
-    } else {
-        hue = 0; // fallback
-    }
-
-    let sat = max === 0 ? 0 : 1 - min / max;
-    return [hue, sat, max];
 }
 
 export function miredsToRgb(mireds: number, brightness: number = 1): [number, number, number] {
@@ -84,53 +84,65 @@ export function stateToRgb(state: LightState, brightness: number = 1): [number, 
 }
 
 
+/**
+ * Convert a color temperature in mireds to CIE xy chromaticity coordinates.
+ * Uses the Kim et al. cubic spline approximation of the Planckian locus.
+ * Valid for 1667K–25000K (i.e. roughly 40–600 mireds).
+ */
+export function miredsToXy(mireds: number): {x: number, y: number} {
+    const T = Math.max(1667, Math.min(25000, 1e6 / mireds));
+    const T2 = T * T;
+    const T3 = T2 * T;
 
-export function lightStateToZ2M(state: LightState): Z2MLightDelta {
-    let delta: Z2MLightDelta = {};
-    if (state.on != null) {
-        delta.state = state.on ? 'ON' : 'OFF';
+    let x: number;
+    if (T <= 4000) {
+        x = -0.2661239e9 / T3 - 0.2343589e6 / T2 + 0.8776956e3 / T + 0.179910;
+    } else {
+        x = -3.0258469e9 / T3 + 2.1070379e6 / T2 + 0.2226347e3 / T + 0.240390;
     }
-    if (state.brightness != null) {
-        delta.brightness = state.brightness;
+
+    const x2 = x * x;
+    const x3 = x2 * x;
+    let y: number;
+    if (T <= 2222) {
+        y = -1.1063814 * x3 - 1.34811020 * x2 + 2.18555832 * x - 0.20219683;
+    } else if (T <= 4000) {
+        y = -0.9549476 * x3 - 1.37418593 * x2 + 2.09137015 * x - 0.16748867;
+    } else {
+        y =  3.0817580 * x3 - 5.87338670 * x2 + 3.75112997 * x - 0.37001483;
     }
-    if (state.mireds != null) {
-        delta.color_temp = state.mireds;
-    }
-    if (state.hue != null && state.saturation != null) {
-        delta.color = { hue: Math.round(state.hue), saturation: Math.round(state.saturation)/100 };
-    }
-    return delta;
+
+    return { x, y };
 }
 
+/** Convert a color temperature in mireds to hue/saturation. */
 export function miredsToHs(temperature: number): {hue: number, saturation: number} {
-    const hsv = rgbToHsv(miredsToRgb(temperature, 1));
-    return { hue: Math.round(hsv[0]), saturation: Math.round(hsv[1] * 100) };
+    const { x, y } = miredsToXy(temperature);
+    return xyToHs(x, y);
 }
 
 /**
  * Given a generic light state and a certain light's capability, return a light state that
  * fits what the light can handle.
  */
-export function limitLightStateToCaps(from: LightState, cap: LightCaps): LightState {
-    let to: LightState = {};
-
-    if (from.on != null) to.on = from.on;
-    if (from.brightness != null && cap.brightness) to.brightness = Math.min(cap.brightness.max, Math.max(cap.brightness.min, 1, from.brightness));
-    if (from.hue != null && cap.color) {
-        to.hue = from.hue;
-        to.mireds = undefined; // Clear mireds if we're setting hue, since they conflict
+export function mergeLightStateWithCaps(dst: LightState, src: LightState, cap: LightCaps) {
+    if (src.on != null) dst.on = src.on;
+    if (src.brightness != null && cap.brightness) dst.brightness = Math.min(cap.brightness.max, Math.max(cap.brightness.min, 1, src.brightness));
+    if ((src.hue != null || src.saturation != null) && cap.color) {
+        dst.hue = src.hue ?? dst.hue;
+        dst.saturation = src.saturation ?? dst.saturation;
+        if (dst.hue == null || dst.saturation == null) {
+            // Default hue/saturation based on current color temp, if not already set
+            const hs = dst.mireds ? miredsToHs(dst.mireds) : {hue: 45, saturation: 100}; 
+            dst.hue ??= hs.hue;
+            dst.saturation ??= hs.saturation;
+        }
+        delete dst.mireds; // Clear mireds if we're setting hue, since they conflict
+    } else if (src.mireds != null && cap.mireds) {
+        dst.mireds = Math.min(cap.mireds.max, Math.max(cap.mireds.min, src.mireds));
+        delete dst.hue; // Clear hue/sat if we're setting mireds, since they conflict
+        delete dst.saturation;
     }
-    if (from.saturation != null && cap.color) {
-        to.saturation = from.saturation;
-        to.mireds = undefined; // Clear mireds if we're setting saturation, since they conflict
-    }
-    if (from.mireds != null && cap.mireds) {
-        to.mireds = Math.min(cap.mireds.max, Math.max(cap.mireds.min, from.mireds));
-        to.hue = undefined; // Clear hue/sat if we're setting mireds, since they conflict
-        to.saturation = undefined;
-    }
-
-    return to;
 }
 
 

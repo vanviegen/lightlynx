@@ -14,6 +14,7 @@ export interface Z2MLightDelta {
     color?: { hue: number; saturation: number };
     color_temp?: number;
     transition?: number;
+    scene_recall?: number;
 }
 
 export interface LightCaps {

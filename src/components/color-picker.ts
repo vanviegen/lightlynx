@@ -1,8 +1,8 @@
-import { $, clean, onEach, insertCss } from "aberdeen"
+import { $, onEach, insertCss } from "aberdeen"
 import * as icons from '../icons'
 import * as colors from "../colors"
 import api from "../api"
-import { LightState, Device, GroupWithDerives, Light } from '../types'
+import { LightState, GroupWithDerives, Light } from '../types'
 
 const CT_MIN = 100, CT_MAX = 550;
 
@@ -176,14 +176,14 @@ export function drawColorPicker(target: Light | GroupWithDerives, targetId: stri
             }
         });
 
-        if (capabilities.mireds || capabilities.colorXy || capabilities.color) {
+        if (capabilities.mireds || capabilities.color) {
             let temps: [number, number] = capabilities.mireds ? 
                 [capabilities.mireds.min, capabilities.mireds.max] : 
                 [CT_MIN, CT_MAX];
             drawScale(target, targetId, 'temperature', temps);
         }
             
-        if (capabilities.colorXy || capabilities.color) {
+        if (capabilities.color) {
             drawScale(target, targetId, 'hue');
             drawScale(target, targetId, 'saturation');
         }

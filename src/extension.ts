@@ -4,32 +4,27 @@ import http from 'http';
 import https from 'https';
 import dgram from 'dgram';
 import WebSocket, { WebSocketServer } from 'ws';
-import { Config, Group, Light, LightState, Scene, Toggle, State, User, StripUnderscoreKeys, UserWithName, Z2MLightDelta, LightCaps } from './types';
+import { Config, Group, Light, LightState, Scene, Toggle, State, User, StripUnderscoreKeys, UserWithName, LightCaps, Z2MLightDelta, Trigger } from './types';
 import { applyDelta, createDelta, createDeltaRecurse, deepClone } from './json-merge-patch';
-import { limitLightStateToCaps, rgbToHsv, DEFAULT_TRIGGERS, lightStateToZ2M, miredsToHs, xyToHs, getHsDistance } from './colors';
-
-const EXTENSION_VERSION = 1;
-const CONFIG_PATH = path.join(process.env.ZIGBEE2MQTT_DATA || path.join(__dirname, '..', '..', 'data'), 'lightlynx.json');
-const SSL_RENEW_THRESHOLD = 10 * 24 * 60 * 60 * 1000; // 10 days
+import { mergeLightStateWithCaps, DEFAULT_TRIGGERS, miredsToHs, xyToHs, getHsDistance } from './colors';
+import { getSunTimes } from './suncalc';
 
 // Read configuration from environment
+const CONFIG_PATH = path.join(process.env.ZIGBEE2MQTT_DATA || path.join(__dirname, '..', '..', 'data'), 'lightlynx.json');
 const PORT = parseInt(process.env.LIGHTLYNX_PORT || '43597');
 const INSECURE = !['', '0', 'false'].includes(process.env.LIGHTLYNX_INSECURE || '');
 const CERT_FILE = process.env.LIGHTLYNX_CERT_FILE;
 
-// Sun calculation constants
-const DEFAULT_ZENITH = 90.8333;
-const DEGREES_PER_HOUR = 360 / 24;
+const EXTENSION_VERSION = 1;
+const SSL_RENEW_THRESHOLD = 10 * 24 * 60 * 60 * 1000; // 10 days
 
 const CLICK_COUNTS: Record<string, number> = {
     single: 1,
     double: 2,
     triple: 3,
     quadruple: 4,
-    many: 5
+    many: 5,
 };
-
-const NOT_YET_INITIALIZED = {};
 
 
 class LightLynx {
@@ -62,6 +57,10 @@ class LightLynx {
     private timeTriggerInterval?: NodeJS.Timeout;
 
     private configJson: string = '';
+
+    // These are in minutes past midnight local time, updated every hour
+    private sunRiseMinute: number = 0;
+    private sunSetMinute: number = 0;
 
     constructor(_zigbee: any, mqtt: any, state: any, _publishEntityState: any, eventBus: any, _enableDisableExtension: any, _restartCallback: any, _addExtension: any, _settings: any, logger: any) {
         // this.zigbee = zigbee;
@@ -100,9 +99,9 @@ class LightLynx {
         }
 
         this.store = {
-            lights: NOT_YET_INITIALIZED,
-            toggles: NOT_YET_INITIALIZED,
-            groups: NOT_YET_INITIALIZED,
+            lights: {},
+            toggles: {},
+            groups: {},
             permitJoin: false,
             config,
         }
@@ -180,12 +179,20 @@ class LightLynx {
         
         // Check time based triggers every 10s
         this.timeTriggerInterval = setInterval(this.handleTimeTriggers.bind(this), 10000);
+        this.handleTimeTriggers();
     }
 
     /** Called by Zigbee2MQTT, in particular before we upgrade. */
     async stop() {
         if (this.sslRefreshTimer) clearInterval(this.sslRefreshTimer);
         if (this.timeTriggerInterval) clearInterval(this.timeTriggerInterval);
+        this.sslRefreshTimer = this.timeTriggerInterval = undefined;
+        
+        for(const group of Object.values(this.store.groups)) {
+            clearTimeout(group._autoOffTimer);
+            delete group._autoOffTimer;
+        }
+
         this.eventBus.removeListeners(this);
 
         if (this.wss) {
@@ -232,13 +239,17 @@ class LightLynx {
      * In INSECURE mode, skips SSL/cert entirely and leaves instanceId empty.
     */
     private async setupNetworking() {
+        // Update sunrise and sunset times occasionally (used for time-based triggers)
         const cfg = this.store.config;
-
+        const times = getSunTimes(new Date(), cfg.latitude, cfg.longitude);
+        this.sunRiseMinute = times.rise.getHours() * 60 + times.rise.getMinutes();
+        this.sunSetMinute = times.set.getHours() * 60 + times.set.getMinutes();
+        
         if (INSECURE) {
             // In insecure mode, leave instanceId empty - clients connect via literal hostname
             return;
         }
-
+        
         let ssl = cfg._ssl;
 
         const localIp = await this.getLocalIp();
@@ -515,97 +526,113 @@ class LightLynx {
         if (!group) throw new Error(`Group ${groupId} not found`);
         if (!this.canControlGroup(user, groupId)) throw new Error("Permission denied for group");
 
-        const ieees = new Map<Light, string>();
-        const lights: Light[] = [];
-        for(const id of group.lightIds) {
-            const light = this.store.lights[id];
+        // We first optimistically apply the desired start to all group members, and keep a copy of
+        // their old/new states and abilities, so that after this we can figure out how to optimally
+        // send the updates.
+        const members = [];
+        for(const ieee of group.lightIds) {
+            const light = this.store.lights[ieee];
             if (light) {
-                lights.push(light);
-                ieees.set(light, id);
+                members.push({
+                    ieee,
+                    oldState: {...light.lightState},
+                    newState: light.lightState,
+                    caps: light.lightCaps,
+                    delta: undefined as Z2MLightDelta | undefined
+                });
+                mergeLightStateWithCaps(light.lightState, state, light.lightCaps);
             }
         }
 
-        const groupDelta: LightState = {};
+        const groupDelta: Z2MLightDelta = {};
 
+        // On and brightness states can always be sent to the group, but we'll only do that if that changes at least one light.
         if (state.on != null) {
-            const targets = lights.filter(l => l.lightState.on !== state.on);
-            if (targets.length) groupDelta.on = state.on;
+            if (members.some(l => l.oldState.on !== l.newState.on)) {
+                groupDelta.state = state.on ? 'ON' : 'OFF';
+            }
         }
         if (state.brightness != null) {
-            const targets = lights.filter(l => l.lightCaps.brightness && l.lightState.brightness !== state.brightness);
-            if (targets.length) groupDelta.brightness = state.brightness;
+            if (members.some(l => l.caps.brightness && l.oldState.brightness !== l.newState.brightness)) {
+                groupDelta.brightness = state.brightness;
+            }
         }
-        const lightDeltas: Record<string, LightState> = {};
+
+        // Color temperature is more complicated, as we'll need to emulate it for some lights by converting to hue/saturation
         if (state.mireds) {
-            const targets = lights.filter(l => (l.lightCaps.mireds && l.lightState.mireds !== state.mireds));
+            const targets = members.filter(l => (l.caps.mireds && l.oldState.mireds !== l.newState.mireds));
             if (targets.length) {
-                const fakes = targets.filter(l => l.lightCaps._fakeMireds);
+                const fakes = targets.filter(l => l.caps._fakeMireds);
                 if (fakes.length === targets.length) {
                     // All targets only have fake temperature, so we'll send color to the group
-                    Object.assign(groupDelta, miredsToHs(state.mireds));
+                    const hs = miredsToHs(state.mireds);
+                    groupDelta.color = {hue: hs.hue, saturation: hs.saturation};
                 }
                 else {
                     if (targets.length > fakes.length) {
                         // At least some target have real temperature. We'll send that to the group, and fake color to the rest
-                        groupDelta.mireds = state.mireds;
+                        groupDelta.color_temp = state.mireds;
                     }
                     if (fakes.length) {
                         // Some targets have fake temperature. We'll send color to those individually
-                        const value = miredsToHs(state.mireds);
-                        for (const fake of fakes) {
-                            lightDeltas[ieees.get(fake)!] = value;
-                        }
+                        const hs = miredsToHs(state.mireds);
+                        const delta = {color: {hue: hs.hue, saturation: hs.saturation}};
+                        for (const fake of fakes) fake.delta = delta;
                     }
                 }
             }
         }
         else if (state.hue != null && state.saturation != null) {
             // Setting both is easy
-            const targets = lights.filter(l => l.lightCaps.color && (l.lightState.hue !== state.hue || l.lightState.saturation !== state.saturation));
-            if (targets.length) Object.assign(groupDelta, {hue: state.hue, saturation: state.saturation});
+            const targets = members.filter(l => l.caps.color && (l.oldState.hue !== state.hue || l.oldState.saturation !== state.saturation));
+            if (targets.length) groupDelta.color = {hue: state.hue, saturation: state.saturation};
         }
         else if (state.hue != null || state.saturation != null) {
             // Setting only hue or only saturation. This is tricky, as we'll want to preserve the other, but this is a single Zigbee property.
+            // mergeLightStateWithCaps will already have made sure there's a value for the other.
+
             const prop = state.hue != null ? 'hue' : 'saturation';
             const other = prop === 'hue' ? 'saturation' : 'hue';
-            const targets = lights.filter(l => l.lightCaps.color);
-            let commonOther: number | undefined = targets[0]?.lightState[other];
-            for(const target of targets) {
-                if (target.lightState[other] !== commonOther) commonOther = undefined;
-            }
-            if (commonOther !== undefined) {
-                // A group command can be sent. Only do so if any value actually needs changing
-                if (targets.some(l => l.lightState[prop] !== state[prop])) {
-                    Object.assign(groupDelta, {[prop]: state[prop], [other]: commonOther} as {hue: number, saturation: number});
+            const colorMembers = members.filter(l => l.caps.color);
+            const targets = colorMembers.filter(l => l.oldState[prop] !== l.newState[prop]);
+
+            if (targets.length) {
+                // At least one light needs updating.
+
+                // Check if the 'other' property is currently the same for all color lights in this group.
+                let commonOther: number | undefined = colorMembers[0]!.newState[other]
+                for(const target of colorMembers) {
+                    if (target.newState[other] !== commonOther) commonOther = undefined;
                 }
-            } else {
-                // We'll need to send individual commands, for different `other` values
-                for(const target of targets) {
-                    if (target.lightState[prop] !== state[prop]) {
-                        lightDeltas[ieees.get(target)!] = {[prop]: state[prop], [other]: target.lightState[other]};
+
+                if (commonOther !== undefined) {
+                    // The 'other' property is the same for all lights, so a group command can be sent.
+                    groupDelta.color = {[prop]: state[prop]!, [other]: commonOther} as {hue: number, saturation: number};
+                } else {
+                    // We'll need to send individual commands, for different `other` values
+                    for(const target of targets) {
+                        target.delta = {color: {hue: target.newState.hue!, saturation: target.newState.saturation!}};
                     }
                 }
             }
         }
 
-        // Optimistically update the light state for each of our lights. We does this partly to preserve
-        // our 'virtual' state, such as when mapping mireds to colors.
-        for(const light of lights) {
-            Object.assign(light.lightState, limitLightStateToCaps(state, light.lightCaps));
-        }
-
         // Now ask Z2M to do the updates, first for the group and then to individual devices
         if (Object.keys(groupDelta).length) {
             // This *should* work with groupId (which seems more reliable), but doesn't.
-            this.sendMqttCommand(`${group.name}/set`, lightStateToZ2M(groupDelta));
+            // groupDelta.transition = 0.33;
+            this.sendMqttCommand(`${group.name}/set`, groupDelta);
         }
-        for(const [ieee, lightDelta] of Object.entries(lightDeltas)) {
-            this.sendMqttCommand(`${ieee}/set`, lightStateToZ2M(lightDelta));
+        for(const target of members) {
+            if (target.delta) {
+                // target.delta.transition = 0.33;
+                this.sendMqttCommand(`${target.ieee}/set`, target.delta);
+            }
         }
     }
 
     /** Handle set-state command from user for a zigbee light. */
-    private async userSetLightState(clientInfo: any, ieee: string, state: any) {
+    private async userSetLightState(clientInfo: any, ieee: string, change: any) {
         const light = this.store.lights[ieee];
         if (!light) throw new Error(`Light ${ieee} not found`);
         if (!clientInfo.isAdmin) {
@@ -619,21 +646,31 @@ class LightLynx {
             if (!allow) throw new Error("Permission denied for device");
         }
 
-
-        const old = light.lightState;
-        const delta: LightState = {};
-        if (state.on != null && old.on !== state.on) delta.on = state.on;
-        if (state.brightness != null && old.brightness !== state.brightness) delta.brightness = state.brightness;
-        if (state.mireds != null && old.mireds !== state.mireds) delta.mireds = state.mireds;
-        if (state.hue != null && old.hue !== state.hue) delta.hue = state.hue;
-        if (state.saturation != null && old.saturation !== state.saturation) delta.saturation = state.saturation;
-
-        // Optimistically update the light state for each of our lights. We does this partly to preserve
+        // Optimistically update the light state for each of our lights. We do this partly to preserve
         // our 'virtual' state, such as when mapping mireds to colors.
-        Object.assign(light.lightState, limitLightStateToCaps(state, light.lightCaps));
+        const old = {...light.lightState} as LightState;
+        const state = light.lightState;
+        mergeLightStateWithCaps(state, change, light.lightCaps);
 
         // Now ask Z2M to do the update
-        this.sendMqttCommand(`${ieee}/set`, lightStateToZ2M(delta));
+        const delta: Z2MLightDelta = {};
+        if (state.on != null && state.on !== old.on) {
+            delta.state = state.on ? 'ON' : 'OFF';
+        }
+        if (state.brightness != null && state.brightness !== old.brightness) {
+            delta.brightness = state.brightness;
+        }
+        if (state.mireds != null && state.mireds !== old.mireds) {
+            delta.color_temp = state.mireds;
+        }
+        if (state.hue != null && state.saturation != null && (state.hue !== old.hue || state.saturation !== old.saturation)) {
+            delta.color = { hue: state.hue, saturation: state.saturation };
+        }
+    
+        if (Object.keys(delta).length) {
+            delta.transition = 0.33;
+            this.sendMqttCommand(`${ieee}/set`, delta);
+        }
     }
 
     /** Relay admin commands send to the Zigbee2MQTT 'bridge' virtual device. */
@@ -792,7 +829,6 @@ class LightLynx {
 
     /** Called for each MQTT sent by Zigbee2MQTT. We use this to keep this.store up-to-date.*/
     private onOutgoingMQTT(data: {topic?: string, payload?: string}) {
-        console.log('MQTT OUT:', data.topic);
         if (!data.topic || !data.topic.startsWith(`${this.mqttBaseTopic}/`)) return;
         const topic = data.topic.slice(this.mqttBaseTopic.length + 1).split('/');
         let payload: any;
@@ -915,7 +951,7 @@ class LightLynx {
      * delivered to our own incoming MQTT handler. The topic will be auto-prefixed by the 
      * MQTT base topic. */
     sendMqttCommand(topic: string, payload: any) {
-        console.log('sendMqttCommand', `${this.mqttBaseTopic}/${topic}`, JSON.stringify(payload));
+        this.log('info', `sendMqttCommand ${this.mqttBaseTopic}/${topic}: ${JSON.stringify(payload)}`);
         this.mqtt.onMessage(`${this.mqttBaseTopic}/${topic}`, Buffer.from(JSON.stringify(payload)));  
     }
 
@@ -970,18 +1006,22 @@ class LightLynx {
             brightness: payload.brightness,
         };
 
-        if (payload.color_mode === 'color_temp') {
-            dev.lightState.mireds = payload.color_temp;
-        } else if (payload.color && (payload.color.x || payload.color.hue)) {
-            const hs = payload.color.x ? xyToHs(payload.color.x, payload.color.y) : {hue: payload.color.hue, saturation: Math.round(payload.color.saturation * 100)};
-            if (old.mireds != null && dev.lightCaps._fakeMireds && getHsDistance(miredsToHs(old.mireds), hs) < 0.05) {
-                // If we're faking mireds, and this color comes close to the mireds value that was set earlier,
-                // we'll just keep the mireds value.
+        let hs;
+        if (payload.color?.hue != null) hs = {hue: payload.color.hue, saturation: payload.color.saturation};
+        else if (payload.color?.x != null) hs = xyToHs(payload.color.x, payload.color.y);
+
+        if (hs) {
+            const mireds = payload.color_temp ?? old.mireds;
+            if (mireds != null && getHsDistance(miredsToHs(mireds), hs) < 0.05) {
+                // If the color is close to the mireds-equivalent color, we'll stick to mireds.
                 dev.lightState.mireds = old.mireds;
             } else {
                 Object.assign(dev.lightState, hs);
             }
+        } else if (payload.color_temp != null) {
+            dev.lightState.mireds = payload.color_temp;
         }
+        // console.log('Updated light state for', dev.name, 'from', old, 'to', dev.lightState);
     }
 
     /** Handle outgoing Z2M state messages for buttons and sensors, by taking
@@ -1015,14 +1055,14 @@ class LightLynx {
             const group = this.store.groups[groupId];
             if (!group) continue;
 
-            let newState: Record<string, any> | undefined;
+            let newState: Z2MLightDelta | undefined;
             if (action === 1 && this.state.get({ID: groupId})?.state === 'ON') {
                 // Special case: single press turns off if already on
                 newState = {state: 'OFF'};
                 // The next click should start the count at 1
                 if (this.clickCounts.has(ieee)) this.clickCounts.set(ieee, 0);
             } else {
-                let sceneId = this.findSceneId(groupId, action);
+                let sceneId = this.findSceneId(this.store.config.sceneTriggers[groupId] || {}, action);
                 newState = sceneId == null ? DEFAULT_TRIGGERS[action] : { scene_recall: sceneId };
             }
 
@@ -1039,7 +1079,7 @@ class LightLynx {
             this.emitChangesTimeout = setTimeout(() => {
                 this.emitChangesTimeout = undefined;
                 this.emitChangesNow();
-            }, 0);
+            }, 3);
         }
     }
 
@@ -1143,29 +1183,23 @@ class LightLynx {
     private parseTime(str: string): number {
         let m = str.trim().match(/^([0-9]{1,2})(:([0-9]{2}))?((b|a)(s|r))?$/);
         if (!m) return 0;
+
         let hour = 0 | parseInt(m[1]!);
         let minute = 0 | parseInt(m[3] || '0');
+        minute += hour * 60;
+        
         let beforeAfter = m[5];
         let riseSet = m[6];
-
         if (riseSet) {
-            const lat = this.store.config.latitude!;
-            const lon = this.store.config.longitude!;
-            let sunTime = (riseSet === 'r' ? getSunrise : getSunset)(lat, lon);
-            if (sunTime) {
-                if (beforeAfter === 'a') {
-                    hour += sunTime.getHours();
-                    minute += sunTime.getMinutes();
-                } else {
-                    hour = sunTime.getHours() - hour;
-                    minute = sunTime.getMinutes() - minute;
-                }
+            let sunMinutes = riseSet === 'r' ? this.sunRiseMinute : this.sunSetMinute;
+            if (beforeAfter === 'a') {
+                minute += sunMinutes;
+            } else {
+                minute = sunMinutes - minute;
             }
         }
-        hour += Math.floor(minute / 60);
-        hour = ((hour % 24) + 24) % 24;
-        minute = ((minute % 60) + 60) % 60;
-        return hour * 60 + minute;
+        const DAY = 24 * 60;
+        return ((minute % DAY) + DAY) % DAY;
     }
 
     /**
@@ -1188,20 +1222,15 @@ class LightLynx {
      * and is currently within its time range (if any). If there are multiple, pick the
      * one with the narrowest time range. Returns scene id or undefined if none is found.
     */
-    private findSceneId(groupId: number, event: string | number): number | undefined {
-        const group = this.store.groups[groupId];
-        if (!group) return undefined;
+    private findSceneId(groupTriggers: Record<number, Trigger[]>, event: string | number): number | undefined {
         let foundRange = 25*60, foundSceneId;
-        const groupTriggers = this.store.config.sceneTriggers[groupId] || {};
-        for(const sceneId in group.scenes) {
-            const triggers = groupTriggers[Number(sceneId)] || [];
-            for(const trig of triggers) {
-                if (trig.event == event) {
-                    let range = trig.startTime && trig.endTime ? this.checkTimeRange(trig.startTime, trig.endTime) : 24*60;
-                    if (range!=null && range < foundRange) {
-                        foundRange = range;
-                        foundSceneId = parseInt(sceneId);
-                    }
+        for(const [sceneId, sceneTriggers] of Object.entries(groupTriggers)) {
+            for(const trig of sceneTriggers) {
+                if (trig.event != event) continue;
+                let range = trig.startTime && trig.endTime ? this.checkTimeRange(trig.startTime, trig.endTime) : 24*60;
+                if (range!=null && range < foundRange) {
+                    foundRange = range;
+                    foundSceneId = parseInt(sceneId);
                 }
             }
         }
@@ -1211,10 +1240,13 @@ class LightLynx {
     /** Called every 10s. Checks if any new "time" event scene triggers are applicable. */
     private handleTimeTriggers() {
         if (!this.store.config.automationEnabled) return;
-        for(const [groupIdStr, group] of Object.entries(this.store.groups)) {
+        for(const [groupIdStr, triggers] of Object.entries(this.store.config.sceneTriggers)) {
             const groupId = Number(groupIdStr);
-            let newState: Record<string, any> | undefined;
-            let sceneId = this.findSceneId(groupId, 'time');
+            const group = this.store.groups[groupId];
+            if (!group) continue;
+
+            let newState: Z2MLightDelta | undefined;
+            let sceneId = this.findSceneId(triggers, 'time');
             if (sceneId != null) {
                 // Only recall if different from previous scene, to avoid setting the
                 // scene again when the user has manually changed it.
@@ -1228,6 +1260,7 @@ class LightLynx {
             } else {
                 if (group._lastTimedSceneId !== undefined) {
                     this.log('info', `Time-based off group=${group.name}`);
+                    this.findSceneId(triggers, 'time', true);
                     newState = {state: 'OFF'};
                     group.activeSceneId = group._lastTimedSceneId = undefined;
                 }
@@ -1238,59 +1271,6 @@ class LightLynx {
             }
         }
     }
-}
-
-
-// Functions for sunset/sunrise calculations
-
-function getDayOfYear(date: Date) {
-    return Math.ceil((date.getTime() - new Date(date.getFullYear(), 0, 1).getTime()) / (24*3600*1000));
-}
-
-function sinDeg(deg: number) { return Math.sin(deg * 2.0 * Math.PI / 360.0); }
-function acosDeg(x: number) { return Math.acos(x) * 360.0 / (2 * Math.PI); }
-function asinDeg(x: number) { return Math.asin(x) * 360.0 / (2 * Math.PI); }
-function cosDeg(deg: number) { return Math.cos(deg * 2.0 * Math.PI / 360.0); }
-function mod(a: number, b: number) { const r = a % b; return r < 0 ? r + b : r; }
-
-function getSunTime(latitude: number, longitude: number, isSunrise: boolean, zenith: number, date: Date) {
-    const dayOfYear = getDayOfYear(date);
-    const hoursFromMeridian = longitude / DEGREES_PER_HOUR;
-    const approxTimeOfEventInDays = isSunrise
-        ? dayOfYear + ((6.0 - hoursFromMeridian) / 24.0)
-        : dayOfYear + ((18.0 - hoursFromMeridian) / 24.0);
-
-    const sunMeanAnomaly = (0.9856 * approxTimeOfEventInDays) - 3.289;
-    let sunTrueLong = sunMeanAnomaly + (1.916 * sinDeg(sunMeanAnomaly)) + (0.020 * sinDeg(2 * sunMeanAnomaly)) + 282.634;
-    sunTrueLong = mod(sunTrueLong, 360);
-
-    let sunRightAscension = acosDeg(cosDeg(sunTrueLong) / cosDeg(asinDeg(0.39782 * sinDeg(sunTrueLong))));
-    sunRightAscension = mod(sunRightAscension, 360);
-    sunRightAscension = sunRightAscension + (((Math.floor(sunTrueLong / 90.0) * 90.0) - (Math.floor(sunRightAscension / 90.0) * 90.0)) / DEGREES_PER_HOUR);
-
-    const sunDeclinationSin = 0.39782 * sinDeg(sunTrueLong);
-    const sunDeclinationCos = cosDeg(asinDeg(sunDeclinationSin));
-
-    const localHourAngleCos = (cosDeg(zenith) - (sunDeclinationSin * sinDeg(latitude))) / (sunDeclinationCos * cosDeg(latitude));
-
-    if (localHourAngleCos > 1 || localHourAngleCos < -1) return null;
-
-    const localHourAngle = isSunrise ? 360 - acosDeg(localHourAngleCos) : acosDeg(localHourAngleCos);
-    const localMeanTime = (localHourAngle / DEGREES_PER_HOUR) + (sunRightAscension / DEGREES_PER_HOUR) - (0.06571 * approxTimeOfEventInDays) - 6.622;
-    const utcTimeInHours = mod(localMeanTime - hoursFromMeridian, 24);
-    const utcDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-
-    utcDate.setUTCHours(Math.floor(utcTimeInHours));
-    utcDate.setUTCMinutes(Math.floor((utcTimeInHours - Math.floor(utcTimeInHours)) * 60));
-    return utcDate;
-}
-
-function getSunrise(lat: number, lon: number, zenith?: number, date?: Date) { 
-    return getSunTime(lat, lon, true, zenith || DEFAULT_ZENITH, date || new Date()); 
-}
-
-function getSunset(lat: number, lon: number, zenith?: number, date?: Date) { 
-    return getSunTime(lat, lon, false, zenith || DEFAULT_ZENITH, date || new Date()); 
 }
 
 module.exports = LightLynx;

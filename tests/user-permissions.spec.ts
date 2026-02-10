@@ -215,6 +215,9 @@ test.describe('User Permissions', () => {
     await expect(page.locator('.item.group').first()).toBeVisible({ timeout: 5000 });
     
     // Navigate directly to bulb 0x001 which is only in Living Room (no permission)
+    // Wait for the 25ms delayed localStorage persistence to complete before navigating,
+    // otherwise goto() may reload with stale credentials from localStorage.
+    await page.waitForTimeout(50);
     await page.goto('/bulb/0x001');
     
     // Now we should be on the bulb page

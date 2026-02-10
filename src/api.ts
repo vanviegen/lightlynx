@@ -1,7 +1,7 @@
 import { $, proxy, clone, copy, unproxy, peek, merge, onEach } from "aberdeen";
 import { applyPrediction, applyCanon, Patch } from "aberdeen/prediction";
 import * as route from "aberdeen/route";
-import { limitLightStateToCaps }  from "./colors";
+import { mergeLightStateWithCaps }  from "./colors";
 import { LightState, LightCaps, ServerCredentials, Config, GroupWithDerives, ClientState, UserWithName, GroupAccess } from "./types";
 import { applyDelta } from "./json-merge-patch";
 
@@ -86,7 +86,7 @@ class Api {
             const json = JSON.stringify(this.servers);
             setTimeout(() => {
                 localStorage.setItem("lightlynx-servers", json);
-            }, 250); // Delay- don't keep UI thread busy during events
+            }, 25); // Delay- don't keep UI thread busy during events
         });
 
         // Persist store to localStorage on changes
@@ -446,12 +446,12 @@ class Api {
                 for(const ieee of group.lightIds) {
                     const light = this.store.lights[ieee];
                     if (!light) continue;
-                    copy(light.lightState, limitLightStateToCaps(lightState, light.lightCaps));
+                    mergeLightStateWithCaps(light.lightState, lightState, light.lightCaps);
                 }
             } else {
                 const light = this.store.lights[target];
                 if (!light) return;
-                copy(light.lightState, limitLightStateToCaps(lightState, light.lightCaps));
+                mergeLightStateWithCaps(light.lightState, lightState, light.lightCaps);
             }
         });
         this.setLightStatePredictions.set(target, patch);
@@ -465,16 +465,23 @@ class Api {
         }, 3000);
 
         // Send the state, but at most 3 times per second per target
-        const actuallySendState = () => {
+        const actuallySendState = async() => {
             const value = this.setLightStateObjects.get(target);
             if (value) {
-                this.send('set-state', target, value);
                 this.setLightStateTimers.set(target, setTimeout(actuallySendState, 333));
                 this.setLightStateObjects.delete(target);
+
                 // If we've actually send the state out, we don't want to drop the prediction when shifting
-                // a slider a bit further. Instead, we keep it around until the server confirms/invalidates it.
+                // a slider a bit further. Instead, we keep it around until the server responds.
                 // Until then, it will act as the basis for more predictions on top.
                 this.setLightStatePredictions.delete(target);
+                try {
+                    await this.send('set-state', target, value);
+                }
+                finally {
+                    // On error (e.g. permission denied), drop the prediction so the UI reverts
+                    applyCanon(undefined, [patch]);
+                }
             } else {
                 this.setLightStateTimers.delete(target);
             }
