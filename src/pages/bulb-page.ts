@@ -62,7 +62,7 @@ export function drawBulbPage(ieee: string): void {
         });
 
         if (!removing.value) {
-            $('div.item.link', icons.eject, 'text=Delete click=', async function() {
+            $('div.item.link', icons.eject, 'text="Delete from Zigbee2MQTT" click=', async function() {
                 if (await askConfirm(`Are you sure you want to detach '${device.name}' from zigbee2mqtt?`)) {
                     removing.value = true;
                     try {
@@ -73,7 +73,7 @@ export function drawBulbPage(ieee: string): void {
                 }
             });
         } else {
-            $('div.item.link', icons.eject, 'text="Force delete" click=', async function() {
+            $('div.item.link', icons.eject, 'text="Force delete from Zigbee2MQTT" click=', async function() {
                 if (await askConfirm(`Are you sure you want to FORCE detach '${device.name}' from zigbee2mqtt?`)) {
                     api.send("bridge", "request", "device", "remove", {id: ieee, force: true});
                 }

@@ -156,7 +156,7 @@ insertGlobalCss({
         },
     },
     
-    '.empty': 'p:$3 text-align:center font-style:italic color:$textMuted',
+    '.empty': 'p:$4 bg:$surface text-align:center font-style:italic color:$textMuted',
 
     '.link': {
         '&': 'cursor:pointer fg:$link transition: color 0.3s ease-out, text-shadow 0.6s ease-out, filter 0.6s ease-out;',

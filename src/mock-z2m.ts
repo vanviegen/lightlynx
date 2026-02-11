@@ -155,6 +155,7 @@ class MockEntity {
 class MockZigbee {
     devices = new Map<string, MockEntity>();
     groups = new Map<number, MockEntity>();
+    private permitJoinTimer?: NodeJS.Timeout;
 
     constructor() {}
 
@@ -181,8 +182,25 @@ class MockZigbee {
 
     permitJoin(time: number) {
         console.log(`Permit join: ${time}`);
+        
+        if (this.permitJoinTimer) {
+            clearTimeout(this.permitJoinTimer);
+            this.permitJoinTimer = undefined;
+        }
+        
+        const base = settings.get().mqtt.base_topic;
+        
         if (time > 0) {
+            mqtt.publish(`${base}/bridge/info`, { permit_join: true }, { clientOptions: { retain: true } });
+            
             startPairingProcedure();
+            
+            this.permitJoinTimer = setTimeout(() => {
+                mqtt.publish(`${base}/bridge/info`, { permit_join: false }, { clientOptions: { retain: true } });
+                console.log('Permit join auto-disabled after 30s');
+            }, 30000);
+        } else {
+            mqtt.publish(`${base}/bridge/info`, { permit_join: false }, { clientOptions: { retain: true } });
         }
     }
 }
@@ -895,7 +913,14 @@ function handleBridgeRequest(cmd: string, payload: any) {
     let responseData: any = {};
 
     if (cmd === 'request/permit_join') {
-        zigbee.permitJoin(payload.value ? 254 : 0);
+        zigbee.permitJoin(payload.time || 0);
+    } else if (cmd === 'request/device/remove') {
+        const device = zigbee.deviceByIeeeAddr(payload.id) || zigbee.deviceByFriendlyName(payload.id);
+        if (device) {
+            zigbee.devices.delete(device.ieeeAddr);
+            state.states.delete(device.id);
+            mqtt.publish(`${base}/bridge/devices`, [...zigbee.devicesIterator()].map(d => d.toJSON()), { clientOptions: { retain: true } });
+        }
     } else if (cmd === 'request/device/rename') {
         const device = typeof payload.from === 'string' ? zigbee.deviceByFriendlyName(payload.from) : undefined;
         if (device) {
@@ -970,24 +995,45 @@ function handleBridgeRequest(cmd: string, payload: any) {
 // --- Pairing Procedure ---
 
 function startPairingProcedure() {
-    const newDevices = [
-        { ieeeAddr: '0x101', friendlyName: 'New Color Bulb', model: 'MOCK_COLOR' },
-        { ieeeAddr: '0x102', friendlyName: 'New White Bulb', model: 'MOCK_WHITE' },
-        { ieeeAddr: '0x103', friendlyName: 'New Button', model: 'MOCK_BUTTON' },
-        { ieeeAddr: '0x104', friendlyName: 'New Sensor', model: 'MOCK_SENSOR' },
-    ];
+    const lightTypes = ['COLOR', 'WHITE', 'AMBIANCE'];
+    const lightType = lightTypes[Math.floor(Math.random() * lightTypes.length)]!;
+    
+    let ieeeAddr = '0x100';
+    while (zigbee.devices.has(ieeeAddr)) {
+        ieeeAddr = '0x' + Math.floor(Math.random() * 0xFFFF).toString(16).padStart(3, '0');
+    }
 
-    newDevices.forEach((d, i) => {
-        setTimeout(() => {
-            console.log(`Device joining: ${d.friendlyName}`);
-            const entity = new MockEntity(d.ieeeAddr, { friendlyName: d.friendlyName });
-            zigbee.devices.set(d.ieeeAddr, entity);
-            state.set(entity, { linkquality: 100 });
-            // In real Z2M, devices list is published
-            const base = settings.get().mqtt.base_topic;
-            eventBus.emitMQTTMessagePublished(`${base}/bridge/devices`, JSON.stringify([...zigbee.devicesIterator()].map(d => d.toJSON())));
-        }, (i + 1) * 2000);
-    });
+    const exposes: any[] = [{ type: 'light', features: [
+        { name: 'state', property: 'state', type: 'binary', value_on: 'ON', value_off: 'OFF' },
+        { name: 'brightness', property: 'brightness', type: 'numeric', value_min: 0, value_max: 255 }
+    ]}];
+
+    if (lightType === 'COLOR') {
+        exposes[0].features.push({ name: 'color_hs', type: 'composite', features: [{name:'hue', property:'hue'}, {name:'saturation', property:'saturation'}] });
+    } else if (lightType === 'AMBIANCE') {
+        exposes[0].features.push({ name: 'color_temp', property: 'color_temp', type: 'numeric', value_min: 153, value_max: 500 });
+    }
+
+    const deviceToAdd = {
+        ieeeAddr,
+        friendlyName: `New ${lightType.charAt(0) + lightType.slice(1).toLowerCase()} Bulb`,
+        model: `MOCK_${lightType}`,
+        description: `${lightType.charAt(0) + lightType.slice(1).toLowerCase()} light bulb`,
+        vendor: 'Mock',
+        type: 'Router' as const,
+        exposes
+    };
+
+    setTimeout(() => {
+        console.log(`Device joining: ${deviceToAdd.friendlyName}`);
+        const entity = new MockEntity(deviceToAdd.ieeeAddr, { friendlyName: deviceToAdd.friendlyName }, deviceToAdd);
+        zigbee.devices.set(deviceToAdd.ieeeAddr, entity);
+        state.set(entity, { state: 'OFF', brightness: 255 });
+        
+        const base = settings.get().mqtt.base_topic;
+        mqtt.publish(`${base}/bridge/devices`, [...zigbee.devicesIterator()].map(d => d.toJSON()), { clientOptions: { retain: true } });
+        mqtt.publish(`${base}/${entity.name}`, state.get(entity), { clientOptions: { retain: true } });
+    }, 5000);
 }
 
 // --- Start ---

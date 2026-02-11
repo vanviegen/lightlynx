@@ -70,7 +70,7 @@ export function drawGroupPage(groupId: number): void {
         routeState.subTitle = 'group';
     })
     
-    drawColorPicker(group, groupId);
+    if (!isEmpty(group.lightIds)) drawColorPicker(group, groupId);
     
     $('h1#Scenes', () => {
         if (manage.value && api.canControlGroup(groupId) === 'manage') icons.create('.link click=', createScene);

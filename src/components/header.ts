@@ -64,7 +64,7 @@ export function drawHeader(updateAvailable: { value: boolean }): void {
         
         $(() => {
             if (api.store.permitJoin) {
-                icons.create('.on.spinning click=', () => api.send("bridge", "request", "permit_join", {time: 0}));
+                icons.create('.on.pulse click=', () => api.send("bridge", "request", "permit_join", {time: 0}));
             }
         });
         
