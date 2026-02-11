@@ -39,7 +39,7 @@ export function drawHeader(updateAvailable: { value: boolean }): void {
         
         $(() => {
             if (route.current.path !== '/') {
-                icons.back('click=', route.up);
+                icons.back('click=', () => route.back());
             }
             $('h1.title', () => {
                 const title = routeState.title || 'Light Lynx';

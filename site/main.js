@@ -1,5 +1,24 @@
 // Light Lynx Landing Page — Interactive JS
-// Accordion, download handling, smooth scroll
+// Accordion, download handling, smooth scroll, demo server selection
+
+// ---- Demo server selection (persistent in localStorage) ----
+function getDemoUrl() {
+  let demoNumber = localStorage.getItem('lightlynx-demo-number');
+  if (!demoNumber) {
+    // Pick a random number from 00 to 09
+    demoNumber = String(Math.floor(Math.random() * 10)).padStart(2, '0');
+    localStorage.setItem('lightlynx-demo-number', demoNumber);
+  }
+  return `https://app.lightlynx.eu/?instanceId=demo${demoNumber}.lightlynx.eu:443&userName=admin`;
+}
+
+// Attach demo button handlers
+document.querySelectorAll('#show-demo-hero, #show-demo-cta').forEach(btn => {
+  btn.addEventListener('click', (e) => {
+    e.preventDefault();
+    window.open(getDemoUrl(), '_blank', 'noopener');
+  });
+});
 
 // ---- Single-open accordion: only one feature card open at a time ----
 document.querySelectorAll('.feature-card').forEach(card => {

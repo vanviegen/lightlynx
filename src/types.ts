@@ -117,6 +117,7 @@ export interface SslConfig {
     };
     localIp?: string;
     externalIp?: string;
+    externalPort?: number;
     instanceKey?: string;
 }
 

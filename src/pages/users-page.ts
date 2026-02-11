@@ -58,7 +58,7 @@ export function drawUserEditor(): void {
 
         $('div.item', () => {
             $('h2.form-label flex:0 #Password');
-            $('input flex:1 type=password bind=', ref(user, 'secret'), 'placeholder=', 'Password or secret');
+            $('input flex:1 type=password bind=', ref(user, 'secret'), 'placeholder=', 'Password or hash or empty');
         });
 
         $('label.item', () => {

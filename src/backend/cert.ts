@@ -1,5 +1,7 @@
 // @ts-ignore
 import * as BunnySDK from "https://esm.sh/@bunny.net/edgescript-sdk@0.11.2";
+// @ts-ignore
+import { createClient } from "https://esm.sh/@libsql/client@0.15.2/web";
 
 // ============================================================================
 // CONFIGURATION
@@ -12,6 +14,13 @@ const ACME_DIRECTORY_URL = "https://acme-v02.api.letsencrypt.org/directory";
 
 const CERT_VALIDITY_DAYS = 90;
 
+// CORS headers for browser requests (app subdomain only)
+const CORS_HEADERS = {
+    "Access-Control-Allow-Origin": `https://app.${DOMAIN}`,
+    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type",
+};
+
 // Secrets from environment
 // @ts-ignore
 const BUNNY_DNS_ZONE_ID: string = process.env.BUNNY_DNS_ZONE_ID;
@@ -19,18 +28,12 @@ const BUNNY_DNS_ZONE_ID: string = process.env.BUNNY_DNS_ZONE_ID;
 const BUNNY_ACCESS_KEY: string = process.env.BUNNY_ACCESS_KEY;
 // @ts-ignore
 const CERT_SERVER_SECRET: string = process.env.CERT_SERVER_SECRET;
+// @ts-ignore
+const BUNNY_DB_URL: string = process.env.BUNNY_DB_URL;
+// @ts-ignore
+const BUNNY_DB_TOKEN: string = process.env.BUNNY_DB_TOKEN;
 
-// ============================================================================
-// IP CONVERSION
-// ============================================================================
-
-function ipToHex(ip: string): string | null {
-    const parts = ip.split('.').map(Number);
-    if (parts.length !== 4 || parts.some(p => isNaN(p) || p < 0 || p > 255)) {
-        return null;
-    }
-    return parts.map(p => p.toString(16).padStart(2, '0')).join('');
-}
+const db = createClient({ url: BUNNY_DB_URL, authToken: BUNNY_DB_TOKEN });
 
 // ============================================================================
 // UTILITY FUNCTIONS
@@ -769,117 +772,126 @@ function getClientIP(request: Request): string | undefined {
     return undefined;
 }
 
-async function handleCreate(request: Request): Promise<Response> {
+async function handleCert(request: Request): Promise<Response> {
     try {
         const zoneId = BUNNY_DNS_ZONE_ID;
         const originIP = getClientIP(request);
 
         if (!originIP) {
-            return jsonResponse(
-                { success: false, error: "Could not determine client IP address" },
-                400
-            );
+            return jsonResponse({ error: "Could not determine client IP address" }, 400);
         }
 
-        const { localIp, instanceId: providedCode, instanceKey: providedKey } = await request.json();
-
-        if (!localIp) {
-            return jsonResponse(
-                { success: false, error: "localIp is required" },
-                400
-            );
-        }
+        const {
+            instanceId: providedId,
+            instanceKey: providedKey,
+            localIp,
+            externalPort,
+            needsCert,
+            needsDns,
+            needsDb,
+        } = await request.json();
 
         // Use provided instance ID or generate a new one
-        const isNew = !providedCode;
-        const instanceId = providedCode || generateInstanceId();
+        const isNew = !providedId;
+        const instanceId = providedId || generateInstanceId();
 
         // Verify instanceKey for existing instances
         if (!isNew) {
             if (!providedKey) {
-                return jsonResponse(
-                    { success: false, error: "instanceKey is required for existing instances" },
-                    403
-                );
+                return jsonResponse({ error: "instanceKey is required for existing instances" }, 403);
             }
             if (!await verifyInstanceKey(instanceId, providedKey)) {
-                return jsonResponse(
-                    { success: false, error: "Invalid instanceKey" },
-                    403
-                );
+                return jsonResponse({ error: "Invalid instanceKey" }, 403);
             }
         }
 
-        // Generate the key for this instance
+        // Generate the (new) key for this instance
         const instanceKey = await generateInstanceKey(instanceId);
 
-        // Always issue certificates for these domains
-        const domains = [
-            `int-${instanceId}.${DOMAIN}`,
-            `ext-${instanceId}.${DOMAIN}`,
-        ];
+        const result: Record<string, any> = { instanceId, instanceKey };
 
-        // Create/update DNS A records
-        const externalHex = ipToHex(originIP);
-        const aRecords: { name: string; value: string; ttl?: number }[] = [
-            // int-<code> -> internal IP
-            { name: `int-${instanceId}`, value: localIp, ttl: 60 },
-            // ext-<code> -> external IP
-            { name: `ext-${instanceId}`, value: originIP, ttl: 60 },
-        ];
-        // auto-<hex_external_ip> -> internal IP (for auto-discovery)
-        if (externalHex) {
-            aRecords.push({ name: `auto-${externalHex}`, value: localIp, ttl: 60 });
+        // Update DNS A records if requested (IP changed or new instance)
+        if (needsDns && localIp) {
+            await setARecords(zoneId, [
+                { name: `int-${instanceId}`, value: localIp, ttl: 60 },
+                { name: `ext-${instanceId}`, value: originIP, ttl: 60 },
+            ]);
+            result.externalIp = originIP;
         }
-        await setARecords(zoneId, aRecords);
 
-        const certResult = await issueCertificate(domains, zoneId);
-        const expiresAt = certResult.issuedAt + CERT_VALIDITY_DAYS * 24 * 60 * 60 * 1000;
+        // Update externals database if requested (port or external IP changed)
+        if (needsDb && externalPort != null) {
+            await upsertExternal(instanceId, originIP, externalPort);
+        }
 
-        return jsonResponse({
-            instanceId,
-            instanceKey,
-            expiresAt,
-            nodeHttpsOptions: {
+        // Issue new certificate if requested (new instance or near expiry)
+        if (needsCert) {
+            if (!localIp) {
+                return jsonResponse({ error: "localIp is required for certificate issuance" }, 400);
+            }
+            // Ensure DNS records exist before issuing cert
+            if (!needsDns) {
+                await setARecords(zoneId, [
+                    { name: `int-${instanceId}`, value: localIp, ttl: 60 },
+                    { name: `ext-${instanceId}`, value: originIP, ttl: 60 },
+                ]);
+            }
+            const domains = [
+                `int-${instanceId}.${DOMAIN}`,
+                `ext-${instanceId}.${DOMAIN}`,
+            ];
+            const certResult = await issueCertificate(domains, zoneId);
+            result.expiresAt = certResult.issuedAt + CERT_VALIDITY_DAYS * 24 * 60 * 60 * 1000;
+            result.nodeHttpsOptions = {
                 cert: certResult.certificate,
                 key: certResult.privateKey,
-            },
-            localIp,
-            externalIp: originIP,
-        }, 201);
+            };
+            result.localIp = localIp;
+            result.externalIp = originIP;
+        }
+
+        return jsonResponse(result, isNew ? 201 : 200);
     } catch (error) {
-        console.error("Create error:", error);
-        return jsonResponse(
-            { error: `Failed to create: ${(error as Error).message}` },
-            500
-        );
+        console.error("Cert error:", error);
+        return jsonResponse({ error: `Failed: ${(error as Error).message}` }, 500);
     }
 }
 
-function jsonResponse<T>(data: T, status: number = 200): Response {
+function jsonResponse<T>(data: T, status: number = 200, cors: boolean = false): Response {
     return new Response(JSON.stringify(data, null, 2), {
         status,
         headers: {
             "Content-Type": "application/json",
-            "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-            "Access-Control-Allow-Headers": "Content-Type",
+            ...(cors ? CORS_HEADERS : {}),
         },
     });
 }
 
-async function findInstanceIdForExternalIp(externalIp: string): Promise<string | undefined> {
-    const hex = ipToHex(externalIp);
-    if (!hex) return undefined;
-    const zoneId = BUNNY_DNS_ZONE_ID;
-    const records = await getDNSRecords(zoneId);
-    const autoRecord = records.find(r => r.Type === 0 && r.Name === `auto-${hex}`);
-    if (!autoRecord?.Value) return undefined;
+async function findExternalByIp(externalIp: string): Promise<{ instanceId: string; externalPort: number } | undefined> {
+    const result = await db.execute({
+        sql: "SELECT instanceId, externalPort FROM externals WHERE externalIp = ?",
+        args: [externalIp],
+    });
+    const row = result.rows[0];
+    if (!row) return undefined;
+    return { instanceId: row.instanceId as string, externalPort: row.externalPort as number };
+}
 
-    const internalIp = autoRecord.Value;
-    const match = records.find(r => r.Type === 0 && r.Value === internalIp && r.Name.startsWith('int-'));
-    if (!match) return undefined;
-    return match.Name.replace(/^int-/, '');
+async function findExternalById(instanceId: string): Promise<{ externalPort: number } | undefined> {
+    const result = await db.execute({
+        sql: "SELECT externalPort FROM externals WHERE instanceId = ?",
+        args: [instanceId],
+    });
+    const row = result.rows[0];
+    if (!row) return undefined;
+    return { externalPort: row.externalPort as number };
+}
+
+async function upsertExternal(instanceId: string, externalIp: string, externalPort: number): Promise<void> {
+    await db.execute({
+        sql: "INSERT INTO externals (instanceId, externalIp, externalPort) VALUES (?, ?, ?) ON CONFLICT(instanceId) DO UPDATE SET externalIp = excluded.externalIp, externalPort = excluded.externalPort",
+        args: [instanceId, externalIp, externalPort],
+    });
 }
 
 // ============================================================================
@@ -890,65 +902,55 @@ BunnySDK.net.http.serve(async (request: Request): Promise<Response> => {
     try {
         const url = new URL(request.url);
 
+        if (url.pathname === "/cert") {
+            if (request.method !== "POST") {
+                return jsonResponse({ error: "Method not allowed" }, 405, true);
+            }
+            return await handleCert(request);
+        }
+
         if (request.method === "OPTIONS") {
             return new Response(null, {
                 status: 204,
-                headers: {
-                    "Access-Control-Allow-Origin": "*",
-                    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-                    "Access-Control-Allow-Headers": "Content-Type",
-                },
+                headers: CORS_HEADERS,
             });
         }
 
-        if (url.pathname === "/ip") {
-            const ip = getClientIP(request);
-            return new Response(ip, {
-                headers: {
-                    "Content-Type": "text/plain",
-                    "Access-Control-Allow-Origin": "*",
-                },
-            });
+        if (request.method !== "GET") {
+            return jsonResponse({ error: "Method not allowed" }, 405, true);
         }
 
         if (url.pathname === "/auto") {
             const ip = getClientIP(request);
-            if (!ip) return new Response('', { status: 404 });
+            if (!ip) return jsonResponse({ error: "Could not determine client IP" }, 200, true);
             try {
-                const instanceId = await findInstanceIdForExternalIp(ip);
-                if (!instanceId) return new Response('', { status: 404 });
-                return new Response(instanceId, {
-                    headers: {
-                        "Content-Type": "text/plain",
-                        "Access-Control-Allow-Origin": "*",
-                    },
-                });
+                const external = await findExternalByIp(ip);
+                if (!external) return jsonResponse({ error: "No instance found for this IP" }, 200, true);
+                return jsonResponse({ instanceId: external.instanceId }, 200, true);
             } catch (error) {
                 console.error("Auto lookup error:", error);
-                return new Response('', { status: 500 });
+                return jsonResponse({ error: "Database lookup failed" }, 200, true);
             }
         }
 
-        if (request.method !== "POST") {
-            return jsonResponse(
-                { error: "Method not allowed" },
-                405
-            );
+        if (url.pathname === "/port") {
+            const instanceId = url.searchParams.get("id");
+            if (!instanceId) return jsonResponse({ error: "id parameter required" }, 200, true);
+            try {
+                const external = await findExternalById(instanceId);
+                if (!external) return jsonResponse({ error: "Instance not found" }, 200, true);
+                return jsonResponse({ externalPort: external.externalPort }, 200, true);
+            } catch (error) {
+                console.error("Port lookup error:", error);
+                return jsonResponse({ error: "Database lookup failed" }, 200, true);
+            }
         }
 
-        if (url.pathname === "/create") {
-            return await handleCreate(request);
-        }
+
         
-        return jsonResponse(
-            { error: "Not found" },
-            404
-        );
+        return jsonResponse({ error: "Not found" }, 404, true);
     } catch (error) {
         console.error("Unhandled error:", error);
-        return jsonResponse(
-            { success: false, error: "Internal server error" },
-            500
-        );
+        return jsonResponse({ error: "Internal server error" }, 500);
     }
 });

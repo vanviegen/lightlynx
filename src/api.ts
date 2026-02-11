@@ -340,21 +340,45 @@ class Api {
         this.disconnect();
         this.connection.lastError ||= errorMessage;
         
-        if (this.connection.mode === 'try') {
+        if (this.connection.mode === 'disabled') {
+            this.connection.state = 'idle';
+        } else if (this.connection.mode === 'try' && this.connection.attempts > 0) { // Allow 1 retry (that asks for a /port refresh)
             // Single attempt mode: disable on failure
             this.connection.mode = 'disabled';
             this.connection.state = 'idle';
-        } else if (this.connection.mode === 'enabled') {
+        } else {
             // Persistent mode: schedule retry with exponential backoff
             const delay = Math.min(500 * Math.pow(2, this.connection.attempts), 16000);
             console.log(`api/scheduleReconnect in ${delay}ms (attempt ${this.connection.attempts + 1})`);
             this.connection.state = 'reconnecting';
+
+            // On first failure, try to refresh the external port from the cert backend
+            if (this.connection.attempts === 0) {
+                this.refreshExternalPort();
+            }
+
             this.connectTimeout = setTimeout(() => {
                 this.connectTimeout = undefined;
                 this.connection.attempts++; // Cause reactive method in constructor to reconnect
             }, delay);
-        } else {
-            this.connection.state = 'idle';
+        }
+    }
+
+    /** Try to fetch the current external port for this instance from the cert backend. */
+    private async refreshExternalPort() {
+        const server = this.servers[0];
+        const instanceId = server?.instanceId;
+        if (!instanceId || instanceId.includes('.') || instanceId.includes(':')) return; // This is a hostname not a instanceId
+        try {
+            const res = await fetch(`https://cert.${DOMAIN}/port?id=${encodeURIComponent(instanceId)}`);
+            const data = await res.json();
+            if (data?.error) return; // Instance not found or other error
+            if (data?.externalPort && server.externalPort !== data.externalPort) {
+                console.log(`api/portLookup: updated externalPort ${server.externalPort} -> ${data.externalPort}`);
+                server.externalPort = data.externalPort;
+            }
+        } catch(e) {
+            console.error(`Error refreshing external port: ${e}`);
         }
     }
 
@@ -646,6 +670,7 @@ class Api {
         const socket = event.target as WebSocket;
         if (socket && socket !== this.socket) return;
 
+        console.log("api/onMessage", event.data);``
         const args = JSON.parse(event.data);
         const command = args.shift();
 

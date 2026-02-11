@@ -30,20 +30,20 @@ test.describe('Light Lynx Integration', () => {
     await page.getByRole('heading', { name: 'Bulbs' }).getByRole('img', { name: 'create' }).click({ force: true });
     await expect(page.locator('span.subTitle', { hasText: 'add light' })).toBeVisible();
 
-    // Add "Color Light"
-    await page.locator('h2', { hasText: 'Color Light' }).click();
+    // Add "Living Room Ceiling 1"
+    await page.locator('h2', { hasText: 'Living Room Ceiling 1' }).click();
     // After adding, it should go back to group page
     await expect(page.locator('span.subTitle', { hasText: 'add light' })).not.toBeVisible();
     await expect(page.locator('span.subTitle', { hasText: 'group' })).toBeVisible();
     // Use filter({ visible: true }) to pick the matching visible one
-    await expect(page.locator('h2', { hasText: 'Color Light' })).toBeVisible();
+    await expect(page.locator('h2', { hasText: 'Living Room Ceiling 1' })).toBeVisible();
 
-    // Add another "White Light"
+    // Add another "Kitchen Ceiling"
     await page.getByRole('heading', { name: 'Bulbs' }).getByRole('img', { name: 'create' }).click({ force: true });
-    await page.locator('h2', { hasText: 'White Light' }).click();
+    await page.locator('h2', { hasText: 'Kitchen Ceiling' }).click();
     await expect(page.locator('span.subTitle', { hasText: 'add light' })).not.toBeVisible();
     await expect(page.locator('span.subTitle', { hasText: 'group' })).toBeVisible();
-    await expect(page.locator('h2', { hasText: 'White Light' })).toBeVisible();
+    await expect(page.locator('h2', { hasText: 'Kitchen Ceiling' })).toBeVisible();
 
     // 8. Create a scene
     const sceneName = 'Test Scene';

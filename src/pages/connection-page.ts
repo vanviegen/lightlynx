@@ -6,6 +6,7 @@ import { routeState, hashSecret, copyToClipboard } from '../ui';
 import { askConfirm } from '../components/prompt';
 import { errorMessageStyle } from '../global-style';
 import { isEqual } from '../utils';
+import { createToast } from '../components/toasts';
 
 const setupInstructionsStyle = insertCss({
     '&': 'bg:$surface r:8px p:$3 mb:$3 line-height:1.6',
@@ -94,17 +95,21 @@ function drawConnectionDetails(selectedIndex: { value: number }): void {
     const instanceId = proxy(orgServer.instanceId || '');
     const userName = proxy(orgServer.userName || 'admin');
     const password = proxy(orgServer.secret || '');
+    console.log('Drawing connection details for index', index, {instanceId, userName, password});
 
-    function autoLookup() {
-        fetch('https://cert.lightlynx.eu/auto')
-            .then(res => res.ok ? res.text() : '')
-            .then(code => {
-                if (!instanceId.value && code) instanceId.value = code.trim();
-            })
-            .catch(() => {});
+    async function autoLookup(event?: Event) {
+        if (event) createToast('info', 'Looking up instance ID…', 'auto');
+        const res = await fetch('https://cert.lightlynx.eu/auto');
+        const data = await res.json();
+        if (data?.instanceId && !instanceId.value) {
+            instanceId.value = data.instanceId;
+            if (event) createToast('info', `Instance ID found: ${data.instanceId}`, 'auto');
+            return;
+        }
+        if (event) createToast('error', data?.error || 'No instance ID found for this IP.', 'auto');
     }
 
-    if (!peek(orgServer, 'instanceId')) autoLookup();
+    if (!orgServer.instanceId) autoLookup();
 
     // Show connection errors
     $(() => {
@@ -125,9 +130,11 @@ function drawConnectionDetails(selectedIndex: { value: number }): void {
             instanceId: instanceId.value,
             userName: userName.value,
             secret: await hashSecret(password.value),
+            externalPort: orgServer.externalPort, // Keep original external port - it might still work
         });
         api.connection.mode = 'try';
         api.connection.attempts = 0;
+        api.connection.lastError = undefined;
     }
 
     async function handleDelete(): Promise<void> {
@@ -148,7 +155,7 @@ function drawConnectionDetails(selectedIndex: { value: number }): void {
             $('input required=', true, 'bind=', userName);
         });
         $('div.field', () => {
-            $('label#Secret');
+            $('label#Password');
             $('input type=password bind=', password, 'placeholder=', 'Password or hash or empty');
         });
         $('div.button-row', () => {

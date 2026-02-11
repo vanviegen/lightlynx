@@ -249,12 +249,22 @@ class LightLynx {
             // In insecure mode, leave instanceId empty - clients connect via literal hostname
             return;
         }
-        
-        let ssl = cfg._ssl;
+
+        if (CERT_FILE) {
+            // Load certificate from file (dev/testing)
+            if (!cfg._ssl || cfg._ssl.expiresAt - Date.now() < SSL_RENEW_THRESHOLD) {
+                this.log('info', 'Loading SSL certificate from file ' + CERT_FILE);
+                const { cert, key } = JSON.parse(fs.readFileSync(CERT_FILE, 'utf8'));
+                cfg._ssl = { expiresAt: Date.now() + 24 * 3600 * 1000, nodeHttpsOptions: { cert, key } };
+                this.saveConfig();
+            }
+            return;
+        }
 
         const localIp = await this.getLocalIp();
+        if (!localIp) return;
 
-        if (cfg.allowRemote && localIp) {
+        if (cfg.allowRemote) {
             // Run UPnP port mapping setup in background. We don't need to wait for this on
             // startup (especially since we may not be behind a UPnP-capable gateway at all).
             (async () => {
@@ -264,54 +274,86 @@ class LightLynx {
                     this.saveConfig();
                     if (port) {
                         this.log('info', `UPnP external port mapped to ${port}`);
+                        this.syncWithCertBackend(localIp);
                     }
                 }
             })();
         }
 
-        if (!INSECURE && localIp && (!ssl || ssl.localIp !== localIp || ssl.expiresAt - Date.now() < SSL_RENEW_THRESHOLD)) {
-            try {
-                let res: any;
-                if (CERT_FILE) {
-                    this.log('info', 'Loading SSL certificate from file ' + CERT_FILE);
-                    const { cert, key } = JSON.parse(fs.readFileSync(CERT_FILE, 'utf8'));            
-                    res = {
-                        expiresAt: Date.now() + 24 * 3600 * 1000,
-                        nodeHttpsOptions: { cert, key }
-                    };
-                } else {
-                    this.log('info', `Requesting SSL certificate localIp=${localIp} instanceId=${cfg.instanceId || '(new)'}`);
-                    const response = await this.httpRequest('https://cert.lightlynx.eu/create', {
-                        method: 'POST',
-                        body: JSON.stringify({ localIp, instanceId: cfg.instanceId, instanceKey: cfg._ssl?.instanceKey }),
-                        headers: { 'Content-Type': 'application/json' }
-                    });
-                    res = JSON.parse(response.body);
+        await this.syncWithCertBackend(localIp);
+        this.scheduleEmitChanges();
+    }
 
-                    // Save the instance ID from the cert backend (may be newly generated)
-                    if (res.instanceId && res.instanceId !== cfg.instanceId) {
-                        cfg.instanceId = res.instanceId;
-                        this.log('info', `Instance ID assigned: ${cfg.instanceId}`);
-                    }
-                }
+    /** Sync local state with the cert backend. Only calls /cert when something actually
+     * changed: IPs, external port, or certificate nearing expiry. Tells the backend
+     * exactly what needs updating to minimize work.
+     */
+    private async syncWithCertBackend(localIp: string) {
+        const cfg = this.store.config;
+        const ssl = cfg._ssl;
 
-                if (res && res.nodeHttpsOptions && res.expiresAt) {
-                    cfg._ssl = res;
-                    this.saveConfig();
-                    this.log('info', `New SSL certificate obtained (expires at ${new Date(res.expiresAt).toISOString()})`);
-                    if (this.server) {
-                        this.log('info', `Restarting extension...`);
-                        await this.stop();
-                        await this.start();
-                    }
-                } else {
-                    this.log('error', 'SSL certificate request failed: ' + (res.error || JSON.stringify(res)));
-                }
-            } catch (err: any) {
-                this.log('error', `SSL setup failed: ${err.message}`);
+        const isNew = !cfg.instanceId;
+        const needsCert = isNew || !ssl?.nodeHttpsOptions?.cert || ssl.expiresAt - Date.now() < SSL_RENEW_THRESHOLD;
+        const needsDns = isNew || ssl?.localIp !== localIp; // external IP change is detected server-side
+        const needsDb = (isNew || cfg.externalPort !== ssl?.externalPort) && cfg.externalPort != null;
+
+        if (!needsCert && !needsDns && !needsDb) return;
+
+        const actions = [needsCert && 'cert', needsDns && 'dns', needsDb && 'db'].filter(Boolean).join('+');
+        this.log('info', `Calling cert backend (${actions}) localIp=${localIp} instanceId=${cfg.instanceId || '(new)'}`);
+
+        try {
+            const response = await this.httpRequest('https://cert.lightlynx.eu/cert', {
+                method: 'POST',
+                body: JSON.stringify({
+                    instanceId: cfg.instanceId,
+                    instanceKey: ssl?.instanceKey,
+                    localIp,
+                    externalPort: cfg.externalPort,
+                    needsCert,
+                    needsDns,
+                    needsDb,
+                }),
+                headers: { 'Content-Type': 'application/json' },
+            });
+            const res = JSON.parse(response.body);
+            if (res.error) {
+                this.log('error', 'Cert backend error: ' + res.error);
+                return;
             }
+
+            // Save the instance ID from the cert backend (may be newly generated)
+            if (res.instanceId && res.instanceId !== cfg.instanceId) {
+                cfg.instanceId = res.instanceId;
+                this.log('info', `Instance ID assigned: ${cfg.instanceId}`);
+            }
+
+            // Update SSL config, preserving existing cert if not re-issued
+            if (res.nodeHttpsOptions && res.expiresAt) {
+                cfg._ssl = res;
+                // Track what we've synced so we know when to call again
+                cfg._ssl!.localIp = localIp;
+                cfg._ssl!.externalPort = cfg.externalPort;
+                this.log('info', `New SSL certificate obtained (expires at ${new Date(res.expiresAt).toISOString()})`);
+                this.saveConfig();
+                if (this.server) {
+                    this.log('info', `Restarting extension...`);
+                    await this.stop();
+                    await this.start();
+                }
+            } else {
+                // No new cert, but update tracking fields
+                if (ssl) {
+                    ssl.instanceKey = res.instanceKey;
+                    ssl.localIp = localIp;
+                    ssl.externalPort = cfg.externalPort;
+                    if (res.externalIp) ssl.externalIp = res.externalIp;
+                }
+                this.saveConfig();
+            }
+        } catch (err: any) {
+            this.log('error', `Cert backend call failed: ${err.message}`);
         }
-        
         this.scheduleEmitChanges();
     }
 
@@ -1260,7 +1302,7 @@ class LightLynx {
             } else {
                 if (group._lastTimedSceneId !== undefined) {
                     this.log('info', `Time-based off group=${group.name}`);
-                    this.findSceneId(triggers, 'time', true);
+                    this.findSceneId(triggers, 'time');
                     newState = {state: 'OFF'};
                     group.activeSceneId = group._lastTimedSceneId = undefined;
                 }

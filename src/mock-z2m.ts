@@ -368,53 +368,201 @@ class ExtensionManager {
 const extensionManager = new ExtensionManager();
 
 const devicesData: Record<string, MockDevice> = {
-    '0x001': { ieeeAddr: '0x001', friendlyName: 'Color Light', model: 'MOCK_COLOR', description: 'Color light bulb', vendor: 'Mock', type: 'Router', exposes: [
+    // Living Room - mixed capabilities
+    '0x001': { ieeeAddr: '0x001', friendlyName: 'Living Room Ceiling 1', model: 'MOCK_COLOR', description: 'Color light bulb', vendor: 'Mock', type: 'Router', exposes: [
         { type: 'light', features: [
             { name: 'state', property: 'state', type: 'binary', value_on: 'ON', value_off: 'OFF' },
             { name: 'brightness', property: 'brightness', type: 'numeric', value_min: 0, value_max: 255 },
             { name: 'color_hs', type: 'composite', features: [{name:'hue', property:'hue'}, {name:'saturation', property:'saturation'}] }
         ]}
     ]},
-    '0x002': { ieeeAddr: '0x002', friendlyName: 'White Light', model: 'MOCK_WHITE', description: 'White light bulb (no color)', vendor: 'Mock', type: 'Router', exposes: [
+    '0x002': { ieeeAddr: '0x002', friendlyName: 'Living Room Ceiling 2', model: 'MOCK_COLOR', description: 'Color light bulb', vendor: 'Mock', type: 'Router', exposes: [
         { type: 'light', features: [
             { name: 'state', property: 'state', type: 'binary', value_on: 'ON', value_off: 'OFF' },
-            { name: 'brightness', property: 'brightness', type: 'numeric', value_min: 0, value_max: 255 }
+            { name: 'brightness', property: 'brightness', type: 'numeric', value_min: 0, value_max: 255 },
+            { name: 'color_hs', type: 'composite', features: [{name:'hue', property:'hue'}, {name:'saturation', property:'saturation'}] }
         ]}
     ]},
-    '0x003': { ieeeAddr: '0x003', friendlyName: 'Ambiance Light', model: 'MOCK_AMBIANCE', description: 'Ambiance light (white with temp)', vendor: 'Mock', type: 'Router', exposes: [
+    '0x003': { ieeeAddr: '0x003', friendlyName: 'Living Room Floor Lamp', model: 'MOCK_AMBIANCE', description: 'Ambiance light (white with temp)', vendor: 'Mock', type: 'Router', exposes: [
         { type: 'light', features: [
             { name: 'state', property: 'state', type: 'binary', value_on: 'ON', value_off: 'OFF' },
             { name: 'brightness', property: 'brightness', type: 'numeric', value_min: 0, value_max: 255 },
             { name: 'color_temp', property: 'color_temp', type: 'numeric', value_min: 153, value_max: 500 }
         ]}
+    ]},
+    
+    // Kitchen - ambiance lights
+    '0x004': { ieeeAddr: '0x004', friendlyName: 'Kitchen Counter 1', model: 'MOCK_AMBIANCE', description: 'Ambiance light', vendor: 'Mock', type: 'Router', exposes: [
+        { type: 'light', features: [
+            { name: 'state', property: 'state', type: 'binary', value_on: 'ON', value_off: 'OFF' },
+            { name: 'brightness', property: 'brightness', type: 'numeric', value_min: 0, value_max: 255 },
+            { name: 'color_temp', property: 'color_temp', type: 'numeric', value_min: 153, value_max: 500 }
+        ]}
+    ]},
+    '0x005': { ieeeAddr: '0x005', friendlyName: 'Kitchen Counter 2', model: 'MOCK_AMBIANCE', description: 'Ambiance light', vendor: 'Mock', type: 'Router', exposes: [
+        { type: 'light', features: [
+            { name: 'state', property: 'state', type: 'binary', value_on: 'ON', value_off: 'OFF' },
+            { name: 'brightness', property: 'brightness', type: 'numeric', value_min: 0, value_max: 255 },
+            { name: 'color_temp', property: 'color_temp', type: 'numeric', value_min: 153, value_max: 500 }
+        ]}
+    ]},
+    '0x006': { ieeeAddr: '0x006', friendlyName: 'Kitchen Ceiling', model: 'MOCK_WHITE', description: 'White light bulb', vendor: 'Mock', type: 'Router', exposes: [
+        { type: 'light', features: [
+            { name: 'state', property: 'state', type: 'binary', value_on: 'ON', value_off: 'OFF' },
+            { name: 'brightness', property: 'brightness', type: 'numeric', value_min: 0, value_max: 255 }
+        ]}
+    ]},
+    
+    // Bedroom - color lights
+    '0x007': { ieeeAddr: '0x007', friendlyName: 'Bedroom Ceiling', model: 'MOCK_COLOR', description: 'Color light bulb', vendor: 'Mock', type: 'Router', exposes: [
+        { type: 'light', features: [
+            { name: 'state', property: 'state', type: 'binary', value_on: 'ON', value_off: 'OFF' },
+            { name: 'brightness', property: 'brightness', type: 'numeric', value_min: 0, value_max: 255 },
+            { name: 'color_hs', type: 'composite', features: [{name:'hue', property:'hue'}, {name:'saturation', property:'saturation'}] }
+        ]}
+    ]},
+    '0x008': { ieeeAddr: '0x008', friendlyName: 'Bedroom Nightstand 1', model: 'MOCK_AMBIANCE', description: 'Ambiance light', vendor: 'Mock', type: 'Router', exposes: [
+        { type: 'light', features: [
+            { name: 'state', property: 'state', type: 'binary', value_on: 'ON', value_off: 'OFF' },
+            { name: 'brightness', property: 'brightness', type: 'numeric', value_min: 0, value_max: 255 },
+            { name: 'color_temp', property: 'color_temp', type: 'numeric', value_min: 153, value_max: 500 }
+        ]}
+    ]},
+    '0x009': { ieeeAddr: '0x009', friendlyName: 'Bedroom Nightstand 2', model: 'MOCK_AMBIANCE', description: 'Ambiance light', vendor: 'Mock', type: 'Router', exposes: [
+        { type: 'light', features: [
+            { name: 'state', property: 'state', type: 'binary', value_on: 'ON', value_off: 'OFF' },
+            { name: 'brightness', property: 'brightness', type: 'numeric', value_min: 0, value_max: 255 },
+            { name: 'color_temp', property: 'color_temp', type: 'numeric', value_min: 153, value_max: 500 }
+        ]}
+    ]},
+    
+    // Office - white lights
+    '0x00A': { ieeeAddr: '0x00A', friendlyName: 'Office Desk Lamp', model: 'MOCK_WHITE', description: 'White light bulb', vendor: 'Mock', type: 'Router', exposes: [
+        { type: 'light', features: [
+            { name: 'state', property: 'state', type: 'binary', value_on: 'ON', value_off: 'OFF' },
+            { name: 'brightness', property: 'brightness', type: 'numeric', value_min: 0, value_max: 255 }
+        ]}
+    ]},
+    '0x00B': { ieeeAddr: '0x00B', friendlyName: 'Office Ceiling', model: 'MOCK_AMBIANCE', description: 'Ambiance light', vendor: 'Mock', type: 'Router', exposes: [
+        { type: 'light', features: [
+            { name: 'state', property: 'state', type: 'binary', value_on: 'ON', value_off: 'OFF' },
+            { name: 'brightness', property: 'brightness', type: 'numeric', value_min: 0, value_max: 255 },
+            { name: 'color_temp', property: 'color_temp', type: 'numeric', value_min: 153, value_max: 500 }
+        ]}
+    ]},
+    
+    // Buttons and sensors
+    '0x050': { ieeeAddr: '0x050', friendlyName: 'Living Room Button', model: 'MOCK_BUTTON', description: 'Wireless button', vendor: 'Mock', type: 'EndDevice', exposes: [
+        { type: 'enum', name: 'action', property: 'action', values: ['single', 'double', 'triple', 'hold'] }
+    ]},
+    '0x051': { ieeeAddr: '0x051', friendlyName: 'Kitchen Button', model: 'MOCK_BUTTON', description: 'Wireless button', vendor: 'Mock', type: 'EndDevice', exposes: [
+        { type: 'enum', name: 'action', property: 'action', values: ['single', 'double', 'triple', 'hold'] }
+    ]},
+    '0x052': { ieeeAddr: '0x052', friendlyName: 'Hallway Motion Sensor', model: 'MOCK_SENSOR', description: 'Motion sensor', vendor: 'Mock', type: 'EndDevice', exposes: [
+        { type: 'binary', name: 'occupancy', property: 'occupancy', value_on: true, value_off: false }
     ]}
 };
 
 const groupsData: Record<number, MockGroup> = {
-    1: { id: 1, friendlyName: 'Living Room', description: 'Main group', members: ['0x001', '0x002', '0x003'], scenes: [{id:1, name:'Bright'}, {id:2, name:'Dim'}] },
-    2: { id: 2, friendlyName: 'Kitchen', description: 'Secondary group', members: ['0x002'], scenes: [{id:3, name:'Cooking'}, {id:4, name:'Night'}] }
+    1: { id: 1, friendlyName: 'Living Room', description: 'Main living space', members: ['0x001', '0x002', '0x003'], scenes: [
+        {id:1, name:'Bright'}, 
+        {id:2, name:'Cozy'}, 
+        {id:3, name:'Movie'},
+        {id:4, name:'Party'}
+    ] },
+    2: { id: 2, friendlyName: 'Kitchen', description: 'Kitchen and dining', members: ['0x004', '0x005', '0x006'], scenes: [
+        {id:5, name:'Cooking'}, 
+        {id:6, name:'Dining'},
+        {id:7, name:'Night'}
+    ] },
+    3: { id: 3, friendlyName: 'Bedroom', description: 'Master bedroom', members: ['0x007', '0x008', '0x009'], scenes: [
+        {id:8, name:'Bright'},
+        {id:9, name:'Reading'},
+        {id:10, name:'Sleep'},
+        {id:11, name:'Romantic'}
+    ] },
+    4: { id: 4, friendlyName: 'Office', description: 'Home office', members: ['0x00A', '0x00B'], scenes: [
+        {id:12, name:'Work'},
+        {id:13, name:'Focus'},
+        {id:14, name:'Break'}
+    ] }
 };
 
 // Scene state storage: sceneStates[groupId][sceneId][deviceIeee] = { state, brightness, ... }
 const sceneStates: Record<number, Record<number, Record<string, any>>> = {
     1: {
-        1: { // Bright scene
-            '0x001': { state: 'ON', brightness: 255, color: { hue: 30, saturation: 80 } },
-            '0x002': { state: 'ON', brightness: 255 },
+        1: { // Living Room - Bright
+            '0x001': { state: 'ON', brightness: 255, color: { hue: 40, saturation: 20 } },
+            '0x002': { state: 'ON', brightness: 255, color: { hue: 40, saturation: 20 } },
             '0x003': { state: 'ON', brightness: 255, color_temp: 250 }
         },
-        2: { // Dim scene
-            '0x001': { state: 'ON', brightness: 50, color: { hue: 30, saturation: 50 } },
-            '0x002': { state: 'ON', brightness: 50 },
-            '0x003': { state: 'ON', brightness: 50, color_temp: 400 }
+        2: { // Living Room - Cozy
+            '0x001': { state: 'ON', brightness: 120, color: { hue: 30, saturation: 70 } },
+            '0x002': { state: 'ON', brightness: 120, color: { hue: 30, saturation: 70 } },
+            '0x003': { state: 'ON', brightness: 100, color_temp: 400 }
+        },
+        3: { // Living Room - Movie
+            '0x001': { state: 'ON', brightness: 30, color: { hue: 240, saturation: 90 } },
+            '0x002': { state: 'ON', brightness: 30, color: { hue: 240, saturation: 90 } },
+            '0x003': { state: 'OFF' }
+        },
+        4: { // Living Room - Party
+            '0x001': { state: 'ON', brightness: 200, color: { hue: 300, saturation: 100 } },
+            '0x002': { state: 'ON', brightness: 200, color: { hue: 120, saturation: 100 } },
+            '0x003': { state: 'ON', brightness: 180, color_temp: 153 }
         }
     },
     2: {
-        3: { // Cooking scene
-            '0x002': { state: 'ON', brightness: 255 }
+        5: { // Kitchen - Cooking
+            '0x004': { state: 'ON', brightness: 255, color_temp: 250 },
+            '0x005': { state: 'ON', brightness: 255, color_temp: 250 },
+            '0x006': { state: 'ON', brightness: 255 }
         },
-        4: { // Night scene
-            '0x002': { state: 'ON', brightness: 30 }
+        6: { // Kitchen - Dining
+            '0x004': { state: 'ON', brightness: 180, color_temp: 350 },
+            '0x005': { state: 'ON', brightness: 180, color_temp: 350 },
+            '0x006': { state: 'ON', brightness: 150 }
+        },
+        7: { // Kitchen - Night
+            '0x004': { state: 'ON', brightness: 40, color_temp: 450 },
+            '0x005': { state: 'OFF' },
+            '0x006': { state: 'OFF' }
+        }
+    },
+    3: {
+        8: { // Bedroom - Bright
+            '0x007': { state: 'ON', brightness: 255, color: { hue: 40, saturation: 20 } },
+            '0x008': { state: 'ON', brightness: 255, color_temp: 250 },
+            '0x009': { state: 'ON', brightness: 255, color_temp: 250 }
+        },
+        9: { // Bedroom - Reading
+            '0x007': { state: 'ON', brightness: 180, color: { hue: 40, saturation: 15 } },
+            '0x008': { state: 'ON', brightness: 200, color_temp: 300 },
+            '0x009': { state: 'ON', brightness: 200, color_temp: 300 }
+        },
+        10: { // Bedroom - Sleep
+            '0x007': { state: 'OFF' },
+            '0x008': { state: 'ON', brightness: 20, color_temp: 500 },
+            '0x009': { state: 'ON', brightness: 20, color_temp: 500 }
+        },
+        11: { // Bedroom - Romantic
+            '0x007': { state: 'ON', brightness: 80, color: { hue: 0, saturation: 80 } },
+            '0x008': { state: 'ON', brightness: 60, color_temp: 450 },
+            '0x009': { state: 'ON', brightness: 60, color_temp: 450 }
+        }
+    },
+    4: {
+        12: { // Office - Work
+            '0x00A': { state: 'ON', brightness: 255 },
+            '0x00B': { state: 'ON', brightness: 255, color_temp: 250 }
+        },
+        13: { // Office - Focus
+            '0x00A': { state: 'ON', brightness: 200 },
+            '0x00B': { state: 'ON', brightness: 220, color_temp: 200 }
+        },
+        14: { // Office - Break
+            '0x00A': { state: 'ON', brightness: 120 },
+            '0x00B': { state: 'ON', brightness: 140, color_temp: 380 }
         }
     }
 };
@@ -479,6 +627,53 @@ function filterStateByCapabilities(entity: MockEntity, stateUpdate: any): any {
 
 // Initialize
 async function init() {
+    // Create initial lightlynx.json config with automation enabled and sample triggers
+    const lightlynxConfigPath = path.join(dataPath, 'lightlynx.json');
+    const initialConfig = {
+        allowRemote: false,
+        automationEnabled: true,
+        latitude: 52.24, // Enschede NL
+        longitude: 6.88,
+        users: {
+            admin: {
+                secret: '',
+                isAdmin: true,
+                defaultGroupAccess: false,
+                groupAccess: {},
+                allowRemote: false
+            }
+        },
+        sceneStates: {},
+        groupTimeouts: {
+            1: 1800, // Living Room: 30 minutes
+            2: 3600  // Kitchen: 1 hour
+        },
+        sceneTriggers: {
+            1: { // Living Room
+                1: [{ event: 'time', startTime: '07:00' }], // Bright at 7am
+                2: [{ event: 'time', startTime: '18:00', endTime: '22:00' }], // Cozy 6pm-10pm
+                3: [{ event: 'time', startTime: '22:00' }] // Movie at 10pm
+            },
+            2: { // Kitchen
+                5: [{ event: 'time', startTime: '17:00', endTime: '20:00' }], // Cooking 5pm-8pm
+                7: [{ event: 'time', startTime: 'sunset+30' }] // Night 30 min after sunset
+            },
+            3: { // Bedroom
+                9: [{ event: 'time', startTime: '20:00', endTime: '22:00' }], // Reading 8pm-10pm
+                10: [{ event: 'time', startTime: '22:30' }] // Sleep at 10:30pm
+            },
+            4: { // Office
+                12: [{ event: 'time', startTime: '09:00', endTime: '17:00' }], // Work 9am-5pm
+                14: [{ event: 'time', startTime: '12:00', endTime: '13:00' }] // Break at noon
+            }
+        },
+        toggleGroupLinks: {
+            '0x050': [1], // Living Room Button -> Living Room group
+            '0x051': [2]  // Kitchen Button -> Kitchen group
+        }
+    };
+    fs.writeFileSync(lightlynxConfigPath, JSON.stringify(initialConfig, null, 2));
+
     for (const [ieee, d] of Object.entries(devicesData)) {
         const entity = new MockEntity(ieee, { friendlyName: d.friendlyName }, d);
         zigbee.devices.set(ieee, entity);
@@ -609,7 +804,7 @@ class MockMQTT {
                     }
                     if (payload.scene_add !== undefined) {
                         // scene_add is sent to individual devices to add them to a group's scene
-                        const { ID, group_id, name, state: sceneState } = payload.scene_add;
+                        const { ID, group_id, state: sceneState } = payload.scene_add;
                         process.stderr.write(`MockZ2M: Scene add for device ${entityName}: scene ${ID} in group ${group_id}, state: ${sceneState}\n`);
                         // In real Z2M, this stores the device's scene state in the device itself
                         // For mock, we just acknowledge it
