@@ -92,6 +92,15 @@ export function drawTopPage(): void {
 			drawUsersSection();
 		}
 	});
+
+	const msg = api.store.config.systemMessage;
+	if (msg) {
+		$('div p:$3 mt:$4 line-height:130% fg:$textMuted', () => {
+			for (const line of (msg as string).split('\n')) {
+				if (line.trim()) $('p mb:$2 rich=', line);
+			}
+		});
+	}
 }
 
 function drawRemoteAccessToggle(): void {

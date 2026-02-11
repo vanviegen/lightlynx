@@ -654,6 +654,7 @@ async function init() {
     // Create initial lightlynx.json config with automation enabled and sample triggers
     const lightlynxConfigPath = path.join(dataPath, 'lightlynx.json');
     const initialConfig = {
+        systemMessage: "**Hi there!**\nYou are connected to an *actual* Light Lynx extension running within a *mock* Zigbee2MQTT server. All state will be reset after 5 idle minutes.\nTap the wrench icon in the top bar to enter management mode.\n*Enjoy!*",
         allowRemote: false,
         automationEnabled: true,
         latitude: 52.24, // Enschede NL

@@ -1,7 +1,17 @@
 import type { UserConfig } from 'vite'
-import { readFileSync, existsSync } from 'fs'
+import { readFileSync, existsSync, readdirSync, writeFileSync } from 'fs'
+import { join } from 'path'
 
 const EXTENSION_PATH = 'build.frontend/extension.js';
+
+/** Recursively list all files in a directory, returning paths relative to root. */
+function listFiles(dir: string, root = dir): string[] {
+  const entries = readdirSync(dir, { withFileTypes: true });
+  return entries.flatMap(e => {
+    const full = join(dir, e.name);
+    return e.isDirectory() ? listFiles(full, root) : ['/' + full.slice(root.length + 1)];
+  });
+}
 
 export default {
   server: {
@@ -19,6 +29,15 @@ export default {
             next();
           }
         });
+      }
+    },
+    {
+      name: 'generate-files-txt',
+      writeBundle(options) {
+        const outDir = options.dir!;
+        const files = listFiles(outDir)
+          .filter(f => !f.startsWith('/extension') && !f.startsWith('/sw-') && !f.endsWith('/files.txt'));
+        writeFileSync(join(outDir, 'files.txt'), files.join('\n') + '\n');
       }
     }
   ],

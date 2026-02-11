@@ -123,6 +123,7 @@ export interface SslConfig {
 
 export interface Config {
     instanceId?: string;  // Unique instance identifier, assigned by cert backend
+    systemMessage?: string; // Optional message displayed on top page (set via lightlynx.json)
     allowRemote: boolean;
     automationEnabled: boolean;
     latitude: number;  // For sunrise/sunset calculations
