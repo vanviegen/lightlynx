@@ -37,6 +37,7 @@ class LightLynx {
     private mqttBaseTopic: string;
 
     private webSocketUsers: Map<WebSocket, UserWithName> = new Map();
+    private messageQueues: Map<WebSocket, Promise<void>> = new Map();
     private pendingBridgeRequests: Map<number, { resolve: (value: any) => void, reject: (reason: any) => void }> = new Map();
     private nextTransactionId = 1;
 
@@ -547,8 +548,17 @@ class LightLynx {
         this.log('info', `Client connected: ${user.name}`);
 
         ws.on('error', (err) => this.log('error', `WebSocket error: ${err.message}`));
-        ws.on('close', () => this.webSocketUsers.delete(ws));
-        ws.on('message', (data) => this.onUserMessage(ws, data));
+        ws.on('close', () => {
+            this.webSocketUsers.delete(ws);
+            this.messageQueues.delete(ws);
+        });
+        // Chain each message onto the previous one's completion, so async handlers
+        // for a single client always run in order. The .catch prevents a failed
+        // message from breaking the chain for subsequent messages.
+        ws.on('message', (data) => {
+            const queue = this.messageQueues.get(ws) ?? Promise.resolve();
+            this.messageQueues.set(ws, queue.then(() => this.onUserMessage(ws, data)).catch(() => {}));
+        });
 
         const delta = createDeltaRecurse(this.store, {});
         delta.me = user;

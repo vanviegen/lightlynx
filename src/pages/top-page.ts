@@ -117,13 +117,14 @@ function drawRemoteAccessToggle(): void {
 			}
 		});
 		$('h2#Remote access');
-		if (api.store.config.allowRemote) {
-			const code = api.store.config.instanceId;
-			const address = code ? `ext-${code}.lightlynx.eu` : "Setting up...";
+		if (api.store.config.allowRemote && api.store.config.instanceId) {
+			let address = api.store.config.instanceId;
+			if (address.indexOf('.')<0) address = `ext-${address}.lightlynx.eu`;
+			if (address.indexOf(':')<0 && api.store.config.externalPort) address += `:${api.store.config.externalPort}`;
 			$('span.link opacity:0.6 #'+address, 'click=', (e: Event) => {
 				e.stopPropagation();
 				e.preventDefault();
-				if (code) {
+				if (address) {
 					copyToClipboard(address, 'Address');
 				}
 			});

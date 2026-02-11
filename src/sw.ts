@@ -31,11 +31,16 @@ sw.addEventListener('fetch', (event: FetchEvent) => {
  * Handles a GET request by serving from cache first, then revalidating.
  */
 async function handleGetRequest(event: FetchEvent): Promise<Response> {
+    // Normalize SPA navigation requests to / so query params don't fragment the cache
+    let request = event.request;
+    if (request.mode === 'navigate') {
+        request = new Request(new URL('/', request.url));
+    }
     const cache = await caches.open(CACHE_NAME);
-    const cachedResponse = await cache.match(event.request);
+    const cachedResponse = await cache.match(request);
     
     // Start revalidation in the background.
-    const responsePromise = revalidate(event.request, cachedResponse?.clone(), cache);
+    const responsePromise = revalidate(request, cachedResponse?.clone(), cache);
     
     // Return cached response if available, otherwise wait for the network fetch from revalidate.
     return cachedResponse || await responsePromise;
@@ -99,11 +104,15 @@ async function revalidate(
         }
         
         // Other statuses (e.g., 5xx), serve stale content if available.
-        return networkResponse;
+        return cachedResponseCopy || networkResponse;
 
     } catch (error) {
-        console.error(`Service Worker: Network error for ${request.url}:`, error);
-        // On error, we don't trigger a reload and serve stale content if we have it.
+        if (cachedResponseCopy) {
+            // Network error during background revalidation is expected (offline, server down).
+            console.debug(`Service Worker: Revalidation failed for ${request.url} (serving from cache)`);
+        } else {
+            console.warn(`Service Worker: Network error for ${request.url} (no cache fallback):`, error);
+        }
         return cachedResponseCopy || new Response('Network Error', { status: 504 });
     }
 }

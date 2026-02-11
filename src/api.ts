@@ -20,14 +20,22 @@ interface PendingSend {
 const DEFAULT_PORT = 43597;
 const DOMAIN = 'lightlynx.eu';
 
-function createFreshStoreState() {
+function createFreshStoreState(): ClientState {
     return {
         lights: {},
         toggles: {},
         groups: {},
         permitJoin: false,
-        config: {} as Config,
-        extensionVersion: 0,
+        config: {
+            allowRemote: false,
+            automationEnabled: false,
+            latitude: 0,
+            longitude: 0,
+            sceneStates: {},
+            groupTimeouts: {},
+            sceneTriggers: {},
+            toggleGroupLinks: {},
+        }
     };
 }
 
@@ -103,6 +111,15 @@ class Api {
             }, 250); // Delay- don't keep UI thread busy during events
         });
 
+        // Flush store when changing server
+        let prevInstanceId = peek(() => this.servers[0]?.instanceId);
+        $(() => {
+            if (this.servers[0]?.instanceId !== prevInstanceId) {
+                prevInstanceId = this.servers[0]?.instanceId;
+                copy(this.store, createFreshStoreState());
+            }
+        })
+
         // Auto-connect from URL parameters
         // As we're not in any scope, this peek shouldn't do anything, but just for clarity:
         peek(() => {
@@ -130,15 +147,6 @@ class Api {
             delete route.current.search.secret;
         });
                 
-        // Flush store when changing server
-        let prevInstanceId = peek(() => this.servers[0]?.instanceId);
-        $(() => {
-            if (this.servers[0]?.instanceId !== prevInstanceId) {
-                prevInstanceId = this.servers[0]?.instanceId;
-                copy(this.store, createFreshStoreState());
-            }
-        })
-
         // Connect and disconnect/reconnect as servers[0] changes
         $(() => {
             const server = this.servers[0];
@@ -691,6 +699,7 @@ class Api {
             clearTimeout(this.connectTimeout);
             this.connectTimeout = undefined;
 
+            copy(this.store, {} as ClientState);
             applyDelta(this.store, store);
 
             // If we connected without an instance id, replace with the real instance ID

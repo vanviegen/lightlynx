@@ -451,6 +451,15 @@ const devicesData: Record<string, MockDevice> = {
         ]}
     ]},
     
+    // Bathroom - ambiance light
+    '0x00C': { ieeeAddr: '0x00C', friendlyName: 'Bathroom Ceiling', model: 'MOCK_AMBIANCE', description: 'Ambiance light', vendor: 'Mock', type: 'Router', exposes: [
+        { type: 'light', features: [
+            { name: 'state', property: 'state', type: 'binary', value_on: 'ON', value_off: 'OFF' },
+            { name: 'brightness', property: 'brightness', type: 'numeric', value_min: 0, value_max: 255 },
+            { name: 'color_temp', property: 'color_temp', type: 'numeric', value_min: 153, value_max: 500 }
+        ]}
+    ]},
+    
     // Buttons and sensors
     '0x050': { ieeeAddr: '0x050', friendlyName: 'Living Room Button', model: 'MOCK_BUTTON', description: 'Wireless button', vendor: 'Mock', type: 'EndDevice', exposes: [
         { type: 'enum', name: 'action', property: 'action', values: ['single', 'double', 'triple', 'hold'] }
@@ -460,6 +469,9 @@ const devicesData: Record<string, MockDevice> = {
     ]},
     '0x052': { ieeeAddr: '0x052', friendlyName: 'Hallway Motion Sensor', model: 'MOCK_SENSOR', description: 'Motion sensor', vendor: 'Mock', type: 'EndDevice', exposes: [
         { type: 'binary', name: 'occupancy', property: 'occupancy', value_on: true, value_off: false }
+    ]},
+    '0x053': { ieeeAddr: '0x053', friendlyName: 'Bathroom Motion Sensor', model: 'MOCK_SENSOR', description: 'Motion sensor', vendor: 'Mock', type: 'EndDevice', exposes: [
+        { type: 'binary', name: 'occupancy', property: 'occupancy', value_on: true, value_off: false }
     ]}
 };
 
@@ -468,23 +480,27 @@ const groupsData: Record<number, MockGroup> = {
         {id:1, name:'Bright'}, 
         {id:2, name:'Cozy'}, 
         {id:3, name:'Movie'},
-        {id:4, name:'Party'}
+        {id:4, name:'Normal'}
     ] },
     2: { id: 2, friendlyName: 'Kitchen', description: 'Kitchen and dining', members: ['0x004', '0x005', '0x006'], scenes: [
-        {id:5, name:'Cooking'}, 
-        {id:6, name:'Dining'},
+        {id:5, name:'Bright'}, 
+        {id:6, name:'Dinner'},
         {id:7, name:'Night'}
     ] },
     3: { id: 3, friendlyName: 'Bedroom', description: 'Master bedroom', members: ['0x007', '0x008', '0x009'], scenes: [
-        {id:8, name:'Bright'},
+        {id:8, name:'Normal'},
         {id:9, name:'Reading'},
-        {id:10, name:'Sleep'},
-        {id:11, name:'Romantic'}
+        {id:10, name:'Night'},
+        {id:11, name:'Cozy'}
     ] },
     4: { id: 4, friendlyName: 'Office', description: 'Home office', members: ['0x00A', '0x00B'], scenes: [
-        {id:12, name:'Work'},
-        {id:13, name:'Focus'},
-        {id:14, name:'Break'}
+        {id:12, name:'Bright'},
+        {id:13, name:'Normal'},
+        {id:14, name:'Cozy'}
+    ] },
+    5: { id: 5, friendlyName: 'Bathroom', description: 'Bathroom', members: ['0x00C'], scenes: [
+        {id:15, name:'Normal'},
+        {id:16, name:'Night'}
     ] }
 };
 
@@ -506,19 +522,19 @@ const sceneStates: Record<number, Record<number, Record<string, any>>> = {
             '0x002': { state: 'ON', brightness: 30, color: { hue: 240, saturation: 90 } },
             '0x003': { state: 'OFF' }
         },
-        4: { // Living Room - Party
-            '0x001': { state: 'ON', brightness: 200, color: { hue: 300, saturation: 100 } },
-            '0x002': { state: 'ON', brightness: 200, color: { hue: 120, saturation: 100 } },
-            '0x003': { state: 'ON', brightness: 180, color_temp: 153 }
+        4: { // Living Room - Normal
+            '0x001': { state: 'ON', brightness: 200, color: { hue: 40, saturation: 30 } },
+            '0x002': { state: 'ON', brightness: 200, color: { hue: 40, saturation: 30 } },
+            '0x003': { state: 'ON', brightness: 200, color_temp: 300 }
         }
     },
     2: {
-        5: { // Kitchen - Cooking
+        5: { // Kitchen - Bright
             '0x004': { state: 'ON', brightness: 255, color_temp: 250 },
             '0x005': { state: 'ON', brightness: 255, color_temp: 250 },
             '0x006': { state: 'ON', brightness: 255 }
         },
-        6: { // Kitchen - Dining
+        6: { // Kitchen - Dinner
             '0x004': { state: 'ON', brightness: 180, color_temp: 350 },
             '0x005': { state: 'ON', brightness: 180, color_temp: 350 },
             '0x006': { state: 'ON', brightness: 150 }
@@ -530,39 +546,47 @@ const sceneStates: Record<number, Record<number, Record<string, any>>> = {
         }
     },
     3: {
-        8: { // Bedroom - Bright
-            '0x007': { state: 'ON', brightness: 255, color: { hue: 40, saturation: 20 } },
-            '0x008': { state: 'ON', brightness: 255, color_temp: 250 },
-            '0x009': { state: 'ON', brightness: 255, color_temp: 250 }
+        8: { // Bedroom - Normal
+            '0x007': { state: 'ON', brightness: 200, color: { hue: 40, saturation: 20 } },
+            '0x008': { state: 'ON', brightness: 200, color_temp: 300 },
+            '0x009': { state: 'ON', brightness: 200, color_temp: 300 }
         },
         9: { // Bedroom - Reading
             '0x007': { state: 'ON', brightness: 180, color: { hue: 40, saturation: 15 } },
             '0x008': { state: 'ON', brightness: 200, color_temp: 300 },
             '0x009': { state: 'ON', brightness: 200, color_temp: 300 }
         },
-        10: { // Bedroom - Sleep
+        10: { // Bedroom - Night
             '0x007': { state: 'OFF' },
             '0x008': { state: 'ON', brightness: 20, color_temp: 500 },
             '0x009': { state: 'ON', brightness: 20, color_temp: 500 }
         },
-        11: { // Bedroom - Romantic
-            '0x007': { state: 'ON', brightness: 80, color: { hue: 0, saturation: 80 } },
-            '0x008': { state: 'ON', brightness: 60, color_temp: 450 },
-            '0x009': { state: 'ON', brightness: 60, color_temp: 450 }
+        11: { // Bedroom - Cozy
+            '0x007': { state: 'ON', brightness: 120, color: { hue: 30, saturation: 70 } },
+            '0x008': { state: 'ON', brightness: 100, color_temp: 400 },
+            '0x009': { state: 'ON', brightness: 100, color_temp: 400 }
         }
     },
     4: {
-        12: { // Office - Work
+        12: { // Office - Bright
             '0x00A': { state: 'ON', brightness: 255 },
             '0x00B': { state: 'ON', brightness: 255, color_temp: 250 }
         },
-        13: { // Office - Focus
+        13: { // Office - Normal
             '0x00A': { state: 'ON', brightness: 200 },
-            '0x00B': { state: 'ON', brightness: 220, color_temp: 200 }
+            '0x00B': { state: 'ON', brightness: 200, color_temp: 300 }
         },
-        14: { // Office - Break
+        14: { // Office - Cozy
             '0x00A': { state: 'ON', brightness: 120 },
             '0x00B': { state: 'ON', brightness: 140, color_temp: 380 }
+        }
+    },
+    5: {
+        15: { // Bathroom - Normal
+            '0x00C': { state: 'ON', brightness: 200, color_temp: 300 }
+        },
+        16: { // Bathroom - Night
+            '0x00C': { state: 'ON', brightness: 30, color_temp: 500 }
         }
     }
 };
@@ -646,30 +670,37 @@ async function init() {
         sceneStates: {},
         groupTimeouts: {
             1: 1800, // Living Room: 30 minutes
-            2: 3600  // Kitchen: 1 hour
+            2: 3600, // Kitchen: 1 hour
+            5: 300   // Bathroom: 5 minutes
         },
         sceneTriggers: {
             1: { // Living Room
-                1: [{ event: 'time', startTime: '07:00' }], // Bright at 7am
-                2: [{ event: 'time', startTime: '18:00', endTime: '22:00' }], // Cozy 6pm-10pm
-                3: [{ event: 'time', startTime: '22:00' }] // Movie at 10pm
+                1: [{ event: '1' }], // Bright - single press button
+                2: [{ event: '2' }], // Cozy - double press button
+                3: [{ event: '3' }], // Movie - triple press button
+                4: [{ event: 'sensor' }] // Normal - hallway sensor
             },
             2: { // Kitchen
-                5: [{ event: 'time', startTime: '17:00', endTime: '20:00' }], // Cooking 5pm-8pm
-                7: [{ event: 'time', startTime: 'sunset+30' }] // Night 30 min after sunset
+                5: [{ event: '1' }], // Bright - single press
+                6: [{ event: '2' }], // Dinner - double press
+                7: [{ event: '3' }]  // Night - triple press
             },
             3: { // Bedroom
-                9: [{ event: 'time', startTime: '20:00', endTime: '22:00' }], // Reading 8pm-10pm
-                10: [{ event: 'time', startTime: '22:30' }] // Sleep at 10:30pm
+                9: [{ event: 'time', startTime: '20:00', endTime: '22:30' }] // Reading 8pm-10:30pm
             },
             4: { // Office
-                12: [{ event: 'time', startTime: '09:00', endTime: '17:00' }], // Work 9am-5pm
-                14: [{ event: 'time', startTime: '12:00', endTime: '13:00' }] // Break at noon
+                12: [{ event: 'time', startTime: '9:00', endTime: '17:00' }] // Bright during work hours
+            },
+            5: { // Bathroom
+                15: [{ event: 'sensor' }], // Normal - sensor during day
+                16: [{ event: 'sensor', startTime: '23:00', endTime: '7:00' }] // Night - sensor 11pm-7am
             }
         },
         toggleGroupLinks: {
             '0x050': [1], // Living Room Button -> Living Room group
-            '0x051': [2]  // Kitchen Button -> Kitchen group
+            '0x051': [2], // Kitchen Button -> Kitchen group
+            '0x052': [1], // Hallway Motion Sensor -> Living Room
+            '0x053': [5]  // Bathroom Motion Sensor -> Bathroom
         }
     };
     fs.writeFileSync(lightlynxConfigPath, JSON.stringify(initialConfig, null, 2));

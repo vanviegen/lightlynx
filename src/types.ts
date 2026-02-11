@@ -127,7 +127,7 @@ export interface Config {
     automationEnabled: boolean;
     latitude: number;  // For sunrise/sunset calculations
     longitude: number;
-    users: Record<string, User>;  // Filtered out if user is not admin
+    users?: Record<string, User>;  // Filtered out if user is not admin
     externalPort?: number;  // For persistent UPnP mapping
     _ssl?: SslConfig;
     sceneStates: Record<number, Record<number, Record<string, LightState>>>; // groupId -> sceneId -> ieeeAddress -> LightState
