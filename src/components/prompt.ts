@@ -71,11 +71,12 @@ export function drawPromptPage(state: {resolveId: number, type: string, message:
                 if (isInfo && content) {
                     $('div line-height:1.6 fg:$textLight', content);
                 } else if (!isConfirm && !isInfo) {
-                    $('input type=text w:100% bind=', value, 'keydown=', (e: KeyboardEvent) => {
+                    const el = $('input type=text w:100% bind=', value, 'keydown=', (e: KeyboardEvent) => {
                         if (e.key === 'Enter') {
                             cleanupAndResolve(value.value);
                         }
                     });
+                    setTimeout(() => (el as HTMLElement).focus(), 100);
                 }
             });
 

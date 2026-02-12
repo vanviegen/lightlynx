@@ -397,14 +397,12 @@ class Api {
      * If the prediction function returns a number, that number overrides the default 2000ms
      * delay before dropping the prediction after the reply arrives.
      */
-    async send(...commandAndArgs: any[]): Promise<void> {
+    async send(...commandAndArgs: any[]): Promise<any> {
         // Extract optional prediction function from the end
         let predictionFn: (() => number | void) | undefined;
         if (typeof commandAndArgs[commandAndArgs.length - 1] === 'function') {
             predictionFn = commandAndArgs.pop();
         }
-
-        console.log("api/send", commandAndArgs);
 
         // Apply prediction immediately so UI updates right away
         let prediction: Patch | undefined;
@@ -426,7 +424,7 @@ class Api {
 
         const hadPending = this.pendingSends.length > 0 || this.awaitingReplies.size > 0;
 
-        await new Promise<void>((resolve, reject) => {
+        const promise = new Promise<any>((resolve, reject) => {
             this.pendingSends.push({ args: commandAndArgs, resolve, reject, prediction, predictionDelay, sentAt: Date.now() });
             if (!hadPending) {
                 this.stallingTimeout = setTimeout(() => {
@@ -437,6 +435,8 @@ class Api {
             }
             this.flushSends();
         });
+        
+        return promise;
     }
 
     recallScene(groupId: number, sceneId: number) {

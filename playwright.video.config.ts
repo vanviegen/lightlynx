@@ -55,6 +55,7 @@ export default defineConfig({
       env: {
         LIGHTLYNX_PORT: '43598',
         LIGHTLYNX_INSECURE: 'true',
+        LIGHTLYNX_DEMO: 'true',
       },
     },
     {

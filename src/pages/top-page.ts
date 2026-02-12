@@ -149,7 +149,11 @@ function drawRemoteAccessToggle(): void {
 async function createGroup(): Promise<void> {
 	const name = await askPrompt("What should the group be called?");
 	if (!name) return;
-	api.send("bridge", "request", "group", "add", {friendly_name: name});
+	const result = await api.send("bridge", "request", "group", "add", {friendly_name: name});
+
+	if (result?.id != null) {
+		route.go(['group', result.id]);
+	}
 }
 
 function permitJoin(): void {

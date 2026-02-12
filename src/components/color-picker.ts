@@ -136,11 +136,11 @@ function drawScaleMarker(state: LightState, mode: 'brightness' | 'temperature' |
             }
             fraction = state.saturation / 100;
         }
-        
+
         if (!state.on) {
             lsize /= 4;
         }
-        
+
         $(`display:block h:${lsize}px w:${lsize}px mt:${-lsize/2}px ml:${-lsize/2}px top:50% left:${fraction*100}%`);
     });
 }
@@ -190,14 +190,20 @@ export function drawColorPicker(target: Light | GroupWithDerives, targetId: stri
     });
 }
 
+const CANVAS_WIDTH = 64;
+
 function drawScale(target: Light | GroupWithDerives, targetId: string | number, mode: 'brightness' | 'temperature' | 'hue' | 'saturation', tempRange?: [number, number]): void {
     $('div', scaleStyle, () => {
 
         let state = target.lightState || {} as LightState;
 
+        // For saturation mode, use 360px height to show all hues vertically
+        const canvasHeight = mode === 'saturation' ? 16 : 1;
+
+        // We'll create a small canvas, and scale it to fit. Lineair interpolation is great for gradients!
         let canvasEl = $('canvas h:100% w:100%', {
-            width: 300,
-            height: 1
+            width: CANVAS_WIDTH,
+            height: canvasHeight,
         }) as HTMLCanvasElement;
 
         let ctx = canvasEl.getContext("2d")!;
@@ -207,8 +213,8 @@ function drawScale(target: Light | GroupWithDerives, targetId: string | number, 
             var imageData = ctx.getImageData(0, 0, canvasEl.width, canvasEl.height);
             let pixels = imageData.data;
             let pos = 0;
-            for (let x = 0; x <= 300; x++) {
-                const rgb = colors.hsvToRgb(x / 300 * 360, 1, 1);
+            for (let x = 0; x <= CANVAS_WIDTH; x++) {
+                const rgb = colors.hsvToRgb(x / CANVAS_WIDTH * 360, 1, 1);
                 pixels[pos++] = rgb[0];
                 pixels[pos++] = rgb[1];
                 pixels[pos++] = rgb[2];
@@ -216,18 +222,20 @@ function drawScale(target: Light | GroupWithDerives, targetId: string | number, 
             }
             ctx.putImageData(imageData, 0, 0);
         } else if (mode === 'saturation') {
-            // Saturation gradient: white → fully saturated color at current hue
+            // Saturation gradient: white → fully saturated (horizontal), all hues 0-360 (vertical)
             var imageData = ctx.getImageData(0, 0, canvasEl.width, canvasEl.height);
             let pixels = imageData.data;
             let pos = 0;
-            const hue = state.hue ?? 0;
-            for (let x = 0; x <= 300; x++) {
-                const sat = x / 300;
-                const rgb = colors.hsvToRgb(hue, sat, 1);
-                pixels[pos++] = rgb[0];
-                pixels[pos++] = rgb[1];
-                pixels[pos++] = rgb[2];
-                pixels[pos++] = 255;
+            for (let y = 0; y < canvasEl.height; y++) {
+                const hue = y / canvasHeight * 360;
+                for (let x = 0; x < CANVAS_WIDTH; x++) {
+                    const sat = x / CANVAS_WIDTH;
+                    const rgb = colors.hsvToRgb(hue, sat, 1);
+                    pixels[pos++] = rgb[0];
+                    pixels[pos++] = rgb[1];
+                    pixels[pos++] = rgb[2];
+                    pixels[pos++] = 255;
+                }
             }
             ctx.putImageData(imageData, 0, 0);
         } else {
@@ -236,8 +244,8 @@ function drawScale(target: Light | GroupWithDerives, targetId: string | number, 
             let pos = 0;
 
             if (mode === 'temperature') {
-                for (let x = 0; x <= 300; x++) {
-                    const rgb = colors.miredsToRgb(x / 300 * (tempRange![1] - tempRange![0]) + tempRange![0]);
+                for (let x = 0; x <= CANVAS_WIDTH; x++) {
+                    const rgb = colors.miredsToRgb(x / CANVAS_WIDTH * (tempRange![1] - tempRange![0]) + tempRange![0]);
                     pixels[pos++] = rgb[0];
                     pixels[pos++] = rgb[1];
                     pixels[pos++] = rgb[2];
@@ -246,10 +254,10 @@ function drawScale(target: Light | GroupWithDerives, targetId: string | number, 
             } else {
                 // Brightness: use current color
                 const baseColor = colors.stateToRgb(state);
-                for (let x = 0; x <= 300; x++) {
-                    pixels[pos++] = Math.round(baseColor[0] / 300 * x);
-                    pixels[pos++] = Math.round(baseColor[1] / 300 * x);
-                    pixels[pos++] = Math.round(baseColor[2] / 300 * x);
+                for (let x = 0; x <= CANVAS_WIDTH; x++) {
+                    pixels[pos++] = Math.round(baseColor[0] / CANVAS_WIDTH * x);
+                    pixels[pos++] = Math.round(baseColor[1] / CANVAS_WIDTH * x);
+                    pixels[pos++] = Math.round(baseColor[2] / CANVAS_WIDTH * x);
                     pixels[pos++] = 255;
                 }
             }

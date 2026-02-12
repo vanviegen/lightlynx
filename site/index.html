@@ -28,7 +28,6 @@
   </svg>
 </a>
 
-<!-- ========== HERO ========== -->
 <section class="hero">
   <div class="container">
     <img src="./logo-no-bg.png" alt="Light Lynx" class="hero-logo" width="120" height="120">
@@ -42,7 +41,6 @@
   </div>
 </section>
 
-<!-- ========== VIDEO + FEATURES ========== -->
 <section class="features-video" id="features">
   <div class="container fv-grid">
     <div class="fv-video">
@@ -52,130 +50,95 @@
     </div>
     <div class="fv-features">
       <h2>Features</h2>
-
       <details class="feature-card">
         <summary>
           <div class="feature-icon">⚡</div>
           <div>
-            <h3>Instant &amp; Offline</h3>
-            <p>Opens in under a second from cache. Control your lights even when the internet is down — the app talks directly to your Zigbee2MQTT server on the local network.</p>
+            <h3>Very Fast</h3>
+            <p>The PWA (installable web app) loads instantly from cache. Common tasks -toggling groups and activating scenes- take just a single tap from the main screen.</p>
           </div>
         </summary>
         <div class="feature-details">
           <ul>
-            <li>Loads from browser cache immediately, checks for updates in the background.</li>
-            <li>Your light states are cached too — the app renders your setup instantly on launch.</li>
-            <li>Installable as a PWA — add to your home screen for a native app feel.</li>
-            <li>Auto-update notification with one-tap reload when a new version is available.</li>
+            <li>Installable on your mobile home screen. Always loads from cache, making it faster than just about any native app. (Try it!)</li>
+            <li>Your light states are cached too. The app renders your setup instantly on launch.</li>
+            <li>Lights, buttons, and motion sensors form groups that can be easily controlled together, preferably by creating scenes that set the lights just right for a given activity.</li>
+            <li>The main page shows you (hopefully) all groups and scenes for your home at a glance.</li>
+            <li>Uses native Zigbee groups and scenes, so that lights transition all at once instead of one at a time (looking at you Home Assistant).</li>
+            <li>Changes you make are visible in the UI directly, syncing with the server in the background.</li>
           </ul>
         </div>
       </details>
-
-      <details class="feature-card">
-        <summary>
-          <div class="feature-icon">🎨</div>
-          <div>
-            <h3>Beautiful Color Control</h3>
-            <p>Interactive color wheel, brightness slider, and color temperature picker. Per-bulb markers show each light's position within a group.</p>
-          </div>
-        </summary>
-        <div class="feature-details">
-          <ul>
-            <li>Single-tap to toggle lights or groups on/off.</li>
-            <li>Color wheel for full-color bulbs, warm-to-cool slider for color temperature bulbs.</li>
-            <li>Groups can mix color and temperature-only bulbs — each receives the right command.</li>
-            <li>Changes feel instant — the UI updates immediately, syncing with the server in the background.</li>
-          </ul>
-        </div>
-      </details>
-
-      <details class="feature-card">
-        <summary>
-          <div class="feature-icon">🎬</div>
-          <div>
-            <h3>Groups &amp; Scenes</h3>
-            <p>Organize lights into rooms. Save and recall lighting moods with a single tap. Active scene tracking shows you which scene is on.</p>
-          </div>
-        </summary>
-        <div class="feature-details">
-          <ul>
-            <li>Create groups, add/remove lights, rename — all from the app.</li>
-            <li>Save any lighting state as a named scene (Bright, Dim, Cozy, Movie…).</li>
-            <li>One tap to recall a scene. The active scene is highlighted so you always know what's on.</li>
-            <li>Scenes can turn specific lights off — great for "Movie" or "Night" moods.</li>
-          </ul>
-        </div>
-      </details>
-
       <details class="feature-card">
         <summary>
           <div class="feature-icon">🤖</div>
           <div>
-            <h3>Automation <span class="feature-badge">No cloud required</span></h3>
-            <p>Connect Zigbee buttons and motion sensors to scenes. Multi-tap patterns, auto-off timers, sunrise/sunset triggers — configured entirely in the app.</p>
+            <h3>Automation Included</h3>
+            <p>Connect scenes to buttons, motion sensors, schedules, and timers. Everything configured in the app, running locally with no cloud required.</p>
           </div>
         </summary>
         <div class="feature-details">
           <ul>
-            <li>Link any Zigbee button or remote to groups. Double/triple press triggers different scenes.</li>
-            <li>Motion sensors automatically recall scenes when they detect activity.</li>
-            <li>Schedule scenes at specific times, or relative to sunrise/sunset.</li>
-            <li>Auto-off timers turn lights off after a configurable inactivity period, with a smooth fade-out.</li>
-            <li>Everything runs locally inside Zigbee2MQTT — no cloud, no latency.</li>
+            <li>Triggers scenes by motion sensor events, button presses, double presses, triple presses, etc. Optionally conditional on the time of day.</li>
+            <li>Pressing a button once while some lights in the connected group are on will always just turn them off. Much enhanced the spouse-acceptance-factor!</li>
+            <li>Trigger scenes based on the time of day, or relative to sunrise/sunset.</li>
+            <li>Set auto-off timers for groups. Great for bathrooms, laundry rooms, etc. And for your children's rooms. Lights fade out smoothly when the timer expires.</li>
+            <li>Everything runs locally inside Zigbee2MQTT. No cloud, no latency.</li>
           </ul>
         </div>
       </details>
-
-      <details class="feature-card">
-        <summary>
-          <div class="feature-icon">👥</div>
-          <div>
-            <h3>Multi-User Permissions</h3>
-            <p>Create accounts for family members with per-group access levels. Kids can control the living room but not the office. Passwords are hashed client-side.</p>
-          </div>
-        </summary>
-        <div class="feature-details">
-          <ul>
-            <li>Create accounts for each household member — admin or regular.</li>
-            <li>Per-group access: no access (hidden), control only, or full manage.</li>
-            <li>Passwords never leave the device — hashed in the browser before transmission.</li>
-            <li>Generate shareable URLs with embedded credentials for easy onboarding.</li>
-          </ul>
-        </div>
-      </details>
-
       <details class="feature-card">
         <summary>
           <div class="feature-icon">🌍</div>
           <div>
-            <h3>Optional Remote Access</h3>
-            <p>Control your lights from anywhere. Automatic SSL, automatic port forwarding, and seamless switching between local and remote connections.</p>
+            <h3>Offline &amp; Online</h3>
+            <p>Works without internet over your local network. Optional remote access lets you control lights from anywhere, still without a cloud in the middle, and with automatic setup.</p>
           </div>
         </summary>
         <div class="feature-details">
           <ul>
-            <li>Enable with one toggle — the extension handles SSL certificates and port forwarding automatically.</li>
-            <li>The app tries both local and remote paths in parallel, using whichever connects first.</li>
-            <li>Direct connection to your server — no cloud relay, no third-party in the data path.</li>
-            <li>Can be enabled or disabled per user. Requires a password.</li>
+            <li>Works without internet. The app loads from cache and connects directly to your server over the local network. (Though an occasional internet connection is needed for DNS.)</li>
+            <li>When enabled, remote access allows you to control your lights from anywhere, even when the server is behind a NAT gateway. This works by using UPnP to punch a hole in your router.</li>
+            <li>If your internet connection has a dynamic IP it will be tracked automatically. (Though perhaps with some delay.)</li>
+            <li>When remote access is enabled, clients will try to connect to the internal address and the external address in parallel, and use whichever connects first.</li>
+            <li>Direct connection to your server. No cloud relay, no third-party in the data path.</li>
           </ul>
         </div>
       </details>
-
+      <details class="feature-card">
+        <summary>
+          <div class="feature-icon">👥</div>
+          <div>
+            <h3>Secure &amp; Multi-User</h3>
+            <p>Individual logins with per-group permissions. TLS encryption by default. Passwords are hashed client-side and never leave your device.</p>
+          </div>
+        </summary>
+        <div class="feature-details">
+          <ul>
+            <li>Each user has their own login and permissions to control or manage certain groups (rooms). Great for house guests or children! Or for the office.</li>
+            <li>Connections to your server are TLS encrypted by default. This is set up automatically (using Let's Encrypt).</li>
+            <li>Passwords are only stored in hashed form.</li>
+            <li>Even admin users are <em>not</em> allowed to install Zigbee2MQTT extensions through the API, to prevent arbitrary code execution vulnerabilities. (Unlike the official Zigbee2MQTT frontend.)</li>
+            <li>Generate shareable URLs with embedded credentials for easy onboarding (of house guests).</li>
+          </ul>
+        </div>
+      </details>
       <details class="feature-card">
         <summary>
           <div class="feature-icon">🔧</div>
           <div>
-            <h3>Device Management</h3>
-            <p>Pair, rename, and remove Zigbee devices. Battery monitoring with warnings in the header and a dedicated status page.</p>
+            <h3>Batteries Included</h3>
+            <p>The only interface you need for lighting control. Pair devices, manage groups and scenes, handle users and automations — all from the app.</p>
           </div>
         </summary>
         <div class="feature-details">
           <ul>
-            <li>Pair new Zigbee devices from the app (pulsing icon shows when permit-join is active).</li>
-            <li>Rename or remove devices without touching the Z2M config.</li>
-            <li>Battery levels at a glance — sorted list with warning badges for low batteries.</li>
-            <li>View device info: model, vendor, link quality, and firmware update status.</li>
+            <li>Pair and remove devices, manage groups, manage scenes, rename things, manage users, manage automations — all from the app.</li>
+            <li>Low-battery indicator for buttons and sensors, with warning badges in the header and a dedicated status page.</li>
+            <li>Beautiful color control: interactive color wheel, brightness slider, and color temperature picker. Per-bulb markers show each light's position within a group.</li>
+            <li>Groups can mix color and temperature-only bulbs — each receives the right command.</li>
+            <li>Save any lighting state as a named scene (Bright, Dim, Cozy, Movie…). The active scene is highlighted so you always know what's on.</li>
+            <li>No separate servers or database to set up and maintain: just Zigbee2MQTT and the Light Lynx extension and an MQTT server (that's not actually used but is required by Zigbee2MQTT). You <em>can</em> of course still connect other home automation software.</li>
           </ul>
         </div>
       </details>
@@ -183,7 +146,6 @@
   </div>
 </section>
 
-<!-- ========== GET STARTED ========== -->
 <section class="get-started" id="get-started">
   <div class="container">
     <h2>Get Started in 3 Steps</h2>

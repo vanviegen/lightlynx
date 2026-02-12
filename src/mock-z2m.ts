@@ -675,8 +675,7 @@ function filterStateByCapabilities(entity: MockEntity, stateUpdate: any): any {
 async function init() {
     // Create initial lightlynx.json config with automation enabled and sample triggers
     const lightlynxConfigPath = path.join(dataPath, 'lightlynx.json');
-    const initialConfig = {
-        systemMessage: "**Hi there!**\nYou are connected to an *actual* Light Lynx extension running within a *mock* Zigbee2MQTT server. All state will be reset after 5 idle minutes.\nTap the wrench icon in the top bar to enter management mode.\n*Enjoy!*",
+    const initialConfig: any = {
         allowRemote: false,
         automationEnabled: true,
         latitude: 52.24, // Enschede NL
@@ -726,6 +725,11 @@ async function init() {
             '0x053': [5]  // Bathroom Motion Sensor -> Bathroom
         }
     };
+
+    if (!process.env.LIGHTLYNX_DEMO) {
+        initialConfig.systemMessage = "**Hi there!**\nYou are connected to an *actual* Light Lynx extension running within a *mock* Zigbee2MQTT server. All state will be reset after 5 idle minutes.\nTap the wrench icon in the top bar to enter management mode.\n*Enjoy!*";
+    }
+
     fs.writeFileSync(lightlynxConfigPath, JSON.stringify(initialConfig, null, 2));
 
     for (const [ieee, d] of Object.entries(devicesData)) {

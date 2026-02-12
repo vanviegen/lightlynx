@@ -16,11 +16,8 @@ test.describe('Light Lynx Integration', () => {
     await page.getByRole('textbox').fill(groupName);
     await page.getByRole('button', { name: 'OK' }).click();
 
-    // Verify group appears in the list
-    await expect(page.locator('h2', { hasText: groupName })).toBeVisible();
-
-    // 6. Navigate into the group
-    await page.locator('h2', { hasText: groupName }).click();
+    // Verify we're automatically navigated to the group detail view
+    await expect(page.locator('h1.title', { hasText: groupName })).toBeVisible();
     await expect(page.locator('span.subTitle', { hasText: 'group' })).toBeVisible();
 
     // 7. Add lights to the group
