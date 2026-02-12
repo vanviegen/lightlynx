@@ -95,7 +95,6 @@ function drawConnectionDetails(selectedIndex: { value: number }): void {
     const instanceId = proxy(orgServer.instanceId || '');
     const userName = proxy(orgServer.userName || 'admin');
     const password = proxy(orgServer.secret || '');
-    console.log('Drawing connection details for index', index, {instanceId, userName, password});
 
     async function autoLookup(event?: Event) {
         if (event) createToast('info', 'Looking up instance ID…', 'auto');

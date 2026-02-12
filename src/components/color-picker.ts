@@ -22,7 +22,7 @@ const circleStyle = insertCss({
 });
 
 // Handle/marker styles
-const handleStyle = insertCss('position:absolute transition: all 0.1s; r:50% border: 2px solid #fff; box-shadow: 0 0 0 1px #000 inset; touch-action:none user-select:none -webkit-touch-callout:none -webkit-tap-highlight-color:transparent');
+const handleStyle = insertCss('position:absolute transition: none 0.1s; r:50% border: 2px solid #fff; box-shadow: 0 0 0 1px #000 inset; touch-action:none user-select:none -webkit-touch-callout:none -webkit-tap-highlight-color:transparent');
 
 // Scale container styles
 const scaleStyle = insertCss('border: 1px solid $border; position:relative h:40px r:3px overflow:hidden');
@@ -303,6 +303,8 @@ function drawScale(target: Light | GroupWithDerives, targetId: string | number, 
 
         function startTrack(event: MouseEvent | TouchEvent): void {
             tracking = { event, setPosition: (pageX: number) => setPosition(pageX) };
+            if (event instanceof TouchEvent) trackTouch(event);
+            else trackMouse(event);
         }
 
         $('mousedown=', startTrack, 'touchstart=', startTrack);

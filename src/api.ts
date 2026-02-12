@@ -1,4 +1,4 @@
-import { $, proxy, clone, copy, unproxy, peek, merge, onEach } from "aberdeen";
+import { $, proxy, clone, copy, unproxy, peek, merge, onEach, derive } from "aberdeen";
 import { applyPrediction, applyCanon, Patch } from "aberdeen/prediction";
 import * as route from "aberdeen/route";
 import { mergeLightStateWithCaps }  from "./colors";
@@ -128,7 +128,7 @@ class Api {
             if (!initialInstanceId || !initialUserName) return;
             const initialSecret = route.current.search.secret;
 
-            console.log(`Auto-connecting from URL parameters: ${initialUserName}@${initialInstanceId}`);
+            console.log(`api/constructor parsing URL: ${initialUserName}@${initialInstanceId}`);
             let server = this.servers.find(s => s.instanceId === initialInstanceId && s.userName === initialUserName);
             if (server) {
                 if (initialSecret) server.secret = initialSecret;
@@ -151,15 +151,16 @@ class Api {
         $(() => {
             const server = this.servers[0];
             this.disconnect();
+            const connecting = derive(() => this.connection.mode !== 'disabled');
             
-            if (server && this.connection.mode !== 'disabled') {
+            if (server && connecting.value) {
                 // Whenever connection.attempts changes, try to connect again
                 this.connection.attempts;
                 this.connect({
                     instanceId: server.instanceId,
                     userName: server.userName,
                     secret: server.secret,
-                    externalPort: server.externalPort,
+                    externalPort: peek(server, 'externalPort'),
                 });
             } else {
                 // Not going to reconnect; reject anything still pending
@@ -281,9 +282,8 @@ class Api {
             urls.push(`${protocol}://${host}:${port}/api`);
         } else {
             // Instance ID: try both int- and ext- domains in parallel
-            const externalPort = creds.externalPort || DEFAULT_PORT;
             urls.push(`${protocol}://int-${code}.${DOMAIN}:${DEFAULT_PORT}/api`);
-            urls.push(`${protocol}://ext-${code}.${DOMAIN}:${externalPort}/api`);
+            urls.push(`${protocol}://ext-${code}.${DOMAIN}:${creds.externalPort || DEFAULT_PORT}/api`);
         }
 
         this.tryingSockets = new Set();

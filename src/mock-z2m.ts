@@ -10,7 +10,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // --- Environment Setup ---
-const dataPath = `/tmp/mock-z2m-${process.pid}`;
+const dataPath = `.mock-z2m-data-${process.pid}`;
 if (!fs.existsSync(dataPath)) fs.mkdirSync(dataPath, { recursive: true });
 process.env.ZIGBEE2MQTT_DATA = dataPath;
 
@@ -244,8 +244,14 @@ class MockState {
         
         const next = { ...current, ...filteredUpdate };
         this.states.set(entity.id, next);
+
         this._eventBus.emitPublishEntityState(entity, next);
         this._eventBus.emitStateChange({ entity, from: current, to: next, update: filteredUpdate });
+
+        if (JSON.stringify(current) !== JSON.stringify(next)) {
+            const base = settings.get().mqtt.base_topic;
+            mqtt.publish(`${base}/${entity.name}`, next, { clientOptions: { retain: true } });
+        }
         return next;
     }
 }
@@ -644,28 +650,15 @@ function filterStateByCapabilities(entity: MockEntity, stateUpdate: any): any {
     const filtered = { ...stateUpdate };
     
     // Color lights: ignore color_temp
-    if (caps.supportsColor && !caps.supportsColorTemp) {
-        if ('color_temp' in filtered) {
-            process.stderr.write(`MockZ2M: Ignoring color_temp for color-only light ${entity.name}\n`);
-            delete filtered.color_temp;
-        }
+    if (!caps.supportsColorTemp && 'color_temp' in filtered) {
+        process.stderr.write(`MockZ2M:        Ignoring color_temp for ${entity.name}\n`);
+        delete filtered.color_temp;
     }
     
     // White lights (no color, no temp): ignore color and color_temp
-    if (!caps.supportsColor && !caps.supportsColorTemp) {
-        if ('color' in filtered || 'color_temp' in filtered) {
-            process.stderr.write(`MockZ2M: Ignoring color/color_temp for white-only light ${entity.name}\n`);
-            delete filtered.color;
-            delete filtered.color_temp;
-        }
-    }
-    
-    // Ambiance lights (temp but no color): ignore color
-    if (!caps.supportsColor && caps.supportsColorTemp) {
-        if ('color' in filtered) {
-            process.stderr.write(`MockZ2M: Ignoring color for ambiance light ${entity.name}\n`);
-            delete filtered.color;
-        }
+    if (!caps.supportsColor && 'color' in filtered) {
+        process.stderr.write(`MockZ2M:        Ignoring color for ${entity.name}\n`);
+        delete filtered.color;
     }
     
     return filtered;
@@ -792,7 +785,7 @@ class MockMQTT {
 
     async publish(topic: string, message: string | object, options?: any) {
         const messageStr = typeof message === 'string' ? message : JSON.stringify(message);
-        console.log(`MockZ2M: MQTT OUT: ${topic} -> ${messageStr.substr(0,200)}`);
+        console.log(`MockZ2M ->MQTT: ${topic} -> ${messageStr.substr(0,200)}`);
         if (options?.clientOptions?.retain) {
             this.retainedMessages[topic] = { topic, payload: messageStr, options };
         }
@@ -802,7 +795,7 @@ class MockMQTT {
 
     onMessage(topic: string, message: any) {
         const messageStr = message.toString();
-        process.stderr.write(`MockZ2M: MQTT IN: ${topic} -> ${messageStr.substr(0,100)}\n`);
+        process.stderr.write(`MockZ2M <-MQTT: ${topic} -> ${messageStr.substr(0,100)}\n`);
         eventBus.emitMQTTMessage(topic, messageStr);
         
         // Internal handling
@@ -837,10 +830,10 @@ class MockMQTT {
                         for (const member of entity.members) {
                             const memberState = state.get(member);
                             sceneStates[groupId][sceneId][member.ieeeAddr] = { ...memberState };
-                            process.stderr.write(`MockZ2M: Scene ${sceneId} stored state for ${member.name}: ${JSON.stringify(memberState)}\n`);
+                            process.stderr.write(`MockZ2M Zigbee: Scene ${sceneId} stored state for ${member.name}: ${JSON.stringify(memberState)}\n`);
                         }
                         
-                        process.stderr.write(`MockZ2M: Scene stored: ${sceneId} (${sceneName})\n`);
+                        process.stderr.write(`MockZ2M Zigbee: Scene stored: ${sceneId} (${sceneName})\n`);
                         mqtt.publish(`${base}/bridge/groups`, [...zigbee.groupsIterator()].map(g => g.toJSON()), { clientOptions: { retain: true } });
                     }
                     if (payload.scene_rename !== undefined) {
@@ -849,13 +842,13 @@ class MockMQTT {
                         const scene = entity.zh.scenes.find((s: any) => s.id === ID);
                         if (scene) scene.name = name;
                         else entity.zh.scenes.push({ id: ID, name });
-                        process.stderr.write(`MockZ2M: Scene renamed: ${ID} -> ${name}\n`);
+                        process.stderr.write(`MockZ2M Zigbee: Scene renamed from ${ID} to ${name}\n`);
                         mqtt.publish(`${base}/bridge/groups`, [...zigbee.groupsIterator()].map(g => g.toJSON()), { clientOptions: { retain: true } });
                     }
                     if (payload.scene_recall !== undefined && entity.isGroup()) {
                         const sceneId = payload.scene_recall;
                         const groupId = entity.id as number;
-                        process.stderr.write(`MockZ2M: [Zigbee] Scene recall ${sceneId} for GROUP ${entity.name} (${groupId})\n`);
+                        process.stderr.write(`MockZ2M Zigbee: Scene recall ${sceneId} for GROUP ${entity.name} (${groupId})\n`);
                         
                         // Apply stored scene states to all group members
                         const groupScenes = sceneStates[groupId];
@@ -864,21 +857,17 @@ class MockMQTT {
                         for (const member of entity.members) {
                             const storedState = sceneData?.[member.ieeeAddr];
                             if (storedState) {
-                                process.stderr.write(`MockZ2M: [Zigbee]   -> Member ${member.name} (${member.ieeeAddr}): ${JSON.stringify(storedState)}\n`);
+                                process.stderr.write(`MockZ2M Zigbee: - Member ${member.name} (${member.ieeeAddr}): ${JSON.stringify(storedState)}\n`);
                                 state.set(member, storedState);
-                            } else {
-                                // Fallback: turn on with default brightness if no stored state
-                                const defaultState = { state: 'ON', brightness: 200 };
-                                process.stderr.write(`MockZ2M: [Zigbee]   -> Member ${member.name} (${member.ieeeAddr}) [no stored state]: ${JSON.stringify(defaultState)}\n`);
-                                state.set(member, defaultState);
+                                // mqtt.publish(`${base}/${member.name}`, state.get(member), { clientOptions: { retain: true } });
                             }
-                            mqtt.publish(`${base}/${member.name}`, state.get(member), { clientOptions: { retain: true } });
+                            // Do nothing if no stored state for this device.
                         }
                     }
                     if (payload.scene_add !== undefined) {
                         // scene_add is sent to individual devices to add them to a group's scene
                         const { ID, group_id, state: sceneState } = payload.scene_add;
-                        process.stderr.write(`MockZ2M: Scene add for device ${entityName}: scene ${ID} in group ${group_id}, state: ${sceneState}\n`);
+                        process.stderr.write(`MockZ2M Zigbee: Scene add for device ${entityName}: scene ${ID} in group ${group_id}, state: ${sceneState}\n`);
                         // In real Z2M, this stores the device's scene state in the device itself
                         // For mock, we just acknowledge it
                     }
@@ -886,7 +875,7 @@ class MockMQTT {
                         const sceneId = payload.scene_remove;
                         entity.zh.scenes = entity.zh.scenes || [];
                         entity.zh.scenes = entity.zh.scenes.filter((s: any) => s.id !== sceneId);
-                        process.stderr.write(`MockZ2M: Scene removed: ${sceneId}\n`);
+                        process.stderr.write(`MockZ2M Zigbee: Scene removed: ${sceneId}\n`);
                         mqtt.publish(`${base}/bridge/groups`, [...zigbee.groupsIterator()].map(g => g.toJSON()), { clientOptions: { retain: true } });
                     }
                     // Don't set scene_* payloads as state
@@ -899,27 +888,25 @@ class MockMQTT {
                     if (Object.keys(statePayload).length > 0) {
                         // Log zigbee command
                         if (entity.isGroup()) {
-                            process.stderr.write(`MockZ2M: [Zigbee] Sending to GROUP ${entity.name} (${entity.id}): ${JSON.stringify(statePayload)}\n`);
+                            process.stderr.write(`MockZ2M Zigbee: Sending to GROUP ${entity.name} (${entity.id}): ${JSON.stringify(statePayload)}\n`);
                         } else {
-                            process.stderr.write(`MockZ2M: [Zigbee] Sending to DEVICE ${entity.name} (${entity.ieeeAddr}): ${JSON.stringify(statePayload)}\n`);
+                            process.stderr.write(`MockZ2M Zigbee: Sending to DEVICE ${entity.name} (${entity.ieeeAddr}): ${JSON.stringify(statePayload)}\n`);
                         }
-                        
-                        state.set(entity, statePayload);
                         
                         // If this is a group, propagate state to all members
                         if (entity.isGroup()) {
                             for (const member of entity.members) {
-                                process.stderr.write(`MockZ2M: [Zigbee]   -> Member ${member.name} (${member.ieeeAddr}): ${JSON.stringify(statePayload)}\n`);
-                                const memberState = state.get(member);
-                                state.set(member, { ...memberState, ...statePayload });
-                                mqtt.publish(`${base}/${member.name}`, state.get(member), { clientOptions: { retain: true } });
+                                process.stderr.write(`MockZ2M Zigbee: - Member ${member.name} (${member.ieeeAddr}): ${JSON.stringify(statePayload)}\n`);
+                                state.set(member, statePayload);
+                                // mqtt.publish(`${base}/${member.name}`, state.get(member), { clientOptions: { retain: true } });
                             }
                         }
+                        state.set(entity, statePayload);
                     }
                     // Echo back state
                     mqtt.publish(`${base}/${entity.name}`, state.get(entity), { clientOptions: { retain: true } });
                 } else {
-                    process.stderr.write(`MockZ2M: Entity not found: ${entityName}\n`);
+                    process.stderr.write(`MockZ2M:        Entity not found: ${entityName}\n`);
                 }
             } else if (parts[1] === 'bridge' && parts[2] === 'request') {
                 handleBridgeRequest(parts.slice(2).join('/'), messageStr ? JSON.parse(messageStr) : {});

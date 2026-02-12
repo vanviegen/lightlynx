@@ -1073,7 +1073,6 @@ class LightLynx {
         } else if (payload.color_temp != null) {
             dev.lightState.mireds = payload.color_temp;
         }
-        // console.log('Updated light state for', dev.name, 'from', old, 'to', dev.lightState);
     }
 
     /** Handle outgoing Z2M state messages for buttons and sensors, by taking
