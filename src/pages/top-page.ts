@@ -11,7 +11,7 @@ import * as icons from '../icons';
 
 const groupListClass = insertCss({
 	'&': 'display:flex flex-direction:column',
-	'.group.off h2': 'fg:$textMuted',
+	'> .off h2': 'fg:$textMuted',
 	'h2': 'white-space:nowrap overflow:hidden text-overflow:ellipsis',
 	'.scenes': 'fg:$textMuted display:flex gap:$2 align-items:center overflow-x:auto scrollbar-width:none white-space:nowrap',
 	'.scenes > *': {
@@ -44,10 +44,7 @@ export function drawTopPage(): void {
 				drawToggle(group, groupId);
 				
 				// Name and chevron (includes spacer, min 20px padding)
-				$('h2.link flex-grow:1 click=', () => route.go(['group', groupId]), () => {
-					$('#', group.name);
-					icons.chevronRight("vertical-align:middle");
-				});
+				$('h2.link flex-grow:1 text=', group.name, 'click=', () => route.go(['group', groupId]));
 				
 				// Scene icons (horizontally scrollable)
 				$("div.scenes", () => {
@@ -71,15 +68,14 @@ export function drawTopPage(): void {
 				});
 			});
 		}, group => group.name);
-	});
 
-	$("div.list", () => {
 		onEach(api.store.lights, (device, ieee) => {
 			$('div.item', () => {
 				// Add 'disabled' class if user is not admin (CSS handles pointer-events:none)
+				$('.off=', derive(() => !device.lightState?.on));
 				$('.disabled=', derive(() => !api.store.me?.isAdmin));
 				drawToggle(device, ieee);
-				$('h2.link#', device.name, 'click=', () => route.go(['bulb', ieee]));
+				$('h2.link text=', device.name, 'click=', () => route.go(['device', ieee]));
 			});
 		}, (device, ieee) => {
 			return api.lightGroups[ieee] ? undefined : device.name;

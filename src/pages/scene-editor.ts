@@ -28,7 +28,7 @@ function formatTime({hour, minute, type}: {hour: number, minute: number, type: s
 const scenePresetsClass = insertCss({
     "&": "display:grid grid-template-columns:repeat(auto-fit,minmax(150px,1fr)) gap:$2 m:$3",
     ".item": "display:flex flex-direction:column align-items:center padding:$2 r:8px border:1px solid $border.interacting:bg:.interacting cursor:pointer",
-    ".item.selected": "color:$primary",
+    ".item.selected, .item.selected input": "color:$primary",
     ".custom": {
         "&": "display:flex flex-direction:column align-items:center justify-content:center",
         "input": "width:100% background-color:#fff1 text-align:center",
@@ -77,7 +77,6 @@ export function drawSceneEditor(group: Group, groupId: number): void {
 	$('div.list', scenePresetsClass, () => {
 		// Permanent input field as first "button"
 		$('div.custom.item', () => {
-            $('small#Custom');
 			$('input', {
 				type: 'text',
 				bind: ref(sceneState, 'shortName')
@@ -98,7 +97,7 @@ export function drawSceneEditor(group: Group, groupId: number): void {
 					$({'.selected': ref(selected, presetName)});
 				});
 				icon("color:inherit");
-				$('span#', label);
+				$('small#', label);
 			});
 		}
 	});

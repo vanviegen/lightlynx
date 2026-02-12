@@ -1014,41 +1014,58 @@ function handleBridgeRequest(cmd: string, payload: any) {
 
 // --- Pairing Procedure ---
 
+// --- Pairing Procedure ---
+
+let nextIeee = 0x100;
+let nextTypeIsMotion = true;
+
 function startPairingProcedure() {
-    const lightTypes = ['COLOR', 'WHITE', 'AMBIANCE'];
-    const lightType = lightTypes[Math.floor(Math.random() * lightTypes.length)]!;
+    const ieeeAddr = '0x' + nextIeee.toString(16).padStart(3, '0');
+    nextIeee++;
     
-    let ieeeAddr = '0x100';
-    while (zigbee.devices.has(ieeeAddr)) {
-        ieeeAddr = '0x' + Math.floor(Math.random() * 0xFFFF).toString(16).padStart(3, '0');
+    let deviceToAdd: MockDevice;
+    
+    if (nextTypeIsMotion) {
+        deviceToAdd = {
+            ieeeAddr,
+            friendlyName: 'New Motion Sensor',
+            model: 'MOCK_SENSOR',
+            description: 'Motion sensor',
+            vendor: 'Mock',
+            type: 'EndDevice' as const,
+            exposes: [
+                { type: 'binary', name: 'occupancy', property: 'occupancy', value_on: true, value_off: false },
+                { type: 'numeric', name: 'battery', property: 'battery', unit: '%', value_min: 0, value_max: 100 }
+            ]
+        };
+    } else {
+        deviceToAdd = {
+            ieeeAddr,
+            friendlyName: 'New Color Bulb',
+            model: 'MOCK_COLOR',
+            description: 'Color light bulb',
+            vendor: 'Mock',
+            type: 'Router' as const,
+            exposes: [{ type: 'light', features: [
+                { name: 'state', property: 'state', type: 'binary', value_on: 'ON', value_off: 'OFF' },
+                { name: 'brightness', property: 'brightness', type: 'numeric', value_min: 0, value_max: 255 },
+                { name: 'color_hs', type: 'composite', features: [{name:'hue', property:'hue'}, {name:'saturation', property:'saturation'}] }
+            ]}]
+        };
     }
-
-    const exposes: any[] = [{ type: 'light', features: [
-        { name: 'state', property: 'state', type: 'binary', value_on: 'ON', value_off: 'OFF' },
-        { name: 'brightness', property: 'brightness', type: 'numeric', value_min: 0, value_max: 255 }
-    ]}];
-
-    if (lightType === 'COLOR') {
-        exposes[0].features.push({ name: 'color_hs', type: 'composite', features: [{name:'hue', property:'hue'}, {name:'saturation', property:'saturation'}] });
-    } else if (lightType === 'AMBIANCE') {
-        exposes[0].features.push({ name: 'color_temp', property: 'color_temp', type: 'numeric', value_min: 153, value_max: 500 });
-    }
-
-    const deviceToAdd = {
-        ieeeAddr,
-        friendlyName: `New ${lightType.charAt(0) + lightType.slice(1).toLowerCase()} Bulb`,
-        model: `MOCK_${lightType}`,
-        description: `${lightType.charAt(0) + lightType.slice(1).toLowerCase()} light bulb`,
-        vendor: 'Mock',
-        type: 'Router' as const,
-        exposes
-    };
+    
+    nextTypeIsMotion = !nextTypeIsMotion;
 
     setTimeout(() => {
         console.log(`Device joining: ${deviceToAdd.friendlyName}`);
         const entity = new MockEntity(deviceToAdd.ieeeAddr, { friendlyName: deviceToAdd.friendlyName }, deviceToAdd);
         zigbee.devices.set(deviceToAdd.ieeeAddr, entity);
-        state.set(entity, { state: 'OFF', brightness: 255 });
+        
+        const initialState: any = deviceToAdd.type === 'EndDevice' 
+            ? { occupancy: false, battery: 3 }
+            : { state: 'OFF', brightness: 255 };
+        
+        state.set(entity, initialState);
         
         const base = settings.get().mqtt.base_topic;
         mqtt.publish(`${base}/bridge/devices`, [...zigbee.devicesIterator()].map(d => d.toJSON()), { clientOptions: { retain: true } });

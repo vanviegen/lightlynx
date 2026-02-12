@@ -130,33 +130,46 @@ test.describe('Light Lynx Demo Video', () => {
     await pause(page, 500);
 
     const groupNameInput = page.getByRole('textbox').first();
-    await slowType(page, groupNameInput, 'Bedroom', 100);
+    await slowType(page, groupNameInput, 'Demo Room', 100);
     await pause(page, 500);
 
     const okButton = page.getByRole('button', { name: 'OK' });
     await tap(page, okButton);
     await pause(page, 1500);
 
+    // Add some lights to the new group
     const addLightIcon = page.getByRole('heading', { name: 'Bulbs' }).locator('svg').first();
     await tap(page, addLightIcon);
     await pause(page, 1500);
 
-    // TODO Add some lights
-
-    // Scroll to scenes and tap scene configure icon
-    await page.evaluate(() => window.scrollBy({ top: 350, behavior: 'smooth' }));
+    // Add Office Ceiling light (unique - not in any group yet)
+    const officeCeilingLight = page.locator('h2', { hasText: 'Office Ceiling' });
+    await tap(page, officeCeilingLight);
     await pause(page, 1000);
 
-    const sceneItem = page.locator('.item.link', { hasText: 'Cozy' }).first();
-    const sceneConfigIcon = sceneItem.locator('svg').last();
-    await tap(page, sceneConfigIcon);
-    await pause(page, 2500); // Show scene editor
+    // Go back into add light mode to add another
+    const addLightIcon2 = page.getByRole('heading', { name: 'Bulbs' }).locator('svg').first();
+    await tap(page, addLightIcon2);
+    await pause(page, 1500);
 
-    // TODO Add some scene settings
+    // Add Office Desk Lamp
+    const officeDeskLight = page.locator('h2', { hasText: 'Office Desk Lamp' });
+    await tap(page, officeDeskLight);
+    await pause(page, 1000);
 
-    // Go back from scene editor
+    // Go back to group page
     await page.goBack();
-    await pause(page, 800);
+    await pause(page, 1000);
+
+    // Navigate into Demo Room group
+    const demoRoomLink = page.locator('h2', { hasText: 'Demo Room' });
+    await tap(page, demoRoomLink);
+    await pause(page, 1500); // Wait for group page to load
+
+    // Turn on the Demo Room group to show it works
+    const demoRoomCircle = page.locator('.circle').first();
+    await tap(page, demoRoomCircle);
+    await pause(page, 1000);
 
 
     // ===== User Management =====

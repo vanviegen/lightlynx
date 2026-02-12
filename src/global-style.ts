@@ -136,7 +136,7 @@ insertGlobalCss({
         '&': 'display:flex flex-direction:column gap:$2',
         'main > & > .item': 'border-width: 1px 0; r:0',
         '.item': {
-            '&': 'display:flex align-items:center gap:$3 p:$2 bg:$surface border: 1px solid $border; r:6px',
+            '&': 'display:flex align-items:center gap:$3 ph:$3 pv:$2 bg:$surface border: 1px solid $border; r:6px',
             
             '&.link': {
                 '&': 'cursor:pointer transition: background-color 0.2s, transform 0.1s;',
@@ -198,10 +198,10 @@ insertGlobalCss({
 
 export const errorMessageStyle = insertCss({
     '&': 'fg:$danger bg:#3a1111 p:$3',
-    '& > svg': 'w:24px h:24px float:left margin-right:$3 margin-bottom:$2'
+    '& > svg': 'w:24px h:24px float:left mr:$3 mb:$2'
 });
 
 export const infoMessageStyle = insertCss({
     '&': 'fg:$info bg:#113a5a p:$3',
-    '& > svg': 'w:24px h:24px float:left margin-right:$3 margin-bottom:$2'
+    '& > svg': 'w:24px h:24px float:left mr:$3 mb:$2'
 });

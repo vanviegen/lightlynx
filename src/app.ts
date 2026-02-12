@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
 import './global-style';
-import {$, proxy, clone, isEmpty, insertCss, peek, disableCreateDestroy} from 'aberdeen';
+import {$, proxy, clone, isEmpty, insertCss, peek, disableCreateDestroy, onEach} from 'aberdeen';
 import * as route from 'aberdeen/route';
 
 import api from './api';
@@ -20,9 +20,10 @@ import { drawDumpPage } from './pages/info-pages';
 import { drawTopPage } from './pages/top-page';
 
 import swUrl from './sw.ts?worker&url';
+import { Light, Toggle } from './types';
 
 // Configure Aberdeen
-route.setLog(true);
+// route.setLog(true);
 route.interceptLinks();
 // Disable transitions in Playwright)
 if ((navigator as any).webdriver) {
@@ -124,3 +125,15 @@ $(() => {
 		drawPromptPage(route.current.state.prompt);
 	}
 })
+
+function onNewDevice(device: Light | Toggle) {
+	// Don't subscribe on anything. We just want to be called on new devices
+	peek(() => {
+		if (api.connection.state === 'connected') {
+			const type = 'lightCaps' in device ? 'light' : 'toggle';
+			createToast('info', `A new ${type} has joined! "${device.name}"`);
+		}
+	});
+}
+onEach(api.store.lights, onNewDevice);
+onEach(api.store.toggles, onNewDevice);

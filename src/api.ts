@@ -462,7 +462,7 @@ class Api {
      * Keeps at most one prediction per target to avoid accumulation during dragging.
      */
     setLightState(target: string | number, lightState: LightState) {
-        console.log('api/setLightState', target, lightState);
+        // console.log('api/setLightState', target, lightState);
 
         // Drop any previous prediction for this target before making a new one
         const prevPatch = this.setLightStatePredictions.get(target);
@@ -699,8 +699,9 @@ class Api {
             clearTimeout(this.connectTimeout);
             this.connectTimeout = undefined;
 
-            copy(this.store, {} as ClientState);
-            applyDelta(this.store, store);
+            const appliedDelta = {};
+            applyDelta(appliedDelta, store);
+            copy(this.store, appliedDelta);
 
             // If we connected without an instance id, replace with the real instance ID
             const server = this.servers[0];

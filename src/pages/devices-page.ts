@@ -103,14 +103,14 @@ function getSortKey(item: DeviceItem, ieee: string): any[] {
     
     switch (sort) {
         case 'battery':
-            return [battery === undefined ? 999 : -battery, item.device.name];
+            return [battery === undefined ? 999 : battery, item.device.name];
         case 'model':
             return [item.device.model || '', item.device.name];
         case 'groups':
             const linkedGroups = item.type === 'toggle' 
                 ? (api.store.config.toggleGroupLinks[ieee] || []).length 
                 : (api.lightGroups[ieee] || []).length;
-            return [-linkedGroups, item.device.name];
+            return [linkedGroups, item.device.name];
         default:
             return [item.device.name];
     }
