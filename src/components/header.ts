@@ -71,7 +71,7 @@ export function drawHeader(updateAvailable: { value: boolean }): void {
         $(() => {
             if (isEmpty(api.servers)) return;
             let lowest = 100;
-            for (const device of Object.values(api.store.lights)) {
+            for (const device of Object.values(api.store.toggles)) {
                 const b = device.meta?.battery;
                 if (b !== undefined && b < lowest) lowest = b;
             }

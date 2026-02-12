@@ -79,15 +79,15 @@ test.describe('Light Lynx Demo Video', () => {
     await tap(page, brightScene);
     await pause(page, 1500);
 
-    // Tap "Dim" scene
-    const dimScene = page.locator('.item.link', { hasText: 'Dim' }).first();
-    await tap(page, dimScene);
+    // Tap "Cozy" scene
+    const cozyScene = page.locator('.item.link', { hasText: 'Cozy' }).first();
+    await tap(page, cozyScene);
     await pause(page, 1500);
 
     // ===== Individual Bulb =====
-    const bulbLink = page.locator('h2.link', { hasText: 'Color Light' }).first();
+    const bulbLink = page.locator('h2.link', { hasText: 'Living Room Ceiling 1' }).first();
     await tap(page, bulbLink);
-    await expect(page.locator('header h1')).toContainText('Color Light');
+    await expect(page.locator('header h1')).toContainText('Living Room Ceiling 1');
     await pause(page, 2500);
 
     // Swipe on hue slider
@@ -147,7 +147,7 @@ test.describe('Light Lynx Demo Video', () => {
     await page.evaluate(() => window.scrollBy({ top: 350, behavior: 'smooth' }));
     await pause(page, 1000);
 
-    const sceneItem = page.locator('.item.link', { hasText: 'Dim' }).first();
+    const sceneItem = page.locator('.item.link', { hasText: 'Cozy' }).first();
     const sceneConfigIcon = sceneItem.locator('svg').last();
     await tap(page, sceneConfigIcon);
     await pause(page, 2500); // Show scene editor
@@ -192,6 +192,62 @@ test.describe('Light Lynx Demo Video', () => {
     // Go back
     await page.goBack();
     await pause(page, 800);
+
+    // ===== Low Battery Demo =====
+    // Scroll down to Management section
+    await page.evaluate(() => {
+      const mgmt = Array.from(document.querySelectorAll('h1')).find(h => h.textContent?.includes('Management'));
+      if (mgmt) mgmt.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+    await pause(page, 1000);
+
+    // Tap on "Devices" link (not "Search for devices")
+    const devicesLink = page.locator('.list .item.link').filter({ hasText: /^Devices$/ });
+    await tap(page, devicesLink);
+    await expect(page.locator('header h1')).toContainText('Devices');
+    await pause(page, 2000);
+
+    // Tap on "Living Room Button" (0x050)
+    const buttonDevice = page.locator('div.item.link', { hasText: 'Living Room Button' });
+    await tap(page, buttonDevice);
+    await expect(page.locator('header h1')).toContainText('Living Room Button');
+    await pause(page, 1500);
+
+    // Scroll to Settings section
+    await page.evaluate(() => {
+      const el = Array.from(document.querySelectorAll('h1')).find(h => h.textContent?.includes('Settings'));
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+    await pause(page, 1000);
+
+    // Change the name to trigger low battery
+    const nameInput = page.locator('input').first();
+    await tap(page, nameInput);
+    await nameInput.clear();
+    await slowType(page, nameInput, 'Low battery test', 100);
+    await pause(page, 2000); // Wait for lazy save
+
+    // Go back to top page
+    await page.locator('header img.logo').click();
+    await expect(page.locator('header h1')).toContainText('Light Lynx');
+    await page.evaluate(() => window.scrollTo({ top: 0, behavior: 'smooth' }));
+    await pause(page, 2000);
+
+    // The battery icon should now be visible in the header (pulsing red)
+    const batteryIcon = page.locator('header svg[aria-label="batteryEmpty"].critical.pulse');
+    await expect(batteryIcon).toBeVisible();
+    await pause(page, 2500); // Let viewer see the pulsing icon
+
+    // Click on battery icon to navigate to devices page
+    await tap(page, batteryIcon);
+    await expect(page.locator('header h1')).toContainText('Devices');
+    await expect(page.locator('span.subTitle')).toContainText('buttons & sensors');
+    await pause(page, 2500);
+
+    // The low battery device should be at the top with red text
+    const lowBatteryDevice = page.locator('div.item', { hasText: 'Low battery test' });
+    await expect(lowBatteryDevice.locator('p.critical')).toContainText('4%');
+    await pause(page, 2000);
 
     // ===== Closing =====
     await page.locator('header img.logo').click();

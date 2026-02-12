@@ -480,16 +480,20 @@ const devicesData: Record<string, MockDevice> = {
     
     // Buttons and sensors
     '0x050': { ieeeAddr: '0x050', friendlyName: 'Living Room Button', model: 'MOCK_BUTTON', description: 'Wireless button', vendor: 'Mock', type: 'EndDevice', exposes: [
-        { type: 'enum', name: 'action', property: 'action', values: ['single', 'double', 'triple', 'hold'] }
+        { type: 'enum', name: 'action', property: 'action', values: ['single', 'double', 'triple', 'hold'] },
+        { type: 'numeric', name: 'battery', property: 'battery', unit: '%', value_min: 0, value_max: 100 }
     ]},
     '0x051': { ieeeAddr: '0x051', friendlyName: 'Kitchen Button', model: 'MOCK_BUTTON', description: 'Wireless button', vendor: 'Mock', type: 'EndDevice', exposes: [
-        { type: 'enum', name: 'action', property: 'action', values: ['single', 'double', 'triple', 'hold'] }
+        { type: 'enum', name: 'action', property: 'action', values: ['single', 'double', 'triple', 'hold'] },
+        { type: 'numeric', name: 'battery', property: 'battery', unit: '%', value_min: 0, value_max: 100 }
     ]},
     '0x052': { ieeeAddr: '0x052', friendlyName: 'Hallway Motion Sensor', model: 'MOCK_SENSOR', description: 'Motion sensor', vendor: 'Mock', type: 'EndDevice', exposes: [
-        { type: 'binary', name: 'occupancy', property: 'occupancy', value_on: true, value_off: false }
+        { type: 'binary', name: 'occupancy', property: 'occupancy', value_on: true, value_off: false },
+        { type: 'numeric', name: 'battery', property: 'battery', unit: '%', value_min: 0, value_max: 100 }
     ]},
     '0x053': { ieeeAddr: '0x053', friendlyName: 'Bathroom Motion Sensor', model: 'MOCK_SENSOR', description: 'Motion sensor', vendor: 'Mock', type: 'EndDevice', exposes: [
-        { type: 'binary', name: 'occupancy', property: 'occupancy', value_on: true, value_off: false }
+        { type: 'binary', name: 'occupancy', property: 'occupancy', value_on: true, value_off: false },
+        { type: 'numeric', name: 'battery', property: 'battery', unit: '%', value_min: 0, value_max: 100 }
     ]}
 };
 
@@ -727,7 +731,22 @@ async function init() {
     for (const [ieee, d] of Object.entries(devicesData)) {
         const entity = new MockEntity(ieee, { friendlyName: d.friendlyName }, d);
         zigbee.devices.set(ieee, entity);
-        state.set(entity, { state: 'OFF', brightness: 255 });
+        
+        // Initialize state
+        const initialState: any = { state: 'OFF', brightness: 255 };
+        
+        // Add battery for EndDevice types (buttons and sensors)
+        if (d.type === 'EndDevice') {
+            // Devices with 'low' in the name get 4% battery for testing
+            const batteryLevel = d.friendlyName.toLowerCase().includes('low') ? 4 : 
+                                 ieee === '0x050' ? 87 :
+                                 ieee === '0x051' ? 65 :
+                                 ieee === '0x052' ? 42 :
+                                 ieee === '0x053' ? 91 : 75;
+            initialState.battery = batteryLevel;
+        }
+        
+        state.set(entity, initialState);
     }
     for (const [id, g] of Object.entries(groupsData)) {
         const idNum = Number(id);
@@ -926,6 +945,16 @@ function handleBridgeRequest(cmd: string, payload: any) {
         if (device) {
             device.options.friendlyName = payload.to;
             mqtt.publish(`${base}/bridge/devices`, [...zigbee.devicesIterator()].map(d => d.toJSON()), { clientOptions: { retain: true } });
+            
+            // Update battery level if device is an EndDevice and name contains 'low'
+            if (device.zh.type === 'EndDevice') {
+                const currentState = state.get(device);
+                const newBattery = payload.to.toLowerCase().includes('low') ? 4 : currentState.battery;
+                if (newBattery !== currentState.battery) {
+                    state.set(device, { ...currentState, battery: newBattery });
+                    mqtt.publish(`${base}/${device.name}`, state.get(device), { clientOptions: { retain: true } });
+                }
+            }
         }
     } else if (cmd === 'request/group/add') {
         const id = Math.max(0, ...zigbee.groups.keys()) + 1;

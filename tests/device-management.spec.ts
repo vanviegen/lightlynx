@@ -48,4 +48,45 @@ test.describe('Device management', () => {
     await expect(page.locator('header h1')).toContainText('Light Lynx', { timeout: 10000 });
     await expect(page.locator('h2.link', { hasText: deviceName })).not.toBeVisible();
   });
+
+  test('should show low battery warning in header when device has low battery', async ({ page }) => {
+    await connectToMockServer(page, { manage: true });
+
+    // Initially, battery levels are OK, so no warning should show
+    await expect(page.locator('header svg[aria-label="batteryLow"]')).not.toBeVisible();
+    await expect(page.locator('header svg[aria-label="batteryEmpty"]')).not.toBeVisible();
+
+    // Rename a toggle device to include 'low' which triggers 4% battery
+    const deviceIeee = '0x050'; // Living Room Button
+    await page.goto(`/device/${deviceIeee}?manage=y`);
+    await expect(page.locator('header h1')).toContainText('Living Room Button');
+
+    // Change the name to trigger low battery
+    const nameInput = page.locator('input').first();
+    await nameInput.clear();
+    await nameInput.fill('Low battery test');
+    
+    // Wait for the lazy save to complete (1 second delay)
+    await page.waitForTimeout(1500);
+
+    // Go back to the top page
+    await page.locator('header svg[aria-label="back"]').click();
+    await expect(page.locator('header h1')).toContainText('Light Lynx');
+
+    // Now we should see the critical battery warning icon (pulsing)
+    const batteryIcon = page.locator('header svg[aria-label="batteryEmpty"].critical.pulse');
+    await expect(batteryIcon).toBeVisible({ timeout: 5000 });
+
+    // Click on the battery icon to go to devices page filtered by battery
+    await batteryIcon.click();
+    
+    // Should be on devices page, filtered to toggles, sorted by battery
+    await expect(page.locator('header h1')).toContainText('Devices');
+    await expect(page.locator('span.subTitle')).toContainText('buttons & sensors');
+    
+    // The low battery device should be visible and at the top
+    const lowBatteryDevice = page.locator('div.item', { hasText: 'Low battery test' });
+    await expect(lowBatteryDevice).toBeVisible();
+    await expect(lowBatteryDevice.locator('p.critical')).toContainText('4%');
+  });
 });
