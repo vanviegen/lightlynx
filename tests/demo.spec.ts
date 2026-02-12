@@ -1,5 +1,11 @@
 import { test, expect, connectToMockServer, tap, slowType, pause, swipe } from './video-helpers';
 
+/**
+ * This can run as a normal test, and with playwright.video.config.ts, which causes a video
+ * to be recorded, and should cause video-helper to delay some operations and show taps
+ * on behalf of watchers living at human speeds.
+ */
+
 test.describe('Light Lynx Demo Video', () => {
   test('full app demo (~2 minutes)', async ({ page }) => {
 
@@ -131,17 +137,11 @@ test.describe('Light Lynx Demo Video', () => {
     await tap(page, okButton);
     await pause(page, 1500);
 
-    // Scroll up to see the new group in the list
-    await page.evaluate(() => window.scrollTo({ top: 0, behavior: 'smooth' }));
-    await pause(page, 2000);
+    const addLightIcon = page.getByRole('heading', { name: 'Bulbs' }).locator('svg').first();
+    await tap(page, addLightIcon);
+    await pause(page, 1500);
 
-    // ===== Navigate into Living Room in manage mode to show scene config =====
-    const livingRoomLink2 = page.locator('.item.group').filter({
-      has: page.locator('h2', { hasText: 'Living Room' })
-    }).locator('h2.link').first();
-    await tap(page, livingRoomLink2);
-    await expect(page.locator('header h1')).toContainText('Living Room');
-    await pause(page, 2000);
+    // TODO Add some lights
 
     // Scroll to scenes and tap scene configure icon
     await page.evaluate(() => window.scrollBy({ top: 350, behavior: 'smooth' }));
@@ -152,24 +152,12 @@ test.describe('Light Lynx Demo Video', () => {
     await tap(page, sceneConfigIcon);
     await pause(page, 2500); // Show scene editor
 
+    // TODO Add some scene settings
+
     // Go back from scene editor
     await page.goBack();
     await pause(page, 800);
 
-    // Scroll to Bulbs section and show "Add light"
-    await page.evaluate(() => {
-      const el = Array.from(document.querySelectorAll('h1')).find(h => h.textContent?.includes('Bulbs'));
-      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    });
-    await pause(page, 1000);
-
-    const addLightIcon = page.getByRole('heading', { name: 'Bulbs' }).locator('svg').first();
-    await tap(page, addLightIcon);
-    await pause(page, 1500);
-
-    // Go back
-    await page.goBack();
-    await pause(page, 500);
 
     // ===== User Management =====
     await page.locator('header img.logo').click();

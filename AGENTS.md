@@ -31,7 +31,7 @@ tests/
 build.frontend/       # Production output for app (app.lightlynx.eu)
 build.backend/        # Generated Bunny edge script
 build.site/           # Production output for static site (www.lightlynx.eu)
-build.demo/           # Demo video + screenshots (used as publicDir for site)
+build.video/           # Demo video + screenshots (used as publicDir for site)
 ```
 
 ## Architecture
@@ -91,7 +91,7 @@ npm test
 A scripted demo video can be recorded to showcase app functionality:
 
 ```bash
-npm run build:video    # Records ~2 min video → build.demo/demo.webm
+npm run build:video    # Records ~2 min video → build.video/demo.webm
 ```
 
 **How it works:**
@@ -106,7 +106,7 @@ npm run build:video    # Records ~2 min video → build.demo/demo.webm
 - `pause(page, ms)` — viewing delay (video only, skipped in test)
 - `swipe(page, locator, direction, distance)` — smooth gesture animation
 
-Output: `build.demo/demo.webm` (Playwright's intermediate directory is auto-cleaned)
+Output: `build.video/demo.webm` (Playwright's intermediate directory is auto-cleaned)
 
 ### Diagnosing Failures
 

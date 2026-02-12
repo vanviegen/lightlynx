@@ -87,7 +87,7 @@ export const test = base.extend<{ videoPage: Page }>({
 
         await use(page);
 
-        // Video mode: copy video to build.demo/demo.webm and clean up Playwright's directory
+        // Video mode: copy video to build.video/demo.webm and clean up Playwright's directory
         if (videoMode) {
             const videoPath = await page.video()?.path();
             if (videoPath) {
@@ -98,7 +98,7 @@ export const test = base.extend<{ videoPage: Page }>({
                 await new Promise(resolve => setTimeout(resolve, 1000));
                 
                 if (fs.existsSync(videoPath)) {
-                    const outputDir = path.join(process.cwd(), 'build.demo');
+                    const outputDir = path.join(process.cwd(), 'build.video');
                     if (!fs.existsSync(outputDir)) {
                         fs.mkdirSync(outputDir, { recursive: true });
                     }

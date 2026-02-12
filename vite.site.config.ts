@@ -3,7 +3,7 @@ import { resolve } from 'path';
 
 export default defineConfig({
   root: 'site',
-  publicDir: resolve(__dirname, 'build.demo'),
+  publicDir: resolve(__dirname, 'build.video'),
   build: {
     outDir: resolve(__dirname, 'build.site'),
     emptyOutDir: true,
