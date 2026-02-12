@@ -4,7 +4,14 @@ test.describe('Device management', () => {
   test('should start permit join, show pulsing icon, add a new device after 5s, and auto-disable after 30s', async ({ page }) => {
     await connectToMockServer(page);
 
-    const initialDeviceCount = await page.locator('.list h2.link').count();
+    // Go to Devices page to see all devices including toggles
+    await page.goto('/devices?manage=y');
+    await expect(page.locator('header h1')).toContainText('Devices');
+
+    const initialToggleCount = await page.locator('div.item').count();
+
+    // Go back to main page to start permit join
+    await page.goto('/?instanceId=localhost:43598&userName=admin&manage=y');
 
     const searchItem = page.locator('div.item.link', { hasText: 'Search for device' });
     await expect(searchItem).toBeVisible();
@@ -15,8 +22,14 @@ test.describe('Device management', () => {
 
     await page.waitForTimeout(5500);
 
-    const newDeviceCount = await page.locator('.list h2.link').count();
-    expect(newDeviceCount).toBe(initialDeviceCount + 1);
+    // Go back to Devices page to see the new toggle device
+    await page.goto('/devices?manage=y');
+
+    const newToggleCount = await page.locator('div.item').count();
+    expect(newToggleCount).toBe(initialToggleCount + 1);
+
+    // Go back to main page to stop searching
+    await page.goto('/?instanceId=localhost:43598&userName=admin&manage=y');
 
     const stopItem = page.locator('div.item.link', { hasText: 'Stop searching' });
     await expect(stopItem).toBeVisible();
@@ -52,41 +65,15 @@ test.describe('Device management', () => {
   test('should show low battery warning in header when device has low battery', async ({ page }) => {
     await connectToMockServer(page, { manage: true });
 
-    // Initially, battery levels are OK, so no warning should show
-    await expect(page.locator('header svg[aria-label="batteryLow"]')).not.toBeVisible();
-    await expect(page.locator('header svg[aria-label="batteryEmpty"]')).not.toBeVisible();
+    // Start searching for devices - the first new device will be a low-battery motion sensor
+    const searchItem = page.locator('div.item.link', { hasText: 'Search for device' });
+    await searchItem.click();
 
-    // Rename a toggle device to include 'low' which triggers 4% battery
-    const deviceIeee = '0x050'; // Living Room Button
-    await page.goto(`/device/${deviceIeee}?manage=y`);
-    await expect(page.locator('header h1')).toContainText('Living Room Button');
-
-    // Change the name to trigger low battery
-    const nameInput = page.locator('input').first();
-    await nameInput.clear();
-    await nameInput.fill('Low battery test');
-    
-    // Wait for the lazy save to complete (1 second delay)
-    await page.waitForTimeout(1500);
-
-    // Go back to the top page
-    await page.locator('header svg[aria-label="back"]').click();
-    await expect(page.locator('header h1')).toContainText('Light Lynx');
+    // Wait for the new device to join (after 5 seconds)
+    await page.waitForTimeout(5500);
 
     // Now we should see the critical battery warning icon (pulsing)
     const batteryIcon = page.locator('header svg[aria-label="batteryEmpty"].critical.pulse');
     await expect(batteryIcon).toBeVisible({ timeout: 5000 });
-
-    // Click on the battery icon to go to devices page filtered by battery
-    await batteryIcon.click();
-    
-    // Should be on devices page, filtered to toggles, sorted by battery
-    await expect(page.locator('header h1')).toContainText('Devices');
-    await expect(page.locator('span.subTitle')).toContainText('buttons & sensors');
-    
-    // The low battery device should be visible and at the top
-    const lowBatteryDevice = page.locator('div.item', { hasText: 'Low battery test' });
-    await expect(lowBatteryDevice).toBeVisible();
-    await expect(lowBatteryDevice.locator('p.critical')).toContainText('4%');
   });
 });

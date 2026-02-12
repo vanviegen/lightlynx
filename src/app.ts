@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
 import './global-style';
-import {$, proxy, clone, isEmpty, insertCss, peek, disableCreateDestroy, onEach} from 'aberdeen';
+import {$, proxy, clone, isEmpty, insertCss, peek, disableCreateDestroy, onEach, unproxy} from 'aberdeen';
 import * as route from 'aberdeen/route';
 
 import api from './api';
@@ -126,14 +126,22 @@ $(() => {
 	}
 })
 
+// Show popups for newly founds devices
+let notNew = true;
+$(() => {
+	if (api.connection.state === 'connected') {
+		notNew = false;
+		onEach(api.store.lights, onNewDevice);
+		onEach(api.store.toggles, onNewDevice);
+		notNew = true;
+	}
+});
+
 function onNewDevice(device: Light | Toggle) {
-	// Don't subscribe on anything. We just want to be called on new devices
-	peek(() => {
-		if (api.connection.state === 'connected') {
-			const type = 'lightCaps' in device ? 'light' : 'toggle';
-			createToast('info', `A new ${type} has joined! "${device.name}"`);
-		}
-	});
+	if (notNew) {
+		// Don't subscribe on anything. We just want to be called on new devices
+		const d = unproxy(device);
+		const type = 'lightCaps' in d ? 'light' : 'toggle';
+		createToast('info', `A new ${type} has joined! "${d.name}"`);
+	}
 }
-onEach(api.store.lights, onNewDevice);
-onEach(api.store.toggles, onNewDevice);
