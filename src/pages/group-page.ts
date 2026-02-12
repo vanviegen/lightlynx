@@ -3,7 +3,7 @@ import { grow, shrink } from 'aberdeen/transitions';
 import * as route from 'aberdeen/route';
 import api from '../api';
 import * as icons from '../icons';
-import { drawColorPicker, drawBulbCircle } from '../components/color-picker';
+import { drawColorPicker, drawToggle } from '../components/color-picker';
 import { Group } from '../types';
 import { routeState, manage, lazySave } from '../ui';
 import { askConfirm, askPrompt } from '../components/prompt';
@@ -117,8 +117,8 @@ export function drawGroupPage(groupId: number): void {
         onEach(group.lightIds, (ieee) => { 
             let light = lights[ieee]!;
             $('div.item', () => {
-                drawBulbCircle(light, ieee);
-                $('h2.link#', light.name, 'click=', () => route.go(['bulb', ieee]));
+                drawToggle(light, ieee);
+                $('h2.link#', light.name, 'click=', () => route.go(['device', ieee]));
             });
         }, (ieee) => lights[ieee]?.name);
         
@@ -151,7 +151,7 @@ function drawGroupAddLight(
     $("div.list", () => {
         onEach(api.store.lights, (device, ieee) => { 
             $("div.item", () => {
-                drawBulbCircle(device, ieee);
+                drawToggle(device, ieee);
                 $('h2.link#', device.name, 'click=', () => addDevice(ieee));
             });
         }, (device, ieee) => {
@@ -225,12 +225,9 @@ function drawGroupConfigurationEditor(
     if (automationEnabled) {
         $('div.list', () => {
             onEach(togglesByGroup[groupId] || {}, (device, ieee) => {
-                $("div.item", () => {
+                $("div.item.link", 'click=', () => route.go(['device', ieee]), () => {
                     icons.sensor();
                     $("h2#", device.name);
-                    icons.remove('.link click=', () => {
-                        api.linkToggleToGroup(groupId, ieee, false);
-                    });
                 });
             });
             if (isEmpty(togglesByGroup[groupId] || {})) {

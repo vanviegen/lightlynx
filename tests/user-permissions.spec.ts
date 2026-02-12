@@ -218,7 +218,7 @@ test.describe('User Permissions', () => {
     // Wait for the 25ms delayed localStorage persistence to complete before navigating,
     // otherwise goto() may reload with stale credentials from localStorage.
     await page.waitForTimeout(50);
-    await page.goto('/bulb/0x001');
+    await page.goto('/device/0x001');
     
     // Now we should be on the bulb page
     const circle = page.locator('.circle').first();

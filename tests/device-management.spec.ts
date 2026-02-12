@@ -27,12 +27,15 @@ test.describe('Device management', () => {
   });
 
   test('should delete device from Zigbee2MQTT after confirmation', async ({ page }) => {
-    await connectToMockServer(page);
+    await connectToMockServer(page, { manage: true });
 
-    const deviceName = 'Living Room Ceiling 1';
-    await page.locator('.list h2.link', { hasText: 'Living Room' }).click();
-    await expect(page.locator('header h1')).toContainText('Living Room');
-    await page.locator('.list h2.link', { hasText: deviceName }).click();
+    // Use Office Desk Lamp (0x00A) which is unlikely to be used by other tests
+    // This avoids polluting state for subsequent tests that depend on Living Room devices
+    const deviceName = 'Office Desk Lamp';
+    const ieee = '0x00A';
+    
+    // Navigate directly to the device page
+    await page.goto(`/device/${ieee}?manage=y`);
     await expect(page.locator('header h1')).toContainText(deviceName);
 
     const deleteItem = page.locator('div.item.link', { hasText: 'Delete from Zigbee2MQTT' });

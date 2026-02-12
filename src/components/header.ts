@@ -82,7 +82,7 @@ export function drawHeader(updateAvailable: { value: boolean }): void {
                 '.critical': critical,
                 '.warning': !critical,
                 '.pulse': critical,
-                click: () => route.go(['batteries'])
+                click: () => route.go({p: ['devices'], search: {filter: 'toggles', sort: 'battery'}})
             });
         });
         

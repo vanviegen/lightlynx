@@ -678,7 +678,7 @@ class Api {
         const socket = event.target as WebSocket;
         if (socket && socket !== this.socket) return;
 
-        console.log("api/onMessage", event.data);``
+        console.log("api/onMessage", event.data.substr(0,100));
         const args = JSON.parse(event.data);
         const command = args.shift();
 

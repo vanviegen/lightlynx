@@ -11,11 +11,12 @@ import { drawToasts, createToast } from './components/toasts';
 import { drawHeader } from './components/header';
 import { drawPromptPage } from './components/prompt';
 
-import { drawBulbPage } from './pages/bulb-page';
+import { drawDevicePage } from './pages/device-page';
 import { drawGroupPage } from './pages/group-page';
 import { drawConnectionPage } from './pages/connection-page';
 import { drawUserEditor } from './pages/users-page';
-import { drawBatteriesPage, drawDumpPage } from './pages/info-pages';
+import { drawDevicesPage } from './pages/devices-page';
+import { drawDumpPage } from './pages/info-pages';
 import { drawTopPage } from './pages/top-page';
 
 import swUrl from './sw.ts?worker&url';
@@ -95,10 +96,10 @@ $('div', rootStyle, () => {
 					drawConnectionPage();
 				} else if (p[0]==='group' && p[1]) {
 					drawGroupPage(parseInt(p[1]));
-				} else if (p[0] === 'bulb' && p[1]) {
-					drawBulbPage(p[1]);
-				} else if (p[0] === 'batteries') {
-					drawBatteriesPage();
+				} else if (p[0] === 'device' && p[1]) {
+					drawDevicePage(p[1]);
+				} else if (p[0] === 'devices') {
+					drawDevicesPage();
 				} else if (p[0] === 'user') {
 					drawUserEditor();
 				} else if (p[0] === 'dump') {

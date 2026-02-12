@@ -128,6 +128,7 @@ insertGlobalCss({
     },
 
     '.icon': 'w:24px h:24px',
+    '.icon.toggle-width': 'mr:22px',
     'button .icon': 'vertical-align:middle mr:$1',
 
     // List and item styles

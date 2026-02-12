@@ -44,7 +44,7 @@ export function getBulbRgb(target: Light | GroupWithDerives): string {
     }
 }
 
-export function drawBulbCircle(target: Light | GroupWithDerives, targetId: string | number): void {
+export function drawToggle(target: Light | GroupWithDerives, targetId: string | number): void {
     if (!target.lightCaps || (target as any).members && Object.keys(target.lightCaps).length === 0) {
         if (!(target as any).members) icons.sensor();
         return;
@@ -169,7 +169,7 @@ export function drawColorPicker(target: Light | GroupWithDerives, targetId: stri
     $('div m:$3 display:flex gap:$3 flex-direction:column', () => {
         $('div display:flex gap:$3 align-items:center', () => {
             if ('lightIds' in target) { // group
-                drawBulbCircle(target as GroupWithDerives, targetId as string);
+                drawToggle(target as GroupWithDerives, targetId as string);
             }
             if (capabilities.brightness) {
                 drawScale(target, targetId, 'brightness');

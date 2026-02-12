@@ -2,7 +2,7 @@ import { $, insertCss, onEach, derive, proxy, isEmpty } from "aberdeen";
 import * as route from 'aberdeen/route';
 import api from "../api";
 import * as colors from '../colors';
-import { drawBulbCircle } from "../components/color-picker";
+import { drawToggle } from "../components/color-picker";
 import { routeState, manage, copyToClipboard } from '../ui';
 import { drawUsersSection } from "./users-page";
 import { askPrompt } from "../components/prompt";
@@ -41,7 +41,7 @@ export function drawTopPage(): void {
 				$('.disabled=', derive(() => !api.canControlGroup(groupId)));
 
 				// Toggle button
-				drawBulbCircle(group, groupId);
+				drawToggle(group, groupId);
 				
 				// Name and chevron (includes spacer, min 20px padding)
 				$('h2.link flex-grow:1 click=', () => route.go(['group', groupId]), () => {
@@ -78,7 +78,7 @@ export function drawTopPage(): void {
 			$('div.item', () => {
 				// Add 'disabled' class if user is not admin (CSS handles pointer-events:none)
 				$('.disabled=', derive(() => !api.store.me?.isAdmin));
-				drawBulbCircle(device, ieee);
+				drawToggle(device, ieee);
 				$('h2.link#', device.name, 'click=', () => route.go(['bulb', ieee]));
 			});
 		}, (device, ieee) => {
@@ -175,6 +175,11 @@ function drawManagementSection(): void {
 		$('div.item.link', {click: createGroup}, () => {
 			icons.createGroup();
 			$('h2#Create group');
+		});
+
+		$('div.item.link', {click: () => route.go(['devices'])}, () => {
+			icons.sensor();
+			$('h2#Devices');
 		});
 
 		drawRemoteAccessToggle();

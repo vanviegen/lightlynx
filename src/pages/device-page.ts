@@ -1,29 +1,39 @@
 import { $, proxy, unproxy, onEach } from 'aberdeen';
 import api from '../api';
 import * as icons from '../icons';
-import { drawColorPicker, drawBulbCircle } from '../components/color-picker';
+import { drawColorPicker, drawToggle } from '../components/color-picker';
 import { routeState, manage, lazySave } from '../ui';
 import { askConfirm } from '../components/prompt';
 
-export function drawBulbPage(ieee: string): void {
-    let device = api.store.lights[ieee];
+export function drawDevicePage(ieee: string): void {
+    const light = api.store.lights[ieee];
+    const toggle = api.store.toggles[ieee];
+    const device = light || toggle;
+    
     if (!device) {
-        $('div.empty#No such light');
+        $('div.empty#No such device');
         return;
     }
+    
+    const isLight = !!light;
     
     $(() => {
         routeState.title = device.name;
     });
-    routeState.subTitle = 'bulb';
+    routeState.subTitle = isLight ? 'light' : 'button/sensor';
     
-    // Device info with toggle circle
     $('div.list div.item', () => {
-        drawBulbCircle(device, ieee);
+        if (isLight) {
+            drawToggle(light, ieee);
+        } else {
+            icons.sensor();
+        }
         $('span#', device.model);
     });
     
-    drawColorPicker(device, ieee);
+    if (isLight) {
+        drawColorPicker(light, ieee);
+    }
 
     if (!manage.value || !api.store.me?.isAdmin) return;
 
@@ -41,19 +51,26 @@ export function drawBulbPage(ieee: string): void {
         };
     });
 
-
     $('h1#Actions');
     const removing = proxy(false);
 
     $('div.list', () => {
-        if (!removing.value && api.lightGroups[ieee]) onEach(api.lightGroups[ieee], (groupId) => {
+        const linkedGroupIds = isLight 
+            ? api.lightGroups[ieee] 
+            : api.store.config.toggleGroupLinks[ieee];
+        
+        if (!removing.value && linkedGroupIds) onEach(linkedGroupIds, (groupId) => {
             const busy = proxy(false);
             const group = api.store.groups[groupId];
             if (group) {
                 $(`div.item.link .busy=`, busy, icons.remove, `#Remove from "${group.name}"`, 'click=', async function() {
                     busy.value = true;
                     try {
-                        await api.send("bridge", "request", "group", "members", "remove", {group: group!.name, device: device!.name});
+                        if (isLight) {
+                            await api.send("bridge", "request", "group", "members", "remove", {group: group!.name, device: device!.name});
+                        } else {
+                            await api.linkToggleToGroup(groupId, ieee, false);
+                        }
                     } finally {
                         busy.value = false;
                     }
@@ -79,5 +96,5 @@ export function drawBulbPage(ieee: string): void {
                 }
             });
         }
-    })
+    });
 }
