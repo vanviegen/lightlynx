@@ -728,34 +728,27 @@ async function init() {
     for (const [ieee, d] of Object.entries(devicesData)) {
         const entity = new MockEntity(ieee, { friendlyName: d.friendlyName }, d);
         zigbee.devices.set(ieee, entity);
-        
-        // Initialize state
-        const initialState: any = { state: 'OFF', brightness: 255 };
-        
-        // Add battery for EndDevice types (buttons and sensors)
-        if (d.type === 'EndDevice') {
-            // Devices with 'low' in the name get 4% battery for testing
-            const batteryLevel = d.friendlyName.toLowerCase().includes('low') ? 4 : 
-                                 ieee === '0x050' ? 87 :
-                                 ieee === '0x051' ? 65 :
-                                 ieee === '0x052' ? 42 :
-                                 ieee === '0x053' ? 91 : 75;
-            initialState.battery = batteryLevel;
-        }
-        
-        state.set(entity, initialState);
     }
     for (const [id, g] of Object.entries(groupsData)) {
         const idNum = Number(id);
         const entity = new MockEntity(idNum, { friendlyName: g.friendlyName }, g);
         zigbee.groups.set(idNum, entity);
-        state.set(entity, { state: 'OFF' });
     }
 
     const base = 'zigbee2mqtt';
     await mqtt.publish(`${base}/bridge/devices`, [...zigbee.devicesIterator()].map(d => d.toJSON()), { clientOptions: { retain: true } });
     await mqtt.publish(`${base}/bridge/groups`, [...zigbee.groupsIterator()].map(g => g.toJSON()), { clientOptions: { retain: true } });
     await mqtt.publish(`${base}/bridge/extensions`, [], { clientOptions: { retain: true } });
+
+    // Set initial states
+    for(const [ieee, entity] of zigbee.devices.entries()) {           
+        const initialState: any = (entity.zh.type === 'Router')
+            ? { state: ieee==='0x00C' ? 'ON' : 'OFF', brightness: 255 }
+            : entity.zh.modelID === 'MOCK_BUTTON'
+                ? { action: null, battery: (parseInt(ieee) % 80) + 20 }
+                : { occupancy: false, battery: (parseInt(ieee) % 80) + 20 }; // No initial low battery devices
+        state.set(entity, initialState);
+    }
 
     // Load extensions from command line arguments, or default to lightlynx extension
     const extensionsToLoad = process.argv.slice(2).length > 0 
@@ -936,16 +929,6 @@ function handleBridgeRequest(cmd: string, payload: any) {
         if (device) {
             device.options.friendlyName = payload.to;
             mqtt.publish(`${base}/bridge/devices`, [...zigbee.devicesIterator()].map(d => d.toJSON()), { clientOptions: { retain: true } });
-            
-            // Update battery level if device is an EndDevice and name contains 'low'
-            if (device.zh.type === 'EndDevice') {
-                const currentState = state.get(device);
-                const newBattery = payload.to.toLowerCase().includes('low') ? 4 : currentState.battery;
-                if (newBattery !== currentState.battery) {
-                    state.set(device, { ...currentState, battery: newBattery });
-                    mqtt.publish(`${base}/${device.name}`, state.get(device), { clientOptions: { retain: true } });
-                }
-            }
         }
     } else if (cmd === 'request/group/add') {
         const id = Math.max(0, ...zigbee.groups.keys()) + 1;
@@ -1017,15 +1000,15 @@ function handleBridgeRequest(cmd: string, payload: any) {
 // --- Pairing Procedure ---
 
 let nextIeee = 0x100;
-let nextTypeIsMotion = true;
 
 function startPairingProcedure() {
     const ieeeAddr = '0x' + nextIeee.toString(16).padStart(3, '0');
+    const isMotion = !!(++nextIeee % 2);
     nextIeee++;
     
     let deviceToAdd: MockDevice;
     
-    if (nextTypeIsMotion) {
+    if (isMotion) {
         deviceToAdd = {
             ieeeAddr,
             friendlyName: 'New Motion Sensor',
@@ -1054,22 +1037,20 @@ function startPairingProcedure() {
         };
     }
     
-    nextTypeIsMotion = !nextTypeIsMotion;
 
     setTimeout(() => {
         console.log(`Device joining: ${deviceToAdd.friendlyName}`);
         const entity = new MockEntity(deviceToAdd.ieeeAddr, { friendlyName: deviceToAdd.friendlyName }, deviceToAdd);
         zigbee.devices.set(deviceToAdd.ieeeAddr, entity);
-        
-        const initialState: any = deviceToAdd.type === 'EndDevice' 
-            ? { occupancy: false, battery: 3 }
-            : { state: 'OFF', brightness: 255 };
-        
-        state.set(entity, initialState);
-        
+                
         const base = settings.get().mqtt.base_topic;
         mqtt.publish(`${base}/bridge/devices`, [...zigbee.devicesIterator()].map(d => d.toJSON()), { clientOptions: { retain: true } });
         mqtt.publish(`${base}/${entity.name}`, state.get(entity), { clientOptions: { retain: true } });
+
+        const initialState: any = deviceToAdd.type === 'EndDevice' 
+            ? { occupancy: false, battery: 3 }
+            : { state: 'OFF', brightness: 255 };
+        state.set(entity, initialState);
     }, 5000);
 }
 

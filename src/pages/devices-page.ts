@@ -32,8 +32,8 @@ export function drawDevicesPage(): void {
             $('option value=lights #Show lights');
         });
         $('select bind=', ref(route.current.search, 'sort'), () => {
-            $('option value=battery #Order by battery');
             $('option value=name #Order by name');
+            $('option value=battery #Order by battery');
             $('option value=model #Order by model');
             $('option value=groups #Order by group #');
         });
