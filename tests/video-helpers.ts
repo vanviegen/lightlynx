@@ -1,24 +1,23 @@
-import { test as base, expect, type Locator, type Page, type TestInfo } from '@playwright/test';
+import { test as plainTest, type Locator, type Page, type TestInfo } from '@playwright/test';
+import {test as screenshottingTest} from './base-test';
 import * as path from 'path';
 import * as fs from 'fs';
+import { env } from 'process';
 
 export { type Page, expect } from '@playwright/test';
 
-// Detect if we're running in video recording mode
-function isVideoMode(testInfo: TestInfo): boolean {
-    return testInfo.project.use.video !== undefined && testInfo.project.use.video !== 'off';
-}
+const VIDEO_MODE = !!env.VIDEO_MODE;
+const baseTest = env.VIDEO_MODE ? plainTest : screenshottingTest;
 
 // Custom test fixture that adapts to video or test mode
-export const test = base.extend<{ videoPage: Page }>({
-    page: async ({ page }, use, testInfo) => {
-        const videoMode = isVideoMode(testInfo);
+export const test = baseTest.extend<{ videoPage: Page }>({
+    page: async ({ page }, use) => {
 
         // Use addInitScript so this runs on every navigation (including page.goBack)
-        await page.addInitScript((isVideo: boolean) => {
-            (window as any).__VIDEO_MODE__ = isVideo;
+        await page.addInitScript((videoMode: boolean) => {
+            (window as any).__VIDEO_MODE__ = videoMode;
 
-            if (isVideo) {
+            if (videoMode) {
                 // Override webdriver detection so app keeps transitions enabled
                 Object.defineProperty(navigator, 'webdriver', { get: () => false });
 
@@ -83,12 +82,12 @@ export const test = base.extend<{ videoPage: Page }>({
                 if (document.head) document.head.appendChild(style);
                 else document.addEventListener('DOMContentLoaded', () => document.head.appendChild(style));
             }
-        }, videoMode);
+        }, VIDEO_MODE);
 
         await use(page);
 
         // Video mode: copy video to build.video/demo.webm and clean up Playwright's directory
-        if (videoMode) {
+        if (VIDEO_MODE) {
             const videoPath = await page.video()?.path();
             if (videoPath) {
                 // Wait for video to be fully written

@@ -1,4 +1,4 @@
-import { defineConfig, devices } from '@playwright/test';
+import { defineConfig } from '@playwright/test';
 import { execSync } from 'child_process';
 
 // Make sure there are no hanging server processes from previous test runs.
@@ -12,6 +12,8 @@ if (!process.env.PW_CLEANUP_DONE) {
     } catch {}
   }
 }
+
+process.env.VIDEO_MODE = 'true';
 
 export default defineConfig({
   testDir: './tests',
