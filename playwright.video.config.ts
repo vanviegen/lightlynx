@@ -58,6 +58,7 @@ export default defineConfig({
       env: {
         LIGHTLYNX_PORT: '43598',
         LIGHTLYNX_INSECURE: 'true',
+        LIGHTLYNX_ALLOW_RESETS: 'true', // Allow resetting the mock server state via API
         LIGHTLYNX_DEMO: 'true',
       },
     },

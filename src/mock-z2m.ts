@@ -268,30 +268,6 @@ const state = new MockState(eventBus);
 
 const WebSocket = require('ws');
 
-let restartInProgress = false;
-let restartPending = false;
-async function restart() {
-    if (restartInProgress) {
-        restartPending = true;
-        return;
-    }
-    restartInProgress = true;
-    try {
-        do {
-            restartPending = false;
-            process.stderr.write('--- RESTARTING MOCK Z2M ---\n');
-            // In real Z2M, extensions are NOT necessarily stopped manually if they don't have a stop() or if the process exits,
-            // but here we want to keep the process alive, so we must stop them.
-            for (const name of Array.from(extensionManager.getRunningNames())) {
-                await extensionManager.stop(name);
-            }
-            await extensionManager.startAll();
-        } while (restartPending);
-    } finally {
-        restartInProgress = false;
-    }
-}
-
 // --- Extension Manager ---
 
 class ExtensionManager {
@@ -301,23 +277,6 @@ class ExtensionManager {
     constructor() {}
 
     getRunningNames() { return this.runningExtensions.keys(); }
-
-    async save(name: string, code: string) {
-        console.log(`ExtensionManager: Saving ${name}`);
-        const existing = this.extensionsList.find(e => e.name === name);
-        if (existing) {
-            existing.code = code;
-        } else {
-            this.extensionsList.push({ name, code });
-        }
-        await restart();
-    }
-
-    async remove(name: string) {
-        console.log(`ExtensionManager: Removing ${name}`);
-        this.extensionsList = this.extensionsList.filter(e => e.name !== name);
-        await restart();
-    }
 
     addSilently(name: string, code: string) {
         const existing = this.extensionsList.find(e => e.name === name);
@@ -370,10 +329,7 @@ class ExtensionManager {
                 (entity: any, update: any) => state.set(entity, update),
                 eventBus,
                 () => {}, // enableDisableExtension
-                async () => {
-                    console.log(`Extension ${name} requested restart`);
-                    setTimeout(restart, 100);
-                },
+                restart,
                 () => {}, // addExtension
                 settings,
                 logger
@@ -979,7 +935,7 @@ function handleBridgeRequest(cmd: string, payload: any) {
              settings.set('frontend.enabled', payload.options.frontend.enabled);
         }
     } else if (cmd === 'request/restart') {
-        setTimeout(restart, 100);
+        restart();
     } else if (cmd === 'request/extension/list') {
          responseData = extensionManager.list();
     } else if (cmd === 'request/extension/save') {
@@ -1065,6 +1021,10 @@ init().catch(err => {
     console.error('Failed to initialize Mock Z2M:', err);
     process.exit(1);
 });
+
+function restart() {
+    process.execve!(process.argv[0]!, process.argv, process.env);
+}
 
 // Keep process alive
 setInterval(() => {}, 1000);

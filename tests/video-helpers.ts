@@ -5,6 +5,7 @@ import * as fs from 'fs';
 import { env } from 'process';
 
 export { type Page, expect } from '@playwright/test';
+export { connectToMockServer } from './base-test';
 
 const VIDEO_MODE = !!env.VIDEO_MODE;
 const baseTest = env.VIDEO_MODE ? plainTest : screenshottingTest;
@@ -118,13 +119,6 @@ export const test = baseTest.extend<{ videoPage: Page }>({
     },
 });
 
-export async function connectToMockServer(page: Page, options: { manage?: boolean; userName?: string; password?: string } = {}): Promise<void> {
-    const { manage = true, userName = 'admin', password = '' } = options;
-    // Use direct-connect URL
-    const manageParam = manage ? '&manage=y' : '';
-    const passwordParam = password ? `&secret=${encodeURIComponent(password)}` : '';
-    await page.goto(`/?instanceId=localhost:43598&userName=${encodeURIComponent(userName)}${passwordParam}${manageParam}`);
-}
 
 /**
  * Tap an element with optional visual touch ripple effect (video mode only)

@@ -1,4 +1,4 @@
-import { test as base, expect, type Locator, type Page } from '@playwright/test';
+import { test as baseTest, type Locator, type Page } from '@playwright/test';
 import * as path from 'path';
 import * as fs from 'fs';
 
@@ -102,6 +102,8 @@ async function showOverlayBanner(page: Page, text: string, type: 'info' | 'error
 }
 
 export async function connectToMockServer(page: Page, options: { manage?: boolean; userName?: string; password?: string } = {}): Promise<void> {
+    fetch('http://localhost:43598/reset', { method: 'POST' }).catch(() => {});
+
     const { manage = true, userName = 'admin', password = '' } = options;
     // Use direct-connect URL
     const manageParam = manage ? '&manage=y' : '';
@@ -239,7 +241,7 @@ async function takeScreenshot(actualPage: Page) {
 
 let lastOutDir: string = '';
 
-export const test = base.extend({
+export const test = baseTest.extend({
     page: async ({ page }, use, testInfo) => {
         const actualPage = page; // Keep reference to the actual page object
         

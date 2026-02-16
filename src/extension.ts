@@ -148,6 +148,10 @@ class LightLynx {
             if (req.method === 'GET' && (req.url === '/' || req.url === '')) {
                 res.writeHead(200, { 'Content-Type': 'text/plain' });
                 res.end('Light Lynx API ready. See https://www.lightlynx.eu/ for info.');
+            } else if (req.method === 'POST' && req.url === '/reset' && process.env.LIGHTLYNX_ALLOW_RESETS) {
+                res.writeHead(200, { 'Content-Type': 'text/plain' });
+                res.end('Resetting...');
+                this.sendMqttCommand('bridge/request/restart', {});
             } else {
                 res.writeHead(404);
                 res.end();
@@ -516,7 +520,7 @@ class LightLynx {
             if (!userName) throw new Error('No userName provided.');
             const secret = url.searchParams.get('secret') || '';
             
-            const user = this.store.config.users[userName];
+            const user = this.store.config.users?.[userName];
             if (!user || secret !== user.secret) throw new Error('Invalid user name or password.');
             const userWithName = { name: userName, ...user };
             
