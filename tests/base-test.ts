@@ -101,8 +101,8 @@ async function showOverlayBanner(page: Page, text: string, type: 'info' | 'error
     }, { text, type });
 }
 
-export async function connectToMockServer(page: Page, options: { manage?: boolean; userName?: string; password?: string } = {}): Promise<void> {
-    fetch('http://localhost:43598/reset', { method: 'POST' }).catch(() => {});
+export async function connectToMockServer(page: Page, options: { manage?: boolean; userName?: string; password?: string } = {}, reset: boolean = true): Promise<void> {
+    if (reset) fetch('http://localhost:43598/reset', { method: 'POST' }).catch(() => {});
 
     const { manage = true, userName = 'admin', password = '' } = options;
     // Use direct-connect URL

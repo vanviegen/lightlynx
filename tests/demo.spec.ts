@@ -202,58 +202,25 @@ test.describe('Light Lynx Demo Video', () => {
     });
     await pause(page, 1000);
 
-    // Tap on "Devices" link (not "Search for devices")
-    const devicesLink = page.locator('.list .item.link').filter({ hasText: /^Devices$/ });
+    // Add a device - it should be in "low battery" state
+    const devicesLink = page.locator('.list .item.link').filter({ hasText: /Search for devices$/ });
     await tap(page, devicesLink);
-    await expect(page.locator('header h1')).toContainText('Devices');
-    await pause(page, 2000);
+    // Wait for device to appear
+    await pause(page, 5000);
 
-    // Tap on "Living Room Button" (0x050)
-    const buttonDevice = page.locator('div.item.link', { hasText: 'Living Room Button' });
-    await tap(page, buttonDevice);
-    await expect(page.locator('header h1')).toContainText('Living Room Button');
-    await pause(page, 1500);
-
-    // Scroll to Settings section
-    await page.evaluate(() => {
-      const el = Array.from(document.querySelectorAll('h1')).find(h => h.textContent?.includes('Settings'));
-      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    });
-    await pause(page, 1000);
-
-    // Change the name to trigger low battery
-    const nameInput = page.locator('input').first();
-    await tap(page, nameInput);
-    await nameInput.clear();
-    await slowType(page, nameInput, 'Low battery test', 100);
-    await pause(page, 2000); // Wait for lazy save
-
-    // Go back to top page
-    await page.locator('header img.logo').click();
-    await expect(page.locator('header h1')).toContainText('Light Lynx');
-    await page.evaluate(() => window.scrollTo({ top: 0, behavior: 'smooth' }));
-    await pause(page, 2000);
-
-    // The battery icon should now be visible in the header (pulsing red)
-    const batteryIcon = page.locator('header svg[aria-label="batteryEmpty"].critical.pulse');
-    await expect(batteryIcon).toBeVisible();
-    await pause(page, 2500); // Let viewer see the pulsing icon
+    // The battery icon should now be visible in the header (pulsing red) - allow the user to see it
+    await pause(page, 2500);
 
     // Click on battery icon to navigate to devices page
-    await tap(page, batteryIcon);
+    const batteryIcon = page.locator('header svg[aria-label="batteryEmpty"].critical.pulse');
+    await tap(page, batteryIcon, 7500);
     await expect(page.locator('header h1')).toContainText('Devices');
     await expect(page.locator('span.subTitle')).toContainText('buttons & sensors');
     await pause(page, 2500);
 
     // The low battery device should be at the top with red text
-    const lowBatteryDevice = page.locator('div.item', { hasText: 'Low battery test' });
-    await expect(lowBatteryDevice.locator('p.critical')).toContainText('4%');
+    const lowBatteryDevice = page.locator('div.item', { hasText: 'Motion sensor (Mock)' });
+    await expect(lowBatteryDevice.locator('p.critical')).toContainText('3%');
     await pause(page, 2000);
-
-    // ===== Closing =====
-    await page.locator('header img.logo').click();
-    await expect(page.locator('header h1')).toContainText('Light Lynx');
-    await page.evaluate(() => window.scrollTo({ top: 0, behavior: 'smooth' }));
-    await pause(page, 3000);
   });
 });

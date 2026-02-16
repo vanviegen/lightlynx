@@ -5,13 +5,13 @@ test.describe('Device management', () => {
     await connectToMockServer(page);
 
     // Go to Devices page to see all devices including toggles
-    await page.goto('/devices?manage=y');
+    await page.locator('div.item', { hasText: /^Devices/ }).click();
     await expect(page.locator('header h1')).toContainText('Devices');
 
     const initialToggleCount = await page.locator('div.item').count();
 
     // Go back to main page to start permit join
-    await page.goto('/?instanceId=localhost:43598&userName=admin&manage=y');
+    await page.locator('header img.logo').click();
 
     const searchItem = page.locator('div.item.link', { hasText: 'Search for device' });
     await expect(searchItem).toBeVisible();

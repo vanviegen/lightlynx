@@ -938,12 +938,6 @@ function handleBridgeRequest(cmd: string, payload: any) {
         restart();
     } else if (cmd === 'request/extension/list') {
          responseData = extensionManager.list();
-    } else if (cmd === 'request/extension/save') {
-        extensionManager.save(payload.name, payload.code);
-        responseData = { name: payload.name };
-    } else if (cmd === 'request/extension/remove') {
-        extensionManager.remove(payload.name);
-        responseData = { name: payload.name };
     }
 
     // Echo back success

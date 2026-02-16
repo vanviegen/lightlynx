@@ -17,7 +17,7 @@ test.describe('User Permissions', () => {
     
     // Reconnect as the limited user
     const hashedPassword = await hashPassword(page, 'pass123');
-    await connectToMockServer(page, { userName: 'limited', password: hashedPassword, manage: false });
+    await connectToMockServer(page, { userName: 'limited', password: hashedPassword, manage: false }, false);
     
     // Should see Kitchen group (enabled, can click)
     const kitchenItem = page.locator('.item.group:has(h2:text("Kitchen"))').first();
@@ -51,7 +51,7 @@ test.describe('User Permissions', () => {
     const hashedPassword = await hashPassword(page, 'pass456');
     
     // Reconnect as limited user
-    await connectToMockServer(page, { userName: 'partial', password: hashedPassword, manage: false });
+    await connectToMockServer(page, { userName: 'partial', password: hashedPassword, manage: false }, false);
     
     // Kitchen should be enabled and clickable
     const kitchenItem = page.locator('.item.group:has(h2:text("Kitchen"))').first();
@@ -86,7 +86,7 @@ test.describe('User Permissions', () => {
     const hashedPassword = await hashPassword(page, 'adminpass');
     
     // Reconnect as admin user
-    await connectToMockServer(page, { userName: 'adminuser', password: hashedPassword, manage: true });
+    await connectToMockServer(page, { userName: 'adminuser', password: hashedPassword, manage: true }, false);
     
     // All groups should be visible and enabled
     const kitchenItem = page.locator('.item.group:has(h2:text("Kitchen"))').first();
@@ -142,7 +142,7 @@ test.describe('User Permissions', () => {
     const hashedPassword = await hashPassword(page, 'empty123');
     
     // Reconnect as user with no permissions
-    await connectToMockServer(page, { userName: 'emptyuser', password: hashedPassword, manage: false });
+    await connectToMockServer(page, { userName: 'emptyuser', password: hashedPassword, manage: false }, false);
     
     // Groups should be visible but disabled
     const kitchenItem = page.locator('.item.group:has(h2:text("Kitchen"))').first();
@@ -209,7 +209,7 @@ test.describe('User Permissions', () => {
     const hashedPassword = await hashPassword(page, 'revertpass');
     
     // Connect as limited user
-    await connectToMockServer(page, { userName: 'reverttest', password: hashedPassword, manage: false });
+    await connectToMockServer(page, { userName: 'reverttest', password: hashedPassword, manage: false }, false);
     
     // Wait for devices to load by checking for groups on the main page
     await expect(page.locator('.item.group').first()).toBeVisible({ timeout: 5000 });
@@ -257,7 +257,7 @@ test.describe('User Permissions', () => {
     const hashedPassword = await hashPassword(page, 'managerpass');
 
     // Connect as the manager user WITHOUT manage mode
-    await connectToMockServer(page, { userName: 'manager', password: hashedPassword, manage: false });
+    await connectToMockServer(page, { userName: 'manager', password: hashedPassword, manage: false }, false);
 
     // On the top page, manage icon should NOT be visible (non-admin, not on a manage-enabled group page)
     await expect(page.locator('svg[aria-label="admin"]')).not.toBeVisible({ timeout: 3000 });
