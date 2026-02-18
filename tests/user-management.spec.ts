@@ -38,6 +38,110 @@ test.describe('User Management', () => {
     await expect(remoteCheckbox).toBeChecked();
   });
 
+  test('should trim and lowercase user name on create', async ({ page }) => {
+    await connectToMockServer(page);
+
+    await page.getByRole('heading', { name: 'Users' }).getByRole('img', { name: 'create' }).click();
+    await page.locator('input[placeholder="frank"]').fill('  MixedCASE  ');
+    await page.locator('input[type="password"]').fill('pass');
+    await page.getByRole('button', { name: 'Save' }).click();
+
+    // Verify the created user's name is normalized (trimmed + lowercased)
+    await expect(page.locator('h2', { hasText: 'mixedcase' })).toBeVisible();
+  });
+
+  test('user detail: Copy direct-connect URL exists and shows toast', async ({ page }) => {
+    await connectToMockServer(page);
+
+    // Create a user to test the detail page
+    await page.getByRole('heading', { name: 'Users' }).getByRole('img', { name: 'create' }).click();
+    await page.locator('input[placeholder="frank"]').fill('copyuser');
+    await page.locator('input[type="password"]').fill('pass');
+    await page.getByRole('button', { name: 'Save' }).click();
+
+    // Open the user detail
+    await page.locator('h2', { hasText: 'copyuser' }).click();
+
+    // The copy link should be visible and produce a toast when clicked
+    const copyLink = page.locator('small.link', { hasText: 'Copy direct-connect URL' });
+    await expect(copyLink).toBeVisible();
+    await copyLink.click();
+    await expect(page.locator('div.info, div.error', { hasText: /URL/i })).toBeVisible();
+  });
+
+    test('connect page: change password updates server secret and extension accepts it', async ({ page }) => {
+    // Start connected in manage mode so we can inspect Users afterwards
+    await connectToMockServer(page);
+    await page.goto('/connect');
+
+    // Fill connection details for admin (initial admin password in mock is empty)
+    await page.fill('input[placeholder="Eg: a0324d3 or 1.2.3.4:43597"]', 'localhost:43598');
+    await page.fill('label:has-text("User name") + input', 'admin');
+    await page.fill('label:has-text("Password") + input', '');
+
+    // Toggle Change password, enter new password twice
+    await page.locator('small.link', { hasText: 'Change password' }).click();
+    await page.fill('label:has-text("New password") + input', 'newpass123');
+    await page.fill('label:has-text("New password (again)") + input', 'newpass123');
+
+    // Click Change (Connect button becomes Change)
+    await page.getByRole('button', { name: 'Change' }).click();
+
+    // Should connect (main page visible)
+    await expect(page.locator('h2', { hasText: 'Kitchen' })).toBeVisible({ timeout: 10000 });
+
+    // Verify the change by reconnecting using the new password
+    await page.goto('/connect');
+    await page.fill('input[placeholder="Eg: a0324d3 or 1.2.3.4:43597"]', 'localhost:43598');
+    await page.fill('label:has-text("User name") + input', 'admin');
+    await page.fill('label:has-text("Password") + input', 'newpass123');
+    await page.getByRole('button', { name: 'Connect' }).click();
+    await expect(page.locator('h2', { hasText: 'Kitchen' })).toBeVisible({ timeout: 10000 });
+  });
+
+  test('connect page: username is trimmed and lowercased when saving a server', async ({ page }) => {
+    await page.goto('/connect');
+
+    await page.fill('input[placeholder="Eg: a0324d3 or 1.2.3.4:43597"]', 'localhost:43598');
+    await page.fill('label:has-text("User name") + input', '  MixedCASE  ');
+    // UI should normalize immediately
+    await expect(page.locator('label:has-text("User name") + input')).toHaveValue('mixedcase');
+    await page.fill('label:has-text("Password") + input', '');
+
+    // Submit to save server (connection may fail because user doesn't exist)
+    await page.getByRole('button', { name: 'Connect' }).click();
+
+
+  });
+
+  test('changing password to blank is rejected for a user that allows remote access', async ({ page }) => {
+    // Start connected as admin (admin/manage)
+    await connectToMockServer(page);
+    await expect(page.locator('h2', { hasText: 'Kitchen' })).toBeVisible({ timeout: 10000 });
+
+    // Create a user with password and enable remote access
+    await page.getByRole('heading', { name: 'Users' }).getByRole('img', { name: 'create' }).click();
+    await page.locator('input[placeholder="frank"]').fill('remoteblank');
+    await page.locator('input[type="password"]').fill('pass123');
+    await page.locator('label:has-text("Allow remote access") input[type="checkbox"]').check();
+    await page.getByRole('button', { name: 'Save' }).click();
+    // Wait for user to appear in list (ensure backend updated)
+    await expect(page.locator('h2', { hasText: 'remoteblank' })).toBeVisible();
+
+    // Now attempt to connect as that user and change password to blank
+    await page.goto('/connect');
+    await page.fill('input[placeholder="Eg: a0324d3 or 1.2.3.4:43597"]', 'localhost:43598');
+    await page.fill('label:has-text("User name") + input', 'remoteblank');
+    await page.fill('label:has-text("Password") + input', 'pass123');
+
+    // Toggle Change password, leave new password blank (both fields blank -> equal)
+    await page.locator('small.link', { hasText: 'Change password' }).click();
+    await page.getByRole('button', { name: 'Change' }).click();
+
+    // Should show connection error from extension enforcing non-blank password for remote user
+    await expect(page.getByText('Password cannot be blank for users with remote access')).toBeVisible({ timeout: 5000 });
+  });
+
   test('should update user remote access without changing password', async ({ page }) => {
     await connectToMockServer(page);
 

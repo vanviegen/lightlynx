@@ -96,6 +96,17 @@ function drawConnectionDetails(selectedIndex: { value: number }): void {
     const userName = proxy(orgServer.userName || 'admin');
     const password = proxy(orgServer.secret || '');
 
+    // Keep the user-name normalized (trim + lower-case) in the UI as it's edited
+    $(() => {
+        userName.value = (userName.value || '').trim().toLowerCase();
+    });
+
+    // Change-password UI
+    const newSecret = peek(api.connection, 'newSecret')
+    const changePassword = proxy(newSecret !== undefined);
+    const newPassword = proxy(newSecret  || '');
+    const newPasswordAgain = proxy(newSecret  || '');
+
     async function autoLookup(event?: Event) {
         if (event) createToast('info', 'Looking up instance ID…', 'auto');
         const res = await fetch('https://cert.lightlynx.eu/auto');
@@ -121,6 +132,15 @@ function drawConnectionDetails(selectedIndex: { value: number }): void {
 
     async function handleSubmit(e: Event): Promise<void> {
         e.preventDefault();
+        // If changing password, validate new passwords match and include newSecret
+        if (changePassword.value) {
+            if (newPassword.value !== newPasswordAgain.value) {
+                createToast('error', 'New passwords do not match');
+                return;
+            }
+            api.connection.newSecret = await hashSecret(newPassword.value);
+        }
+
         // Remove the existing server entry (if it exists), and shift the new/edited server to the front,
         // and change selectedIndex such that we'll keep editing it.
         api.servers.splice(index, 1);
@@ -157,16 +177,35 @@ function drawConnectionDetails(selectedIndex: { value: number }): void {
             $('label#Password');
             $('input type=password bind=', password, 'placeholder=', 'Password or hash or empty');
         });
+
+        // New password fields shown when Change password is toggled
+        $(() => {
+            if (!changePassword.value) return;
+            $('div.field', () => {
+                $('label#New password');
+                $('input type=password bind=', newPassword);
+            });
+            $('div.field', () => {
+                $('label#New password (again)');
+                $('input type=password bind=', newPasswordAgain);
+            });
+        });
+
         $('div.button-row', () => {
             if (index < api.servers.length) $('button.danger type=button text=Logout click=', handleDelete);
             $('button.secondary type=button text=Cancel click=', () => route.back('/'));
-            $('button.primary type=submit text=Connect .busy=', derive(() => api.connection.mode !== 'disabled'));
+            $('button.primary type=submit .busy=', derive(() => api.connection.mode !== 'disabled'), 'text=', derive(() => changePassword.value ? 'Change' : 'Connect'));
         });
         $('small.link text-align:right text="Copy direct-connect URL" click=', async () => {
             let url = `${location.protocol}//${location.host}/?instanceId=${encodeURIComponent(instanceId.value)}&userName=${encodeURIComponent(userName.value)}`;
             const secret = await hashSecret(password.value);
             if (secret) url += `&secret=${encodeURIComponent(secret)}`;
             copyToClipboard(url, 'URL');
+        });
+
+        // Toggle Change password link
+        $('small.link text-align:right text=', derive(() => changePassword.value ? "Don't change password" : "Change password"), "click=", () => {
+            changePassword.value = !changePassword.value;
         });
     });
 }

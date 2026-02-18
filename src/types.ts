@@ -96,6 +96,7 @@ export interface ServerCredentials {
     instanceId: string;  // Instance ID (server-assigned code)
     userName: string;
     secret: string;
+    newSecret?: string; // Optional hashed new secret to apply on connect
     externalPort?: number; // External port for ext-<instanceId> connections
 }
 

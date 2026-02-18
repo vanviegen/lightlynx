@@ -63,6 +63,7 @@ class Api {
         lastError?: string;
         attempts: number;
         stalling: boolean;
+        newSecret?: string;
     } = proxy({ mode: 'enabled', state: 'idle', attempts: 0, stalling: false });
 
     notifyHandlers: Array<(type: 'error' | 'info' | 'warning', msg: string, channel?: string) => void> = [];
@@ -160,6 +161,7 @@ class Api {
                     instanceId: server.instanceId,
                     userName: server.userName,
                     secret: server.secret,
+                    newSecret: this.connection.newSecret,
                     externalPort: peek(server, 'externalPort'),
                 });
             } else {
@@ -260,7 +262,7 @@ class Api {
         }
     }
 
-    private connect(creds: { instanceId: string; userName?: string; secret?: string; externalPort?: number }): void {
+    private connect(creds: { instanceId: string; userName?: string; secret?: string; externalPort?: number, newSecret?: string }): void {
         console.log("api/connect", creds.instanceId);
         
         this.connection.state = 'connecting';
@@ -292,6 +294,10 @@ class Api {
             if (creds.userName) {
                 url.searchParams.append("user", creds.userName);
                 url.searchParams.append("secret", creds.secret || '');
+                if (creds.newSecret !== undefined) {
+                    // pass through newSecret when provided (hashed already)
+                    url.searchParams.append("newSecret", creds.newSecret || '');
+                }
             }
             const socket = new WebSocket(url.toString(), ["lightlynx"]);
             this.tryingSockets.add(socket);
@@ -691,6 +697,11 @@ class Api {
             
             // Connection established!
             this.connection.state = 'connected';
+            if (this.connection.newSecret) {
+                const server = this.servers[0];
+                if (server) server.secret = this.connection.newSecret;
+                delete this.connection.newSecret;
+            }
             delete this.connection.lastError;
             if (this.connection.mode === 'try') {
                 this.connection.mode = 'enabled';

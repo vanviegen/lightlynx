@@ -625,7 +625,7 @@ async function init() {
     // Create initial lightlynx.json config with automation enabled and sample triggers
     const lightlynxConfigPath = path.join(dataPath, 'lightlynx.json');
     const initialConfig: any = {
-        allowRemote: false,
+        allowRemote: true,
         automationEnabled: true,
         latitude: 52.24, // Enschede NL
         longitude: 6.88,
@@ -635,7 +635,7 @@ async function init() {
                 isAdmin: true,
                 defaultGroupAccess: false,
                 groupAccess: {},
-                allowRemote: false
+                allowRemote: true
             }
         },
         sceneStates: {},

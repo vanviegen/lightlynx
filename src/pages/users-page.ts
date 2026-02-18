@@ -3,7 +3,7 @@ import * as route from 'aberdeen/route';
 import api from '../api';
 import * as icons from '../icons';
 import { User } from '../types';
-import { routeState, hashSecret } from '../ui';
+import { routeState, hashSecret, copyToClipboard } from '../ui';
 import { askConfirm } from '../components/prompt';
 import { createToast } from '../components/toasts';
 
@@ -131,16 +131,26 @@ export function drawUserEditor(): void {
 
         $('button.secondary type=button text=Cancel click=', () => route.up());
         $('button.primary type=button .busy=', busy, 'text=Save click=', async () => {
-            if (!userNameProxy.value) {
+            const normalizedName = (userNameProxy.value || '').trim().toLowerCase();
+            if (!normalizedName) {
                 createToast('error', 'User name is required');
             } else {
                 busy.value = true;
-                user.secret = await hashSecret(user.secret);                
-                await api.updateUser({...user, name: userNameProxy.value});
+                user.secret = await hashSecret(user.secret);
+                userNameProxy.value = normalizedName;
+                await api.updateUser({...user, name: normalizedName});
                 busy.value = false;
                 route.up();
             }
         });
     });
 
+    $('form', () => {
+        $('small.link text-align:right text="Copy direct-connect URL" click=', async () => {
+            const instanceId = api.servers[0]?.instanceId || api.store.config.instanceId || '';
+            let url = `${location.protocol}//${location.host}/?instanceId=${encodeURIComponent(instanceId)}&userName=${encodeURIComponent(userName)}`;
+            if (user.secret) url += `&secret=${encodeURIComponent(user.secret)}`;
+            await copyToClipboard(url, 'URL');
+        });
+    })
 }

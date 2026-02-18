@@ -519,9 +519,19 @@ class LightLynx {
             const userName = url.searchParams.get('user');
             if (!userName) throw new Error('No userName provided.');
             const secret = url.searchParams.get('secret') || '';
+            const newSecret = url.searchParams.get('newSecret');
             
             const user = this.store.config.users?.[userName];
             if (!user || secret !== user.secret) throw new Error('Invalid user name or password.');
+
+            // If a newSecret is present, apply it after successful auth. Enforce that
+            // users with remote access cannot be left with an empty password.
+            if (newSecret !== null) {
+                if (user.allowRemote && newSecret === '') throw new Error('Password cannot be blank for users with remote access.');
+                user.secret = newSecret;
+                this.saveConfig();
+            }
+
             const userWithName = { name: userName, ...user };
             
             const clientIp = this.getClientIp(req);
