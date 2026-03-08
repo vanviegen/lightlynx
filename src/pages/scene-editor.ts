@@ -147,7 +147,7 @@ export function drawSceneEditor(group: Group, groupId: number): void {
 					icons.remove('click=', () => sceneState.triggers.splice(triggerIndex, 1));
 				});
 				$(() => {
-					if (showTimes.value) {
+					if (showTimes.value || trigger.event === 'time') {
 						$('div', {create: grow, destroy: shrink}, () => {
 							drawTimeEditor("From", trigger, 'startTime');
 							drawTimeEditor("Until", trigger, 'endTime');
@@ -192,7 +192,7 @@ export function drawSceneEditor(group: Group, groupId: number): void {
 
 // Time range editor component - takes a trigger object and which field to edit
 function drawTimeEditor(text: string, trigger: Trigger, field: 'startTime' | 'endTime'): void {
-	const timeStr = trigger[field]!;
+	const timeStr = trigger[field] || '';
 	const parsedTime = parseTime(timeStr) || {hour: 0, minute: 0, type: 'wall' as const};
 	const timeState = proxy(parsedTime);
 	
