@@ -769,12 +769,10 @@ class LightLynx {
             
             // Clean up config for deleted groups or devices
             if (args[1] === 'group' && args[2] === 'remove') {
-                const groupId = typeof payload === 'object' ? payload.id : payload;
-                if (typeof groupId === 'number') {
-                    delete this.store.config.groupTimeouts[groupId];
-                    delete this.store.config.sceneStates[groupId];
-                    delete this.store.config.sceneTriggers[groupId];
-                }
+                const groupId = payload.id as number;
+                delete this.store.config.groupTimeouts[groupId];
+                delete this.store.config.sceneStates[groupId];
+                delete this.store.config.sceneTriggers[groupId];
             } else if (args[1] === 'device' && args[2] === 'remove') {
                 const ieee = typeof payload === 'string' ? payload : payload?.id;
                 if (ieee) {

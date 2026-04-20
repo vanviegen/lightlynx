@@ -86,49 +86,7 @@ Playwright + mock Z2M. Playwright auto-starts mock on port 43598 and Vite dev se
 npm test
 ```
 
-### Demo Video Recording
-
-A scripted demo video can be recorded to showcase app functionality:
-
-```bash
-npm run build:video    # Records ~2 min video → build.video/demo.webm
-```
-
-**How it works:**
-- Uses the same test script as `npm test` ([video/demo.spec.ts](video/demo.spec.ts))
-- In video mode: records 450×800 px video with touch ripples, transitions enabled, and viewing pauses
-- In test mode: runs fast without video, ripples, transitions, or pauses
-- Mode detection via `window.__VIDEO_MODE__` flag set by [video/video-helpers.ts](video/video-helpers.ts)
-
-**Video helpers:**
-- `tap(page, locator, delayMs)` — click with visual ripple (video) or instant (test)
-- `slowType(page, locator, text, charDelayMs)` — char-by-char (video) or instant fill (test)
-- `pause(page, ms)` — viewing delay (video only, skipped in test)
-- `swipe(page, locator, direction, distance)` — smooth gesture animation
-
-Output: `build.video/demo.webm` (Playwright's intermediate directory is auto-cleaned)
-
-### Diagnosing Failures
-
-Results in `tests-out/<test-file>-<start-line>/`:
-
-| File | Purpose |
-|------|---------|
-| `error.txt` | Error message + stack trace |
-| `error.body.html` / `error.png` | DOM / screenshot at failure |
-| `NNNN[a-z].body.html` / `.png` | Snapshots at test source line numbers |
-| `*.head.html` | Aberdeen-generated `<style>` tags (rarely needed) |
-
-`NNNN` = zero-padded line number, letter suffix = occurrence within that line (e.g. `0010b.png` = second snapshot at line 10).
-
-Read `.body.html` to understand DOM state. Use `.png` for visual/layout. Prefer automated tests + artifacts over Playwright MCP for debugging.
-
-### Playwright MCP (interactive)
-
-1. `npm run mock start` → get URL
-2. `mcp_playwright_browser_navigate(url)` / `_snapshot()` / `_click(element, ref)`
-
-If Playwright MCP is unavailable, ask the user.
+Read the `shotest` skill on how to analyze test results and debug failures, and how to create demo videos.
 
 ## Deployment
 

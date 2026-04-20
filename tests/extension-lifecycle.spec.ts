@@ -1,8 +1,7 @@
 
 import { test, expect, connectToMockServer } from './base-test';
 
-test.describe('Automation Features', () => {
-  test('should show automation UI elements in admin mode', async ({ page }) => {
+test('should show automation UI elements in admin mode', async ({ page }) => {
     await connectToMockServer(page);
     
     // Verify we're connected (Users section shows admin user)
@@ -28,5 +27,4 @@ test.describe('Automation Features', () => {
     
     // Note: Whether the create icon appears depends on automation being enabled,
     // which is controlled by the extension's config. We're just verifying the section exists.
-  });
 });

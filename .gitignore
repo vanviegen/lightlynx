@@ -2,5 +2,6 @@ node_modules
 build.*
 _webcentral_data
 .env
-tests-out
+test-results
 .mock*
+.local*

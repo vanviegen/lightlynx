@@ -5,6 +5,7 @@
     "lib": ["ES2022", "DOM", "WebWorker"],
     "moduleResolution": "bundler",
     "allowImportingTsExtensions": true,
+    "types": ["node"],
     "noEmit": true,
     "skipLibCheck": true,
     
@@ -15,6 +16,6 @@
     "noUncheckedIndexedAccess": true,
     "esModuleInterop": true
   },
-  "include": ["src/**/*"],
+  "include": ["src/**/*", "playwright*.ts"],
   "exclude": ["node_modules", "build.*"]
 }

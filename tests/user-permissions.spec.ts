@@ -1,7 +1,6 @@
 import { test, expect, connectToMockServer, hashPassword } from './base-test';
 
-test.describe('User Permissions', () => {
-  test('should show restricted groups as disabled for limited user', async ({ page }) => {
+test('should show restricted groups as disabled for limited user', async ({ page }) => {
     // First, connect as admin and set up a limited user
     await connectToMockServer(page, { manage: true });
     
@@ -32,9 +31,9 @@ test.describe('User Permissions', () => {
     // Should be able to navigate into Kitchen
     await kitchenItem.locator('h2').click();
     await expect(page.locator('header span.subTitle', { hasText: 'group' })).toBeVisible();
-  });
+});
 
-  test('should deny access when clicking disabled group', async ({ page }) => {
+test('should deny access when clicking disabled group', async ({ page }) => {
     // Set up as admin
     await connectToMockServer(page, { manage: true });
     
@@ -66,9 +65,9 @@ test.describe('User Permissions', () => {
     // Verify Kitchen is clickable by actually clicking it
     await page.locator('.item.group:has(h2:text("Kitchen"))').first().locator('h2').click();
     await expect(page.locator('header span.subTitle:has-text("group")')).toBeVisible();
-  });
+});
 
-  test('should allow admin user to see and control all groups', async ({ page }) => {
+test('should allow admin user to see and control all groups', async ({ page }) => {
     // Set up as admin
     await connectToMockServer(page, { manage: true });
     
@@ -100,9 +99,9 @@ test.describe('User Permissions', () => {
     
     // Should see Users section (because admin)
     await expect(page.locator('h1', { hasText: 'Users' })).toBeVisible();
-  });
+});
 
-  test('should prevent non-admin user from accessing user management', async ({ page }) => {
+test('should prevent non-admin user from accessing user management', async ({ page }) => {
     // Set up as admin and create a non-admin user
     await connectToMockServer(page, { manage: true });
     
@@ -123,9 +122,9 @@ test.describe('User Permissions', () => {
     
     // Should NOT see Users section (not in admin mode and not admin)
     await expect(page.locator('h1', { hasText: 'Users' })).not.toBeVisible({ timeout: 3000 });
-  });
+});
 
-  test('should show all groups as disabled for user with no permissions', async ({ page }) => {
+test('should show all groups as disabled for user with no permissions', async ({ page }) => {
     // Set up as admin
     await connectToMockServer(page, { manage: true });
     
@@ -153,9 +152,9 @@ test.describe('User Permissions', () => {
     
     await expect(livingRoomItem).toBeVisible();
     await expect(livingRoomItem).toHaveClass(/disabled/);
-  });
+});
 
-  test('should allow limited user to toggle lights in permitted group', async ({ page }) => {
+test('should allow limited user to toggle lights in permitted group', async ({ page }) => {
     // Set up as admin and create a limited user
     await connectToMockServer(page, { manage: true });
     
@@ -186,13 +185,13 @@ test.describe('User Permissions', () => {
     
     // Verify the light state toggled (circle should have opposite state)
     if (initiallyOn) {
-      await expect(circle).not.toHaveClass(/on/);
+        await expect(circle).not.toHaveClass(/on/);
     } else {
-      await expect(circle).toHaveClass(/on/);
+        await expect(circle).toHaveClass(/on/);
     }
-  });
+});
 
-  test('should revert optimistic update when permission denied', async ({ page }) => {
+test('should revert optimistic update when permission denied', async ({ page }) => {
     // Set up as admin and create a limited user with access only to Kitchen (group 2)
     await connectToMockServer(page, { manage: true });
     
@@ -235,61 +234,60 @@ test.describe('User Permissions', () => {
     // Verify the state reverted back to original (permission was denied)
     // Use a longer timeout to account for the 3s prediction timeout
     if (initiallyOn) {
-      await expect(circle).toHaveClass(/on/, { timeout: 5000 });
+        await expect(circle).toHaveClass(/on/, { timeout: 5000 });
     } else {
-      await expect(circle).not.toHaveClass(/on/, { timeout: 5000 });
+        await expect(circle).not.toHaveClass(/on/, { timeout: 5000 });
     }
-  });
+});
 
-  test('should show manage icon on group page for user with manage access', async ({ page }) => {
+test('should show manage icon on group page for user with manage access', async ({ page }) => {
     // Create a non-admin user with 'manage' access to Kitchen
     await connectToMockServer(page, { manage: true });
-
+    
     await page.getByRole('heading', { name: 'Users' }).getByRole('img', { name: 'create' }).click();
     await page.locator('input[placeholder="frank"]').fill('manager');
     await page.locator('input[type="password"]').fill('managerpass');
-
+    
     // Set Kitchen to 'manage' access
     await page.locator('div.item:has(h2:text("Kitchen")) select').first().selectOption('manage');
-
+    
     await page.getByRole('button', { name: 'Save' }).click();
-
+    
     const hashedPassword = await hashPassword(page, 'managerpass');
-
+    
     // Connect as the manager user WITHOUT manage mode
     await connectToMockServer(page, { userName: 'manager', password: hashedPassword, manage: false }, false);
-
+    
     // On the top page, manage icon should NOT be visible (non-admin, not on a manage-enabled group page)
     await expect(page.locator('svg[aria-label="admin"]')).not.toBeVisible({ timeout: 3000 });
-
+    
     // Should NOT see Users or Management sections
     await expect(page.locator('h1', { hasText: 'Users' })).not.toBeVisible({ timeout: 2000 });
     await expect(page.locator('h1', { hasText: 'Management' })).not.toBeVisible({ timeout: 2000 });
-
+    
     // Navigate to the Kitchen group page
     await page.locator('.item.group:has(h2:text("Kitchen"))').first().locator('h2').click();
     await expect(page.locator('header span.subTitle', { hasText: 'group' })).toBeVisible();
-
+    
     // Now manage icon SHOULD be visible (on a group page with manage access)
     await expect(page.locator('svg[aria-label="admin"]')).toBeVisible();
-
+    
     // Click the manage icon to enter manage mode
     await page.locator('svg[aria-label="admin"]').click();
-
+    
     // Scene create icon should appear
     await expect(page.locator('h1:has-text("Scenes") svg[aria-label="create"]')).toBeVisible();
-
+    
     // Scene configure icons should appear on existing scenes
     await expect(page.locator('svg[aria-label="configure"]').first()).toBeVisible();
-
+    
     // "Add lights" button should NOT be visible (requires isAdmin)
     await expect(page.locator('h1:has-text("Bulbs") svg[aria-label="create"]')).not.toBeVisible({ timeout: 2000 });
-
+    
     // Navigate back to top page
     await page.locator('img.logo').click();
     await expect(page.locator('header h1.title', { hasText: 'Light Lynx' })).toBeVisible();
-
+    
     // Manage icon should disappear again on the top page (not admin)
     await expect(page.locator('svg[aria-label="admin"]')).not.toBeVisible({ timeout: 3000 });
-  });
 });

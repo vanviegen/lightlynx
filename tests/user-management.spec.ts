@@ -1,10 +1,9 @@
 
 import { test, expect, connectToMockServer } from './base-test';
 
-test.describe('User Management', () => {
-  test('should create a new user with password and remote access', async ({ page }) => {
+test('should create a new user with password and remote access', async ({ page }) => {
     await connectToMockServer(page);
-
+    
     // We're already on the main page, just click the create icon in Users heading
     await page.getByRole('heading', { name: 'Users' }).getByRole('img', { name: 'create' }).click();
     
@@ -36,60 +35,60 @@ test.describe('User Management', () => {
     // Verify remote access is still checked (scope to visible main to avoid fadeOut duplicates)
     const remoteCheckbox = page.locator('label:has-text("Allow remote access") input[type="checkbox"]');
     await expect(remoteCheckbox).toBeChecked();
-  });
+});
 
-  test('should trim and lowercase user name on create', async ({ page }) => {
+test('should trim and lowercase user name on create', async ({ page }) => {
     await connectToMockServer(page);
-
+    
     await page.getByRole('heading', { name: 'Users' }).getByRole('img', { name: 'create' }).click();
     await page.locator('input[placeholder="frank"]').fill('  MixedCASE  ');
     await page.locator('input[type="password"]').fill('pass');
     await page.getByRole('button', { name: 'Save' }).click();
-
+    
     // Verify the created user's name is normalized (trimmed + lowercased)
     await expect(page.locator('h2', { hasText: 'mixedcase' })).toBeVisible();
-  });
+});
 
-  test('user detail: Copy direct-connect URL exists and shows toast', async ({ page }) => {
+test('user detail: Copy direct-connect URL exists and shows toast', async ({ page }) => {
     await connectToMockServer(page);
-
+    
     // Create a user to test the detail page
     await page.getByRole('heading', { name: 'Users' }).getByRole('img', { name: 'create' }).click();
     await page.locator('input[placeholder="frank"]').fill('copyuser');
     await page.locator('input[type="password"]').fill('pass');
     await page.getByRole('button', { name: 'Save' }).click();
-
+    
     // Open the user detail
     await page.locator('h2', { hasText: 'copyuser' }).click();
-
+    
     // The copy link should be visible and produce a toast when clicked
     const copyLink = page.locator('small.link', { hasText: 'Copy direct-connect URL' });
     await expect(copyLink).toBeVisible();
     await copyLink.click();
     await expect(page.locator('div.info, div.error', { hasText: /URL/i })).toBeVisible();
-  });
+});
 
-    test('connect page: change password updates server secret and extension accepts it', async ({ page }) => {
+test('connect page: change password updates server secret and extension accepts it', async ({ page }) => {
     // Start connected in manage mode so we can inspect Users afterwards
     await connectToMockServer(page);
     await page.goto('/connect');
-
+    
     // Fill connection details for admin (initial admin password in mock is empty)
     await page.fill('input[placeholder="Eg: a0324d3 or 1.2.3.4:43597"]', 'localhost:43598');
     await page.fill('label:has-text("User name") + input', 'admin');
     await page.fill('label:has-text("Password") + input', '');
-
+    
     // Toggle Change password, enter new password twice
     await page.locator('small.link', { hasText: 'Change password' }).click();
     await page.fill('label:has-text("New password") + input', 'newpass123');
     await page.fill('label:has-text("New password (again)") + input', 'newpass123');
-
+    
     // Click Change (Connect button becomes Change)
     await page.getByRole('button', { name: 'Change' }).click();
-
+    
     // Should connect (main page visible)
     await expect(page.locator('h2', { hasText: 'Kitchen' })).toBeVisible({ timeout: 10000 });
-
+    
     // Verify the change by reconnecting using the new password
     await page.goto('/connect');
     await page.fill('input[placeholder="Eg: a0324d3 or 1.2.3.4:43597"]', 'localhost:43598');
@@ -97,28 +96,28 @@ test.describe('User Management', () => {
     await page.fill('label:has-text("Password") + input', 'newpass123');
     await page.getByRole('button', { name: 'Connect' }).click();
     await expect(page.locator('h2', { hasText: 'Kitchen' })).toBeVisible({ timeout: 10000 });
-  });
+});
 
-  test('connect page: username is trimmed and lowercased when saving a server', async ({ page }) => {
+test('connect page: username is trimmed and lowercased when saving a server', async ({ page }) => {
     await page.goto('/connect');
-
+    
     await page.fill('input[placeholder="Eg: a0324d3 or 1.2.3.4:43597"]', 'localhost:43598');
     await page.fill('label:has-text("User name") + input', '  MixedCASE  ');
     // UI should normalize immediately
     await expect(page.locator('label:has-text("User name") + input')).toHaveValue('mixedcase');
     await page.fill('label:has-text("Password") + input', '');
-
+    
     // Submit to save server (connection may fail because user doesn't exist)
     await page.getByRole('button', { name: 'Connect' }).click();
+    
+    
+});
 
-
-  });
-
-  test('changing password to blank is rejected for a user that allows remote access', async ({ page }) => {
+test('changing password to blank is rejected for a user that allows remote access', async ({ page }) => {
     // Start connected as admin (admin/manage)
     await connectToMockServer(page);
     await expect(page.locator('h2', { hasText: 'Kitchen' })).toBeVisible({ timeout: 10000 });
-
+    
     // Create a user with password and enable remote access
     await page.getByRole('heading', { name: 'Users' }).getByRole('img', { name: 'create' }).click();
     await page.locator('input[placeholder="frank"]').fill('remoteblank');
@@ -127,24 +126,24 @@ test.describe('User Management', () => {
     await page.getByRole('button', { name: 'Save' }).click();
     // Wait for user to appear in list (ensure backend updated)
     await expect(page.locator('h2', { hasText: 'remoteblank' })).toBeVisible();
-
+    
     // Now attempt to connect as that user and change password to blank
     await page.goto('/connect');
     await page.fill('input[placeholder="Eg: a0324d3 or 1.2.3.4:43597"]', 'localhost:43598');
     await page.fill('label:has-text("User name") + input', 'remoteblank');
     await page.fill('label:has-text("Password") + input', 'pass123');
-
+    
     // Toggle Change password, leave new password blank (both fields blank -> equal)
     await page.locator('small.link', { hasText: 'Change password' }).click();
     await page.getByRole('button', { name: 'Change' }).click();
-
+    
     // Should show connection error from extension enforcing non-blank password for remote user
     await expect(page.getByText('Password cannot be blank for users with remote access')).toBeVisible({ timeout: 5000 });
-  });
+});
 
-  test('should update user remote access without changing password', async ({ page }) => {
+test('should update user remote access without changing password', async ({ page }) => {
     await connectToMockServer(page);
-
+    
     // First create a user with password
     await page.getByRole('heading', { name: 'Users' }).getByRole('img', { name: 'create' }).click();
     await page.locator('input[placeholder="frank"]').fill('updatetest');
@@ -169,11 +168,11 @@ test.describe('User Management', () => {
     await page.locator('h2', { hasText: 'updatetest' }).click();
     const remoteCheckbox = page.locator('label:has-text("Allow remote access") input[type="checkbox"]');
     await expect(remoteCheckbox).toBeChecked();
-  });
+});
 
-  test('should accept password hash in password field', async ({ page }) => {
+test('should accept password hash in password field', async ({ page }) => {
     await connectToMockServer(page);
-
+    
     // Create a user with a hash directly
     const testHash = '9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08'; // SHA-256 hash example
     
@@ -191,11 +190,11 @@ test.describe('User Management', () => {
     // The user should not have "No password" badge (meaning password was set)
     const userItem = page.locator('div.item').filter({ has: page.locator('h2', { hasText: 'hashuser' }) });
     await expect(userItem.locator('span.badge.warning', { hasText: 'No password' })).not.toBeVisible();
-  });
+});
 
-  test('should disable remote access checkbox when no password', async ({ page }) => {
+test('should disable remote access checkbox when no password', async ({ page }) => {
     await connectToMockServer(page);
-
+    
     // Create a user without password
     await page.getByRole('heading', { name: 'Users' }).getByRole('img', { name: 'create' }).click();
     
@@ -212,11 +211,11 @@ test.describe('User Management', () => {
     // Now we can check the remote checkbox
     await remoteCheckbox.check();
     await expect(remoteCheckbox).toBeChecked();
-  });
+});
 
-  test('should show Cancel button that goes back', async ({ page }) => {
+test('should show Cancel button that goes back', async ({ page }) => {
     await connectToMockServer(page);
-
+    
     await page.getByRole('heading', { name: 'Users' }).getByRole('img', { name: 'create' }).click();
     
     // Fill in some data
@@ -228,11 +227,11 @@ test.describe('User Management', () => {
     // Should be back on users list, and canceltest should not exist
     await expect(page.getByRole('heading', { name: 'Users' })).toBeVisible();
     await expect(page.locator('h2', { hasText: 'canceltest' })).not.toBeVisible({ timeout: 3000 });
-  });
+});
 
-  test('should delete user', async ({ page }) => {
+test('should delete user', async ({ page }) => {
     await connectToMockServer(page);
-
+    
     // Create a user
     await page.getByRole('heading', { name: 'Users' }).getByRole('img', { name: 'create' }).click();
     await page.locator('input[placeholder="frank"]').fill('deletetest');
@@ -253,11 +252,11 @@ test.describe('User Management', () => {
     
     // Should be back on users list, and deletetest should not exist
     await expect(page.locator('h2', { hasText: 'deletetest' })).not.toBeVisible();
-  });
+});
 
-  test('should set admin access for user', async ({ page }) => {
+test('should set admin access for user', async ({ page }) => {
     await connectToMockServer(page);
-
+    
     // Create a regular user
     await page.getByRole('heading', { name: 'Users' }).getByRole('img', { name: 'create' }).click();
     await page.locator('input[placeholder="frank"]').fill('admintest');
@@ -271,11 +270,11 @@ test.describe('User Management', () => {
     // Verify user has shield icon (admin)
     const userItem = page.locator('div.item').filter({ has: page.locator('h2', { hasText: 'admintest' }) });
     await expect(userItem.locator('svg[aria-label="shield"]')).toBeVisible();
-  });
+});
 
-  test('should set permissions for non-admin user', async ({ page }) => {
+test('should set permissions for non-admin user', async ({ page }) => {
     await connectToMockServer(page);
-
+    
     // Mock server already has groups (Kitchen, Living Room, Test Group)
     // So we don't need to create one
     
@@ -302,11 +301,11 @@ test.describe('User Management', () => {
     await page.locator('h2', { hasText: 'limiteduser' }).click();
     await expect(page.locator('div.item:has(h2:text("Kitchen")) select').first()).toHaveValue('true');
     await expect(page.locator('div.item:has(h2:text("Living Room")) select').first()).toHaveValue('true');
-  });
+});
 
-  test('should show existing secret in password field when editing user', async ({ page }) => {
+test('should show existing secret in password field when editing user', async ({ page }) => {
     await connectToMockServer(page);
-
+    
     // Create a user with a known password
     await page.getByRole('heading', { name: 'Users' }).getByRole('img', { name: 'create' }).click();
     await page.locator('input[placeholder="frank"]').fill('secrettest');
@@ -322,11 +321,11 @@ test.describe('User Management', () => {
     
     // Should be a 64-character hex string
     expect(passwordValue).toMatch(/^[0-9a-f]{64}$/);
-  });
+});
 
-  test('should allow changing password for existing user', async ({ page }) => {
+test('should allow changing password for existing user', async ({ page }) => {
     await connectToMockServer(page);
-
+    
     // Create a user
     await page.getByRole('heading', { name: 'Users' }).getByRole('img', { name: 'create' }).click();
     await page.locator('input[placeholder="frank"]').fill('changepass');
@@ -349,11 +348,11 @@ test.describe('User Management', () => {
     // Should be different from old secret
     expect(newSecret).not.toBe(oldSecret);
     expect(newSecret).toMatch(/^[0-9a-f]{64}$/);
-  });
+});
 
-  test('should clear password when empty string provided', async ({ page }) => {
+test('should clear password when empty string provided', async ({ page }) => {
     await connectToMockServer(page);
-
+    
     // Create a user with password
     await page.getByRole('heading', { name: 'Users' }).getByRole('img', { name: 'create' }).click();
     await page.locator('input[placeholder="frank"]').fill('clearpass');
@@ -372,5 +371,4 @@ test.describe('User Management', () => {
     
     // Now should see "No password" badge
     await expect(userItem.locator('span.badge.warning', { hasText: 'No password' })).toBeVisible();
-  });
 });

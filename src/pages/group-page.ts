@@ -289,7 +289,7 @@ function drawGroupConfigurationEditor(
         $('h1#Actions');
         $('div.list div.item.link', icons.remove, '#Delete group', 'click=', async () => {
             if (!await askConfirm(`Are you sure you want to delete group '${group.name}'?`)) return;
-            api.send("bridge", "request", "group", "remove", {id: group.name});
+            api.send("bridge", "request", "group", "remove", {id: groupId});
             route.back('/');
         });
     });

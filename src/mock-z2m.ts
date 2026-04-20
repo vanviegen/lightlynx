@@ -4,12 +4,14 @@ import * as path from 'path';
 import { fileURLToPath } from 'url';
 import { createRequire } from 'module';
 import { EventEmitter } from 'events';
+import { execSync } from 'child_process';
 
 const require = createRequire(import.meta.url);
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // --- Environment Setup ---
+execSync('rm .mock-z2m-data-* -rf');
 const dataPath = `.mock-z2m-data-${process.pid}`;
 if (!fs.existsSync(dataPath)) fs.mkdirSync(dataPath, { recursive: true });
 process.env.ZIGBEE2MQTT_DATA = dataPath;
