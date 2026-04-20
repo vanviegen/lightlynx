@@ -1,0 +1,47 @@
+{
+  "file": "tests/group-ui.spec.ts",
+  "title": "should delete group after confirmation",
+  "line": 67,
+  "status": "passed",
+  "duration": 1805,
+  "error": null,
+  "errorSource": null,
+  "errorStack": null,
+  "steps": [
+    {
+      "name": "0070a",
+      "source": "tests/group-ui.spec.ts:70",
+      "duration": 517
+    },
+    {
+      "name": "0071a",
+      "source": "tests/group-ui.spec.ts:71",
+      "duration": 150
+    },
+    {
+      "name": "0075a",
+      "source": "tests/group-ui.spec.ts:75",
+      "duration": 154
+    },
+    {
+      "name": "0076a",
+      "source": "tests/group-ui.spec.ts:76",
+      "duration": 145
+    },
+    {
+      "name": "0079a",
+      "source": "tests/group-ui.spec.ts:79",
+      "duration": 142
+    },
+    {
+      "name": "0080a",
+      "source": "tests/group-ui.spec.ts:80",
+      "duration": 150
+    },
+    {
+      "name": "0083a",
+      "source": "tests/group-ui.spec.ts:83",
+      "duration": 250
+    }
+  ]
+}

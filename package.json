@@ -18,7 +18,7 @@
     "deploy:app": "dotenv -- bash -c 'rclone sync build.frontend/ :sftp,host=storage.bunnycdn.com,user=$BUNNY_STORAGE_ZONE_APP,pass=$BUNNY_STORAGE_PASS_OBSCURED_APP,key_use_agent=false:/ --progress --inplace --sftp-shell-type=none'",
     "deploy:site": "dotenv -- bash -c 'rclone sync build.site/ :sftp,host=storage.bunnycdn.com,user=$BUNNY_STORAGE_ZONE_SITE,pass=$BUNNY_STORAGE_PASS_OBSCURED_SITE,key_use_agent=false:/ --progress --inplace --sftp-shell-type=none'",
     "test": "playwright test",
-    "build:video": "SHOTEST_VIDEO=on playwright test tests/demo.spec.ts --output build.video",
+    "build:video": "SHOTEST_VIDEO=on playwright test tests/demo.spec.ts --output build.video --timeout 180000",
     "mock-z2m": "npm run build:extension && LIGHTLYNX_ALLOW_RESETS=true LIGHTLYNX_PORT=43598 LIGHTLYNX_INSECURE=true node --experimental-strip-types src/mock-z2m.ts",
     "mock": "node scripts/mock.mjs",
     "postinstall": "[ -f .local-post-install.sh ] && sh .local-post-install.sh || true"

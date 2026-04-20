@@ -1,0 +1,37 @@
+{
+  "file": "tests/group-ui.spec.ts",
+  "title": "should open scene editor when clicking configure for a scene",
+  "line": 89,
+  "status": "passed",
+  "duration": 1710,
+  "error": null,
+  "errorSource": null,
+  "errorStack": null,
+  "steps": [
+    {
+      "name": "0091a",
+      "source": "tests/group-ui.spec.ts:91",
+      "duration": 443
+    },
+    {
+      "name": "0092a",
+      "source": "tests/group-ui.spec.ts:92",
+      "duration": 355
+    },
+    {
+      "name": "0096a",
+      "source": "tests/group-ui.spec.ts:96",
+      "duration": 297
+    },
+    {
+      "name": "0099a",
+      "source": "tests/group-ui.spec.ts:99",
+      "duration": 145
+    },
+    {
+      "name": "0102a",
+      "source": "tests/group-ui.spec.ts:102",
+      "duration": 149
+    }
+  ]
+}

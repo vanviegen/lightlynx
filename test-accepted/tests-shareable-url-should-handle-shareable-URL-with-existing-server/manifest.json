@@ -1,0 +1,22 @@
+{
+  "file": "tests/shareable-url.spec.ts",
+  "title": "should handle shareable URL with existing server",
+  "line": 43,
+  "status": "passed",
+  "duration": 1050,
+  "error": null,
+  "errorSource": null,
+  "errorStack": null,
+  "steps": [
+    {
+      "name": "0046a",
+      "source": "tests/shareable-url.spec.ts:46",
+      "duration": 396
+    },
+    {
+      "name": "0055a",
+      "source": "tests/shareable-url.spec.ts:55",
+      "duration": 362
+    }
+  ]
+}

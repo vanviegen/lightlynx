@@ -1,0 +1,62 @@
+{
+  "file": "tests/user-management.spec.ts",
+  "title": "should create a new user with password and remote access",
+  "line": 9,
+  "status": "passed",
+  "duration": 3073,
+  "error": null,
+  "errorSource": null,
+  "errorStack": null,
+  "steps": [
+    {
+      "name": "0012a",
+      "source": "tests/user-management.spec.ts:12",
+      "duration": 522
+    },
+    {
+      "name": "0015a",
+      "source": "tests/user-management.spec.ts:15",
+      "duration": 148
+    },
+    {
+      "name": "0018a",
+      "source": "tests/user-management.spec.ts:18",
+      "duration": 151
+    },
+    {
+      "name": "0021a",
+      "source": "tests/user-management.spec.ts:21",
+      "duration": 141
+    },
+    {
+      "name": "0024a",
+      "source": "tests/user-management.spec.ts:24",
+      "duration": 143
+    },
+    {
+      "name": "0027a",
+      "source": "tests/user-management.spec.ts:27",
+      "duration": 145
+    },
+    {
+      "name": "0030a",
+      "source": "tests/user-management.spec.ts:30",
+      "duration": 1011
+    },
+    {
+      "name": "0034a",
+      "source": "tests/user-management.spec.ts:34",
+      "duration": 148
+    },
+    {
+      "name": "0037a",
+      "source": "tests/user-management.spec.ts:37",
+      "duration": 149
+    },
+    {
+      "name": "0041a",
+      "source": "tests/user-management.spec.ts:41",
+      "duration": 158
+    }
+  ]
+}

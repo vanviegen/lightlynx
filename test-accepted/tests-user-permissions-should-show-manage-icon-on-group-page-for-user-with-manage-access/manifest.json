@@ -1,0 +1,77 @@
+{
+  "file": "tests/user-permissions.spec.ts",
+  "title": "should show manage icon on group page for user with manage access",
+  "line": 241,
+  "status": "passed",
+  "duration": 3864,
+  "error": null,
+  "errorSource": null,
+  "errorStack": null,
+  "steps": [
+    {
+      "name": "0244a",
+      "source": "tests/user-permissions.spec.ts:244",
+      "duration": 443
+    },
+    {
+      "name": "0245a",
+      "source": "tests/user-permissions.spec.ts:245",
+      "duration": 405
+    },
+    {
+      "name": "0246a",
+      "source": "tests/user-permissions.spec.ts:246",
+      "duration": 257
+    },
+    {
+      "name": "0249a",
+      "source": "tests/user-permissions.spec.ts:249",
+      "duration": 142
+    },
+    {
+      "name": "0251a",
+      "source": "tests/user-permissions.spec.ts:251",
+      "duration": 142
+    },
+    {
+      "name": "0266a",
+      "source": "tests/user-permissions.spec.ts:266",
+      "duration": 399
+    },
+    {
+      "name": "0267a",
+      "source": "tests/user-permissions.spec.ts:267",
+      "duration": 356
+    },
+    {
+      "name": "0270a",
+      "source": "tests/user-permissions.spec.ts:270",
+      "duration": 299
+    },
+    {
+      "name": "0273a",
+      "source": "tests/user-permissions.spec.ts:273",
+      "duration": 150
+    },
+    {
+      "name": "0276a",
+      "source": "tests/user-permissions.spec.ts:276",
+      "duration": 141
+    },
+    {
+      "name": "0279a",
+      "source": "tests/user-permissions.spec.ts:279",
+      "duration": 148
+    },
+    {
+      "name": "0285a",
+      "source": "tests/user-permissions.spec.ts:285",
+      "duration": 148
+    },
+    {
+      "name": "0286a",
+      "source": "tests/user-permissions.spec.ts:286",
+      "duration": 249
+    }
+  ]
+}

@@ -1,0 +1,67 @@
+{
+  "file": "tests/user-permissions.spec.ts",
+  "title": "should deny access when clicking disabled group",
+  "line": 40,
+  "status": "passed",
+  "duration": 2833,
+  "error": null,
+  "errorSource": null,
+  "errorStack": null,
+  "steps": [
+    {
+      "name": "0044a",
+      "source": "tests/user-permissions.spec.ts:44",
+      "duration": 472
+    },
+    {
+      "name": "0045a",
+      "source": "tests/user-permissions.spec.ts:45",
+      "duration": 156
+    },
+    {
+      "name": "0046a",
+      "source": "tests/user-permissions.spec.ts:46",
+      "duration": 139
+    },
+    {
+      "name": "0048a",
+      "source": "tests/user-permissions.spec.ts:48",
+      "duration": 145
+    },
+    {
+      "name": "0050a",
+      "source": "tests/user-permissions.spec.ts:50",
+      "duration": 142
+    },
+    {
+      "name": "0060a",
+      "source": "tests/user-permissions.spec.ts:60",
+      "duration": 363
+    },
+    {
+      "name": "0061a",
+      "source": "tests/user-permissions.spec.ts:61",
+      "duration": 281
+    },
+    {
+      "name": "0065a",
+      "source": "tests/user-permissions.spec.ts:65",
+      "duration": 149
+    },
+    {
+      "name": "0066a",
+      "source": "tests/user-permissions.spec.ts:66",
+      "duration": 148
+    },
+    {
+      "name": "0069a",
+      "source": "tests/user-permissions.spec.ts:69",
+      "duration": 149
+    },
+    {
+      "name": "0070a",
+      "source": "tests/user-permissions.spec.ts:70",
+      "duration": 149
+    }
+  ]
+}

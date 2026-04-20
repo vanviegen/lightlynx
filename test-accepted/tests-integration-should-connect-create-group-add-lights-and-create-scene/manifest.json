@@ -1,0 +1,97 @@
+{
+  "file": "tests/integration.spec.ts",
+  "title": "should connect, create group, add lights, and create scene",
+  "line": 4,
+  "status": "passed",
+  "duration": 3510,
+  "error": null,
+  "errorSource": null,
+  "errorStack": null,
+  "steps": [
+    {
+      "name": "0015a",
+      "source": "tests/integration.spec.ts:15",
+      "duration": 397
+    },
+    {
+      "name": "0016a",
+      "source": "tests/integration.spec.ts:16",
+      "duration": 193
+    },
+    {
+      "name": "0019a",
+      "source": "tests/integration.spec.ts:19",
+      "duration": 246
+    },
+    {
+      "name": "0020a",
+      "source": "tests/integration.spec.ts:20",
+      "duration": 149
+    },
+    {
+      "name": "0026a",
+      "source": "tests/integration.spec.ts:26",
+      "duration": 148
+    },
+    {
+      "name": "0027a",
+      "source": "tests/integration.spec.ts:27",
+      "duration": 140
+    },
+    {
+      "name": "0030a",
+      "source": "tests/integration.spec.ts:30",
+      "duration": 150
+    },
+    {
+      "name": "0033a",
+      "source": "tests/integration.spec.ts:33",
+      "duration": 164
+    },
+    {
+      "name": "0035a",
+      "source": "tests/integration.spec.ts:35",
+      "duration": 150
+    },
+    {
+      "name": "0038a",
+      "source": "tests/integration.spec.ts:38",
+      "duration": 149
+    },
+    {
+      "name": "0039a",
+      "source": "tests/integration.spec.ts:39",
+      "duration": 153
+    },
+    {
+      "name": "0041a",
+      "source": "tests/integration.spec.ts:41",
+      "duration": 149
+    },
+    {
+      "name": "0042a",
+      "source": "tests/integration.spec.ts:42",
+      "duration": 148
+    },
+    {
+      "name": "0048a",
+      "source": "tests/integration.spec.ts:48",
+      "duration": 155
+    },
+    {
+      "name": "0051a",
+      "source": "tests/integration.spec.ts:51",
+      "duration": 151
+    },
+    {
+      "name": "0052a",
+      "source": "tests/integration.spec.ts:52",
+      "duration": 146
+    },
+    {
+      "name": "0055a",
+      "source": "tests/integration.spec.ts:55",
+      "duration": 264
+    }
+  ]
+}

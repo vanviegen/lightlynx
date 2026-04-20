@@ -1,0 +1,37 @@
+{
+  "file": "tests/user-management.spec.ts",
+  "title": "should show existing secret in password field when editing user",
+  "line": 299,
+  "status": "passed",
+  "duration": 2234,
+  "error": null,
+  "errorSource": null,
+  "errorStack": null,
+  "steps": [
+    {
+      "name": "0302a",
+      "source": "tests/user-management.spec.ts:302",
+      "duration": 548
+    },
+    {
+      "name": "0303a",
+      "source": "tests/user-management.spec.ts:303",
+      "duration": 140
+    },
+    {
+      "name": "0304a",
+      "source": "tests/user-management.spec.ts:304",
+      "duration": 149
+    },
+    {
+      "name": "0305a",
+      "source": "tests/user-management.spec.ts:305",
+      "duration": 156
+    },
+    {
+      "name": "0308a",
+      "source": "tests/user-management.spec.ts:308",
+      "duration": 932
+    }
+  ]
+}

@@ -2,12 +2,19 @@
  * LightLynx test helpers — re-exports shoTest + project-specific utilities.
  */
 
-import { type Page } from 'shotest';
+import { expect, type Locator, type Page } from 'shotest';
 
 export { test, expect, screenshot, type Page } from 'shotest';
 
-export async function connectToMockServer(page: Page, options: { manage?: boolean; userName?: string; password?: string } = {}, reset: boolean = true): Promise<void> {
-    if (reset) fetch('http://localhost:43598/reset', { method: 'POST' }).catch(() => {});
+export async function expectAbsent(locator: Locator): Promise<void> {
+    expect(await locator.count()).toBe(0);
+}
+
+export async function resetMockServer(): Promise<void> {
+    fetch('http://localhost:43598/reset', { method: 'POST' }).catch(() => {});
+}
+
+export async function connectToMockServer(page: Page, options: { manage?: boolean; userName?: string; password?: string } = {}): Promise<void> {
 
     const { manage = true, userName = 'admin', password = '' } = options;
     const manageParam = manage ? '&manage=y' : '';

@@ -1,0 +1,52 @@
+{
+  "file": "tests/user-management.spec.ts",
+  "title": "user detail: Copy direct-connect URL exists and shows toast",
+  "line": 55,
+  "status": "passed",
+  "duration": 2849,
+  "error": null,
+  "errorSource": null,
+  "errorStack": null,
+  "steps": [
+    {
+      "name": "0058a",
+      "source": "tests/user-management.spec.ts:58",
+      "duration": 458
+    },
+    {
+      "name": "0059a",
+      "source": "tests/user-management.spec.ts:59",
+      "duration": 150
+    },
+    {
+      "name": "0060a",
+      "source": "tests/user-management.spec.ts:60",
+      "duration": 140
+    },
+    {
+      "name": "0061a",
+      "source": "tests/user-management.spec.ts:61",
+      "duration": 151
+    },
+    {
+      "name": "0064a",
+      "source": "tests/user-management.spec.ts:64",
+      "duration": 945
+    },
+    {
+      "name": "0068a",
+      "source": "tests/user-management.spec.ts:68",
+      "duration": 157
+    },
+    {
+      "name": "0069a",
+      "source": "tests/user-management.spec.ts:69",
+      "duration": 152
+    },
+    {
+      "name": "0070a",
+      "source": "tests/user-management.spec.ts:70",
+      "duration": 261
+    }
+  ]
+}

@@ -1,8 +1,12 @@
-import { test, expect, connectToMockServer, hashPassword } from './base-test';
+import { test, expect, connectToMockServer, hashPassword, expectAbsent, resetMockServer } from './base-test';
+
+test.beforeEach(async ({ page }) => {
+    await resetMockServer();
+    await connectToMockServer(page, { manage: true });
+});
 
 test('should show restricted groups as disabled for limited user', async ({ page }) => {
     // First, connect as admin and set up a limited user
-    await connectToMockServer(page, { manage: true });
     
     // Create a limited user with permission only for Kitchen
     await page.getByRole('heading', { name: 'Users' }).getByRole('img', { name: 'create' }).click();
@@ -16,7 +20,7 @@ test('should show restricted groups as disabled for limited user', async ({ page
     
     // Reconnect as the limited user
     const hashedPassword = await hashPassword(page, 'pass123');
-    await connectToMockServer(page, { userName: 'limited', password: hashedPassword, manage: false }, false);
+    await connectToMockServer(page, { userName: 'limited', password: hashedPassword, manage: false });
     
     // Should see Kitchen group (enabled, can click)
     const kitchenItem = page.locator('.item.group:has(h2:text("Kitchen"))').first();
@@ -35,7 +39,6 @@ test('should show restricted groups as disabled for limited user', async ({ page
 
 test('should deny access when clicking disabled group', async ({ page }) => {
     // Set up as admin
-    await connectToMockServer(page, { manage: true });
     
     // Create limited user with Kitchen permission only (not Living Room)
     await page.getByRole('heading', { name: 'Users' }).getByRole('img', { name: 'create' }).click();
@@ -50,7 +53,7 @@ test('should deny access when clicking disabled group', async ({ page }) => {
     const hashedPassword = await hashPassword(page, 'pass456');
     
     // Reconnect as limited user
-    await connectToMockServer(page, { userName: 'partial', password: hashedPassword, manage: false }, false);
+    await connectToMockServer(page, { userName: 'partial', password: hashedPassword, manage: false });
     
     // Kitchen should be enabled and clickable
     const kitchenItem = page.locator('.item.group:has(h2:text("Kitchen"))').first();
@@ -69,7 +72,6 @@ test('should deny access when clicking disabled group', async ({ page }) => {
 
 test('should allow admin user to see and control all groups', async ({ page }) => {
     // Set up as admin
-    await connectToMockServer(page, { manage: true });
     
     // Create an admin user
     await page.getByRole('heading', { name: 'Users' }).getByRole('img', { name: 'create' }).click();
@@ -85,7 +87,7 @@ test('should allow admin user to see and control all groups', async ({ page }) =
     const hashedPassword = await hashPassword(page, 'adminpass');
     
     // Reconnect as admin user
-    await connectToMockServer(page, { userName: 'adminuser', password: hashedPassword, manage: true }, false);
+    await connectToMockServer(page, { userName: 'adminuser', password: hashedPassword, manage: true });
     
     // All groups should be visible and enabled
     const kitchenItem = page.locator('.item.group:has(h2:text("Kitchen"))').first();
@@ -103,7 +105,6 @@ test('should allow admin user to see and control all groups', async ({ page }) =
 
 test('should prevent non-admin user from accessing user management', async ({ page }) => {
     // Set up as admin and create a non-admin user
-    await connectToMockServer(page, { manage: true });
     
     await page.getByRole('heading', { name: 'Users' }).getByRole('img', { name: 'create' }).click();
     await page.locator('input[placeholder="frank"]').fill('regularuser');
@@ -121,12 +122,11 @@ test('should prevent non-admin user from accessing user management', async ({ pa
     await connectToMockServer(page, { userName: 'regularuser', password: hashedPassword, manage: false });
     
     // Should NOT see Users section (not in admin mode and not admin)
-    await expect(page.locator('h1', { hasText: 'Users' })).not.toBeVisible({ timeout: 3000 });
+    await expectAbsent(page.getByRole('heading', { name: 'Users', exact: true }));
 });
 
 test('should show all groups as disabled for user with no permissions', async ({ page }) => {
     // Set up as admin
-    await connectToMockServer(page, { manage: true });
     
     // Create a user with no permissions at all
     await page.getByRole('heading', { name: 'Users' }).getByRole('img', { name: 'create' }).click();
@@ -141,7 +141,7 @@ test('should show all groups as disabled for user with no permissions', async ({
     const hashedPassword = await hashPassword(page, 'empty123');
     
     // Reconnect as user with no permissions
-    await connectToMockServer(page, { userName: 'emptyuser', password: hashedPassword, manage: false }, false);
+    await connectToMockServer(page, { userName: 'emptyuser', password: hashedPassword, manage: false });
     
     // Groups should be visible but disabled
     const kitchenItem = page.locator('.item.group:has(h2:text("Kitchen"))').first();
@@ -156,7 +156,6 @@ test('should show all groups as disabled for user with no permissions', async ({
 
 test('should allow limited user to toggle lights in permitted group', async ({ page }) => {
     // Set up as admin and create a limited user
-    await connectToMockServer(page, { manage: true });
     
     await page.getByRole('heading', { name: 'Users' }).getByRole('img', { name: 'create' }).click();
     await page.locator('input[placeholder="frank"]').fill('lightuser');
@@ -193,7 +192,6 @@ test('should allow limited user to toggle lights in permitted group', async ({ p
 
 test('should revert optimistic update when permission denied', async ({ page }) => {
     // Set up as admin and create a limited user with access only to Kitchen (group 2)
-    await connectToMockServer(page, { manage: true });
     
     await page.getByRole('heading', { name: 'Users' }).getByRole('img', { name: 'create' }).click();
     await page.locator('input[placeholder="frank"]').fill('reverttest');
@@ -208,7 +206,7 @@ test('should revert optimistic update when permission denied', async ({ page }) 
     const hashedPassword = await hashPassword(page, 'revertpass');
     
     // Connect as limited user
-    await connectToMockServer(page, { userName: 'reverttest', password: hashedPassword, manage: false }, false);
+    await connectToMockServer(page, { userName: 'reverttest', password: hashedPassword, manage: false });
     
     // Wait for devices to load by checking for groups on the main page
     await expect(page.locator('.item.group').first()).toBeVisible({ timeout: 5000 });
@@ -242,7 +240,6 @@ test('should revert optimistic update when permission denied', async ({ page }) 
 
 test('should show manage icon on group page for user with manage access', async ({ page }) => {
     // Create a non-admin user with 'manage' access to Kitchen
-    await connectToMockServer(page, { manage: true });
     
     await page.getByRole('heading', { name: 'Users' }).getByRole('img', { name: 'create' }).click();
     await page.locator('input[placeholder="frank"]').fill('manager');
@@ -256,14 +253,14 @@ test('should show manage icon on group page for user with manage access', async 
     const hashedPassword = await hashPassword(page, 'managerpass');
     
     // Connect as the manager user WITHOUT manage mode
-    await connectToMockServer(page, { userName: 'manager', password: hashedPassword, manage: false }, false);
+    await connectToMockServer(page, { userName: 'manager', password: hashedPassword, manage: false });
     
     // On the top page, manage icon should NOT be visible (non-admin, not on a manage-enabled group page)
-    await expect(page.locator('svg[aria-label="admin"]')).not.toBeVisible({ timeout: 3000 });
+    await expectAbsent(page.locator('svg[aria-label="admin"]'));
     
     // Should NOT see Users or Management sections
-    await expect(page.locator('h1', { hasText: 'Users' })).not.toBeVisible({ timeout: 2000 });
-    await expect(page.locator('h1', { hasText: 'Management' })).not.toBeVisible({ timeout: 2000 });
+    await expectAbsent(page.getByRole('heading', { name: 'Users', exact: true }));
+    await expectAbsent(page.getByRole('heading', { name: 'Management', exact: true }));
     
     // Navigate to the Kitchen group page
     await page.locator('.item.group:has(h2:text("Kitchen"))').first().locator('h2').click();
@@ -282,12 +279,12 @@ test('should show manage icon on group page for user with manage access', async 
     await expect(page.locator('svg[aria-label="configure"]').first()).toBeVisible();
     
     // "Add lights" button should NOT be visible (requires isAdmin)
-    await expect(page.locator('h1:has-text("Bulbs") svg[aria-label="create"]')).not.toBeVisible({ timeout: 2000 });
+    await expectAbsent(page.locator('h1:has-text("Bulbs") svg[aria-label="create"]'));
     
     // Navigate back to top page
     await page.locator('img.logo').click();
     await expect(page.locator('header h1.title', { hasText: 'Light Lynx' })).toBeVisible();
     
     // Manage icon should disappear again on the top page (not admin)
-    await expect(page.locator('svg[aria-label="admin"]')).not.toBeVisible({ timeout: 3000 });
+    await expectAbsent(page.locator('svg[aria-label="admin"]'));
 });

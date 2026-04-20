@@ -1,0 +1,67 @@
+{
+  "file": "tests/device-management.spec.ts",
+  "title": "should start permit join, show pulsing icon, add a new device after 5s, and auto-disable after 30s",
+  "line": 8,
+  "status": "passed",
+  "duration": 8526,
+  "error": null,
+  "errorSource": null,
+  "errorStack": null,
+  "steps": [
+    {
+      "name": "0010a",
+      "source": "tests/device-management.spec.ts:10",
+      "duration": 476
+    },
+    {
+      "name": "0011a",
+      "source": "tests/device-management.spec.ts:11",
+      "duration": 163
+    },
+    {
+      "name": "0018a",
+      "source": "tests/device-management.spec.ts:18",
+      "duration": 375
+    },
+    {
+      "name": "0019a",
+      "source": "tests/device-management.spec.ts:19",
+      "duration": 261
+    },
+    {
+      "name": "0021a",
+      "source": "tests/device-management.spec.ts:21",
+      "duration": 263
+    },
+    {
+      "name": "0022a",
+      "source": "tests/device-management.spec.ts:22",
+      "duration": 154
+    },
+    {
+      "name": "0024a",
+      "source": "tests/device-management.spec.ts:24",
+      "duration": 5030
+    },
+    {
+      "name": "0029a",
+      "source": "tests/device-management.spec.ts:29",
+      "duration": 378
+    },
+    {
+      "name": "0035a",
+      "source": "tests/device-management.spec.ts:35",
+      "duration": 352
+    },
+    {
+      "name": "0036a",
+      "source": "tests/device-management.spec.ts:36",
+      "duration": 285
+    },
+    {
+      "name": "0038a",
+      "source": "tests/device-management.spec.ts:38",
+      "duration": 248
+    }
+  ]
+}

@@ -1,0 +1,37 @@
+{
+  "file": "tests/user-management.spec.ts",
+  "title": "should accept password hash in password field",
+  "line": 172,
+  "status": "passed",
+  "duration": 2355,
+  "error": null,
+  "errorSource": null,
+  "errorStack": null,
+  "steps": [
+    {
+      "name": "0177a",
+      "source": "tests/user-management.spec.ts:177",
+      "duration": 463
+    },
+    {
+      "name": "0178a",
+      "source": "tests/user-management.spec.ts:178",
+      "duration": 142
+    },
+    {
+      "name": "0181a",
+      "source": "tests/user-management.spec.ts:181",
+      "duration": 144
+    },
+    {
+      "name": "0183a",
+      "source": "tests/user-management.spec.ts:183",
+      "duration": 143
+    },
+    {
+      "name": "0186a",
+      "source": "tests/user-management.spec.ts:186",
+      "duration": 1013
+    }
+  ]
+}

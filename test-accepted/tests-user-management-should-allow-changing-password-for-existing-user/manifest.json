@@ -1,0 +1,52 @@
+{
+  "file": "tests/user-management.spec.ts",
+  "title": "should allow changing password for existing user",
+  "line": 318,
+  "status": "passed",
+  "duration": 3603,
+  "error": null,
+  "errorSource": null,
+  "errorStack": null,
+  "steps": [
+    {
+      "name": "0321a",
+      "source": "tests/user-management.spec.ts:321",
+      "duration": 525
+    },
+    {
+      "name": "0322a",
+      "source": "tests/user-management.spec.ts:322",
+      "duration": 150
+    },
+    {
+      "name": "0323a",
+      "source": "tests/user-management.spec.ts:323",
+      "duration": 147
+    },
+    {
+      "name": "0324a",
+      "source": "tests/user-management.spec.ts:324",
+      "duration": 154
+    },
+    {
+      "name": "0327a",
+      "source": "tests/user-management.spec.ts:327",
+      "duration": 950
+    },
+    {
+      "name": "0332a",
+      "source": "tests/user-management.spec.ts:332",
+      "duration": 159
+    },
+    {
+      "name": "0333a",
+      "source": "tests/user-management.spec.ts:333",
+      "duration": 138
+    },
+    {
+      "name": "0336a",
+      "source": "tests/user-management.spec.ts:336",
+      "duration": 945
+    }
+  ]
+}

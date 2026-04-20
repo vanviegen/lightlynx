@@ -1,8 +1,11 @@
-import { test, expect, connectToMockServer } from './base-test';
+import { test, expect, connectToMockServer, expectAbsent, resetMockServer } from './base-test';
+
+test.beforeEach(async ({ page }) => {
+    await resetMockServer();
+    await connectToMockServer(page);
+});
 
 test('should show Lights off timer controls and persist changes', async ({ page }) => {
-    await connectToMockServer(page);
-    
     const groupName = 'Living Room';
     
     // Enable automation (required for timer controls)
@@ -62,8 +65,6 @@ test('should show Lights off timer controls and persist changes', async ({ page 
 });
 
 test('should delete group after confirmation', async ({ page }) => {
-    await connectToMockServer(page);
-    
     const groupName = 'Kitchen';
     // Open Kitchen group
     await page.locator('.list h2.link', { hasText: groupName }).click();
@@ -82,12 +83,10 @@ test('should delete group after confirmation', async ({ page }) => {
     await expect(page.locator('header h1')).toContainText('Light Lynx', { timeout: 10000 });
     
     // The deleted group should no longer be visible on main list
-    await expect(page.locator('.list h2.link', { hasText: /^Kitchen$/ })).not.toBeVisible({ timeout: 10000 });
+    await expectAbsent(page.locator('.list h2.link', { hasText: /^Kitchen$/ }));
 });
 
 test('should open scene editor when clicking configure for a scene', async ({ page }) => {
-    await connectToMockServer(page);
-    
     const groupName = 'Living Room';
     await page.locator('.list h2.link', { hasText: groupName }).click();
     await expect(page.locator('header h1')).toContainText(groupName);

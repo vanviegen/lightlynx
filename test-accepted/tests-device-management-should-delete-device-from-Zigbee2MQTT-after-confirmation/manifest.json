@@ -1,0 +1,42 @@
+{
+  "file": "tests/device-management.spec.ts",
+  "title": "should delete device from Zigbee2MQTT after confirmation",
+  "line": 42,
+  "status": "passed",
+  "duration": 1701,
+  "error": null,
+  "errorSource": null,
+  "errorStack": null,
+  "steps": [
+    {
+      "name": "0050a",
+      "source": "tests/device-management.spec.ts:50",
+      "duration": 376
+    },
+    {
+      "name": "0053a",
+      "source": "tests/device-management.spec.ts:53",
+      "duration": 264
+    },
+    {
+      "name": "0054a",
+      "source": "tests/device-management.spec.ts:54",
+      "duration": 151
+    },
+    {
+      "name": "0056a",
+      "source": "tests/device-management.spec.ts:56",
+      "duration": 158
+    },
+    {
+      "name": "0057a",
+      "source": "tests/device-management.spec.ts:57",
+      "duration": 150
+    },
+    {
+      "name": "0059a",
+      "source": "tests/device-management.spec.ts:59",
+      "duration": 237
+    }
+  ]
+}

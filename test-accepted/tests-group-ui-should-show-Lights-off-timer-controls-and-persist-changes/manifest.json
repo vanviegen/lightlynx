@@ -1,0 +1,112 @@
+{
+  "file": "tests/group-ui.spec.ts",
+  "title": "should show Lights off timer controls and persist changes",
+  "line": 8,
+  "status": "passed",
+  "duration": 5312,
+  "error": null,
+  "errorSource": null,
+  "errorStack": null,
+  "steps": [
+    {
+      "name": "0013a",
+      "source": "tests/group-ui.spec.ts:13",
+      "duration": 516
+    },
+    {
+      "name": "0014a",
+      "source": "tests/group-ui.spec.ts:14",
+      "duration": 155
+    },
+    {
+      "name": "0017a",
+      "source": "tests/group-ui.spec.ts:17",
+      "duration": 148
+    },
+    {
+      "name": "0018a",
+      "source": "tests/group-ui.spec.ts:18",
+      "duration": 148
+    },
+    {
+      "name": "0021a",
+      "source": "tests/group-ui.spec.ts:21",
+      "duration": 154
+    },
+    {
+      "name": "0025a",
+      "source": "tests/group-ui.spec.ts:25",
+      "duration": 144
+    },
+    {
+      "name": "0028a",
+      "source": "tests/group-ui.spec.ts:28",
+      "duration": 149
+    },
+    {
+      "name": "0031a",
+      "source": "tests/group-ui.spec.ts:31",
+      "duration": 149
+    },
+    {
+      "name": "0037a",
+      "source": "tests/group-ui.spec.ts:37",
+      "duration": 147
+    },
+    {
+      "name": "0038a",
+      "source": "tests/group-ui.spec.ts:38",
+      "duration": 146
+    },
+    {
+      "name": "0041a",
+      "source": "tests/group-ui.spec.ts:41",
+      "duration": 150
+    },
+    {
+      "name": "0042a",
+      "source": "tests/group-ui.spec.ts:42",
+      "duration": 151
+    },
+    {
+      "name": "0045a",
+      "source": "tests/group-ui.spec.ts:45",
+      "duration": 149
+    },
+    {
+      "name": "0046a",
+      "source": "tests/group-ui.spec.ts:46",
+      "duration": 142
+    },
+    {
+      "name": "0052a",
+      "source": "tests/group-ui.spec.ts:52",
+      "duration": 139
+    },
+    {
+      "name": "0053a",
+      "source": "tests/group-ui.spec.ts:53",
+      "duration": 253
+    },
+    {
+      "name": "0056a",
+      "source": "tests/group-ui.spec.ts:56",
+      "duration": 145
+    },
+    {
+      "name": "0057a",
+      "source": "tests/group-ui.spec.ts:57",
+      "duration": 158
+    },
+    {
+      "name": "0063a",
+      "source": "tests/group-ui.spec.ts:63",
+      "duration": 150
+    },
+    {
+      "name": "0064a",
+      "source": "tests/group-ui.spec.ts:64",
+      "duration": 152
+    }
+  ]
+}

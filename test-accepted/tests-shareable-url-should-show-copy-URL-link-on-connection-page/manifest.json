@@ -1,0 +1,27 @@
+{
+  "file": "tests/shareable-url.spec.ts",
+  "title": "should show copy URL link on connection page",
+  "line": 20,
+  "status": "passed",
+  "duration": 1471,
+  "error": null,
+  "errorSource": null,
+  "errorStack": null,
+  "steps": [
+    {
+      "name": "0029a",
+      "source": "tests/shareable-url.spec.ts:29",
+      "duration": 347
+    },
+    {
+      "name": "0033a",
+      "source": "tests/shareable-url.spec.ts:33",
+      "duration": 399
+    },
+    {
+      "name": "0038a",
+      "source": "tests/shareable-url.spec.ts:38",
+      "duration": 432
+    }
+  ]
+}

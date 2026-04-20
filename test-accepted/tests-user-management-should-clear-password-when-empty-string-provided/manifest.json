@@ -1,0 +1,52 @@
+{
+  "file": "tests/user-management.spec.ts",
+  "title": "should clear password when empty string provided",
+  "line": 344,
+  "status": "passed",
+  "duration": 3647,
+  "error": null,
+  "errorSource": null,
+  "errorStack": null,
+  "steps": [
+    {
+      "name": "0347a",
+      "source": "tests/user-management.spec.ts:347",
+      "duration": 537
+    },
+    {
+      "name": "0348a",
+      "source": "tests/user-management.spec.ts:348",
+      "duration": 151
+    },
+    {
+      "name": "0349a",
+      "source": "tests/user-management.spec.ts:349",
+      "duration": 147
+    },
+    {
+      "name": "0350a",
+      "source": "tests/user-management.spec.ts:350",
+      "duration": 140
+    },
+    {
+      "name": "0357a",
+      "source": "tests/user-management.spec.ts:357",
+      "duration": 955
+    },
+    {
+      "name": "0359a",
+      "source": "tests/user-management.spec.ts:359",
+      "duration": 141
+    },
+    {
+      "name": "0360a",
+      "source": "tests/user-management.spec.ts:360",
+      "duration": 143
+    },
+    {
+      "name": "0363a",
+      "source": "tests/user-management.spec.ts:363",
+      "duration": 1016
+    }
+  ]
+}

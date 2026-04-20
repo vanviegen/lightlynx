@@ -28,8 +28,8 @@ test('should connect, create group, add lights, and create scene', async ({ page
     
     // Add "Living Room Ceiling 1"
     await page.locator('h2', { hasText: 'Living Room Ceiling 1' }).click();
-    // After adding, it should go back to group page
-    await expect(page.locator('span.subTitle', { hasText: 'add light' })).not.toBeVisible();
+    // After adding, it should go back to the group page route.
+    await page.waitForURL(/\/group\/\d+(\?.*)?$/);
     await expect(page.locator('span.subTitle', { hasText: 'group' })).toBeVisible();
     // Use filter({ visible: true }) to pick the matching visible one
     await expect(page.locator('h2', { hasText: 'Living Room Ceiling 1' })).toBeVisible();
@@ -37,7 +37,7 @@ test('should connect, create group, add lights, and create scene', async ({ page
     // Add another "Kitchen Ceiling"
     await page.getByRole('heading', { name: 'Bulbs' }).getByRole('img', { name: 'create' }).click({ force: true });
     await page.locator('h2', { hasText: 'Kitchen Ceiling' }).click();
-    await expect(page.locator('span.subTitle', { hasText: 'add light' })).not.toBeVisible();
+    await page.waitForURL(/\/group\/\d+(\?.*)?$/);
     await expect(page.locator('span.subTitle', { hasText: 'group' })).toBeVisible();
     await expect(page.locator('h2', { hasText: 'Kitchen Ceiling' })).toBeVisible();
     

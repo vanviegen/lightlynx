@@ -1,0 +1,62 @@
+{
+  "file": "tests/user-permissions.spec.ts",
+  "title": "should allow admin user to see and control all groups",
+  "line": 73,
+  "status": "passed",
+  "duration": 2621,
+  "error": null,
+  "errorSource": null,
+  "errorStack": null,
+  "steps": [
+    {
+      "name": "0077a",
+      "source": "tests/user-permissions.spec.ts:77",
+      "duration": 505
+    },
+    {
+      "name": "0078a",
+      "source": "tests/user-permissions.spec.ts:78",
+      "duration": 136
+    },
+    {
+      "name": "0079a",
+      "source": "tests/user-permissions.spec.ts:79",
+      "duration": 146
+    },
+    {
+      "name": "0082a",
+      "source": "tests/user-permissions.spec.ts:82",
+      "duration": 154
+    },
+    {
+      "name": "0084a",
+      "source": "tests/user-permissions.spec.ts:84",
+      "duration": 143
+    },
+    {
+      "name": "0096a",
+      "source": "tests/user-permissions.spec.ts:96",
+      "duration": 364
+    },
+    {
+      "name": "0097a",
+      "source": "tests/user-permissions.spec.ts:97",
+      "duration": 277
+    },
+    {
+      "name": "0099a",
+      "source": "tests/user-permissions.spec.ts:99",
+      "duration": 152
+    },
+    {
+      "name": "0100a",
+      "source": "tests/user-permissions.spec.ts:100",
+      "duration": 145
+    },
+    {
+      "name": "0103a",
+      "source": "tests/user-permissions.spec.ts:103",
+      "duration": 149
+    }
+  ]
+}

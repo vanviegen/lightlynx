@@ -1,0 +1,17 @@
+{
+  "file": "tests/shareable-url.spec.ts",
+  "title": "should connect with pre-hashed secret in URL",
+  "line": 60,
+  "status": "passed",
+  "duration": 608,
+  "error": null,
+  "errorSource": null,
+  "errorStack": null,
+  "steps": [
+    {
+      "name": "0063a",
+      "source": "tests/shareable-url.spec.ts:63",
+      "duration": 379
+    }
+  ]
+}

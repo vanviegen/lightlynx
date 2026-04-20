@@ -1,0 +1,37 @@
+{
+  "file": "tests/user-permissions.spec.ts",
+  "title": "should prevent non-admin user from accessing user management",
+  "line": 106,
+  "status": "passed",
+  "duration": 1506,
+  "error": null,
+  "errorSource": null,
+  "errorStack": null,
+  "steps": [
+    {
+      "name": "0109a",
+      "source": "tests/user-permissions.spec.ts:109",
+      "duration": 507
+    },
+    {
+      "name": "0110a",
+      "source": "tests/user-permissions.spec.ts:110",
+      "duration": 152
+    },
+    {
+      "name": "0111a",
+      "source": "tests/user-permissions.spec.ts:111",
+      "duration": 149
+    },
+    {
+      "name": "0114a",
+      "source": "tests/user-permissions.spec.ts:114",
+      "duration": 155
+    },
+    {
+      "name": "0116a",
+      "source": "tests/user-permissions.spec.ts:116",
+      "duration": 143
+    }
+  ]
+}

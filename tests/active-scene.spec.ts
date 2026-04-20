@@ -1,8 +1,11 @@
-import { test, expect, connectToMockServer } from './base-test';
+import { test, expect, connectToMockServer, resetMockServer } from './base-test';
+
+test.beforeEach(async ({ page }) => {
+    await resetMockServer();
+    await connectToMockServer(page);
+});
 
 test('should highlight active scene in list view', async ({ page }) => {
-    await connectToMockServer(page);
-    
     // Navigate to "Living Room" group
     await page.locator('.list').locator('h2.link', { hasText: 'Living Room' }).click();
     await expect(page.locator('header h1')).toContainText('Living Room');
@@ -29,8 +32,6 @@ test('should highlight active scene in list view', async ({ page }) => {
 });
 
 test('should show active scene in list view on main page', async ({ page }) => {
-    await connectToMockServer(page);
-    
     // Navigate to "Living Room" group
     await page.locator('.list').locator('h2.link', { hasText: 'Living Room' }).click();
     await expect(page.locator('header h1')).toContainText('Living Room');
