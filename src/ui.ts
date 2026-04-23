@@ -1,4 +1,4 @@
-import { $, proxy } from 'aberdeen';
+import A from 'aberdeen';
 import * as route from 'aberdeen/route';
 import { createToast } from './components/toasts';
 
@@ -8,16 +8,16 @@ export interface RouteState {
     drawIcons?: () => void;
 }
 
-export const routeState = proxy<RouteState>({
+export const routeState = A.proxy<RouteState>({
     title: '',
     subTitle: '',
     drawIcons: undefined
 });
 
-export const manage = proxy(!!route.current.search.manage);
+export const manage = A.proxy(!!route.current.search.manage);
 
 // Keep manage state in sync with URL
-$(() => {
+A(() => {
     route.current.search.manage; // subscribe to this, so we'll force-update it when it changes
     if (manage.value) route.current.search.manage = 'y';
     else delete route.current.search.manage;
@@ -48,7 +48,7 @@ export async function hashSecret(password: string): Promise<string> {
 export function lazySave(getState: () => void | (() => void), delay: number = 1000): void {
     let timeoutId: any;
     let firstRun = true;
-    $(() => {
+    A(() => {
         clearTimeout(timeoutId);
         let saveFunc = getState();
         if (firstRun) firstRun = false;

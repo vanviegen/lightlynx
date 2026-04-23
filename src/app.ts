@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
 import './global-style';
-import {$, proxy, clone, isEmpty, insertCss, peek, disableCreateDestroy, onEach, unproxy} from 'aberdeen';
+import A from 'aberdeen';
 import * as route from 'aberdeen/route';
 
 import api from './api';
@@ -27,11 +27,11 @@ import { Light, Toggle } from './types';
 route.interceptLinks();
 // Disable transitions in Playwright)
 if ((navigator as any).webdriver) {
-    disableCreateDestroy();
+    A.disableCreateDestroy();
 }
 preventFormNavigation();
 
-const updateAvailable = proxy(false);
+const updateAvailable = A.proxy(false);
 
 // Disable service worker in dev mode to avoid caching conflicts with Vite HMR
 if (!import.meta.env.DEV && 'serviceWorker' in navigator) {
@@ -50,7 +50,7 @@ if (!import.meta.env.DEV && 'serviceWorker' in navigator) {
 api.notifyHandlers.push(createToast);
 
 
-const mainStyle = insertCss({
+const mainStyle = A.insertCss({
     '&': 'overflow:auto box-shadow: 0 0 10px $primary; overflow-x:hidden position:absolute z-index:2 transition: transform 0.2s ease-out, opacity 0.2s ease-out; left:0 top:0 right:0 bottom:0 bg:$bg scrollbar-width:none -ms-overflow-style:none',
     '&::-webkit-scrollbar': 'display:none',
     '&.fadeOut': {
@@ -67,27 +67,27 @@ const mainStyle = insertCss({
 });
 
 // Root container styles
-const rootStyle = insertCss({
+const rootStyle = A.insertCss({
 	'&': 'max-width:500px m: 0 auto; min-height:100% display:flex flex-direction:column transition: max-width 0.2s ease-in-out; position:relative',
 	'&.landing-page': 'max-width:900px',
 	'@media screen and (min-width: 501px)': 'box-shadow: 0 0 256px #f4810e20;'
 });
 
-const mainContainerStyle = insertCss('flex:1 position:relative overflow:hidden');
+const mainContainerStyle = A.insertCss('flex:1 position:relative overflow:hidden');
 
-$('div', rootStyle, () => {
-	$(() => {
-		$('.landing-page=', isEmpty(api.servers) && route.current.path === '/');
+A('div', rootStyle, () => {
+	A(() => {
+		A('.landing-page=', A.isEmpty(api.servers) && route.current.path === '/');
 	});
 
 	drawHeader(updateAvailable);
 	
-	$('div', mainContainerStyle, () => {
-		const p = clone(route.current.p); // Subscribe to full 'p', so we'll create new main elements for each page
+	A('div', mainContainerStyle, () => {
+		const p = A.clone(route.current.p); // Subscribe to full 'p', so we'll create new main elements for each page
 		
-		const nav = peek(() => route.current.nav);
-		$('main', mainStyle, 'destroy=fadeOut create=', nav, () => {
-			$(() => {
+		const nav = A.peek(() => route.current.nav);
+		A('main', mainStyle, 'destroy=fadeOut create=', nav, () => {
+			A(() => {
 				routeState.title = '';
 				routeState.subTitle = '';
 				delete routeState.drawIcons;
@@ -105,7 +105,7 @@ $('div', rootStyle, () => {
 					drawUserEditor();
 				} else if (p[0] === 'dump') {
 					drawDumpPage();
-				} else if (isEmpty(api.servers)) {
+				} else if (A.isEmpty(api.servers)) {
 					route.current.path = '/connect';
 				} else {
 					drawTopPage();
@@ -120,7 +120,7 @@ $('div', rootStyle, () => {
 
 
 // Show prompt modal, if any
-$(() => {
+A(() => {
 	if (route.current.state.prompt) {
 		drawPromptPage(route.current.state.prompt);
 	}
@@ -128,11 +128,11 @@ $(() => {
 
 // Show popups for newly founds devices
 let notNew = true;
-$(() => {
+A(() => {
 	if (api.connection.state === 'connected') {
 		notNew = false;
-		onEach(api.store.lights, onNewDevice);
-		onEach(api.store.toggles, onNewDevice);
+		A.onEach(api.store.lights, onNewDevice);
+		A.onEach(api.store.toggles, onNewDevice);
 		notNew = true;
 	}
 });
@@ -140,7 +140,7 @@ $(() => {
 function onNewDevice(device: Light | Toggle) {
 	if (notNew) {
 		// Don't subscribe on anything. We just want to be called on new devices
-		const d = unproxy(device);
+		const d = A.unproxy(device);
 		const type = 'lightCaps' in d ? 'light' : 'toggle';
 		createToast('info', `A new ${type} has joined! "${d.name}"`);
 	}

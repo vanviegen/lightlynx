@@ -1,7 +1,7 @@
-import { $, insertCss, insertGlobalCss, cssVars, setSpacingCssVars } from 'aberdeen';
+import A from 'aberdeen';
 
 // Slightly smaller spacing than default, for more density!
-setSpacingCssVars(0.85);
+A.setSpacingCssVars(0.85);
 
 const interactingElements = new Set<Element>();
 
@@ -13,20 +13,21 @@ const interactingElements = new Set<Element>();
  * ':active'.
  */
 
-['mouseover', 'touchstart'].forEach(eventType => $(`${eventType}=`, (e: Event) => {
+['mouseover', 'touchstart'].forEach(eventType => A(`${eventType}=`, (e: Event) => {
     for(let el = e.target; el instanceof Element; el = el.parentElement) {
         el.classList.add('interacting');
         interactingElements.add(el);
     }
 }, {passive:true, capture:true}));
 
-['touchend', 'touchcancel', 'mouseout'].forEach(eventType => $(`${eventType}=`, () => {
+['touchend', 'touchcancel', 'mouseout'].forEach(eventType => A(`${eventType}=`, () => {
 	interactingElements.forEach(e => e.classList.remove('interacting'));
 	interactingElements.clear();
 }, {passive:true, capture:true}));
 
 
 // Dark mode colors only - no light mode support
+const cssVars = A.cssVars;
 cssVars.primary = '#f4810e';
 cssVars.primaryLight = '#ffb060';
 cssVars.primaryHover = cssVars.primaryLight;
@@ -51,7 +52,7 @@ cssVars.success = '#79c00c';
 cssVars.info = cssVars.text; // '#4a9eff';
 cssVars.link = cssVars.primary;
 
-insertGlobalCss({
+A.insertGlobalCss({
     // CSS Reset (Josh Comeau's minimal reset)
     '*': 'box-sizing:border-box',
     'html, body': 'h:100% m:0 p:0',
@@ -196,12 +197,12 @@ insertGlobalCss({
 	}
 });
 
-export const errorMessageStyle = insertCss({
+export const errorMessageStyle = A.insertCss({
     '&': 'fg:$danger bg:#3a1111 p:$3',
     '& > svg': 'w:24px h:24px float:left mr:$3 mb:$2'
 });
 
-export const infoMessageStyle = insertCss({
+export const infoMessageStyle = A.insertCss({
     '&': 'fg:$info bg:#113a5a p:$3',
     '& > svg': 'w:24px h:24px float:left mr:$3 mb:$2'
 });

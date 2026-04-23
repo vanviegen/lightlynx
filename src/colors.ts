@@ -1,4 +1,4 @@
-import { LightState, LightCaps, Z2MLightDelta } from './types';
+import { LightState, LightCaps } from './types';
 
 export const CT_DEFAULT = 300;
 

@@ -1,4 +1,4 @@
-import { $, onEach, insertCss } from "aberdeen"
+import A from "aberdeen"
 import * as icons from '../icons'
 import * as colors from "../colors"
 import api from "../api"
@@ -7,7 +7,7 @@ import { LightState, GroupWithDerives, Light } from '../types'
 const CT_MIN = 100, CT_MAX = 550;
 
 // Circle toggle styles
-const circleStyle = insertCss({
+const circleStyle = A.insertCss({
 	'&': 'w:52px h:28px r:14px border: 1px solid $border; bg:#080808 cursor:pointer flex-shrink:0 position:relative overflow:visible transition: background-color 0.3s ease, border-color 0.3s ease;',
 	// Off-state circle (always dark)
 	'&::before': 'content: ""; position:absolute w:22px h:22px r:50% bg:#555 top:2px left:2px transition: transform 0.3s ease, opacity 0.3s ease; opacity:1',
@@ -22,10 +22,10 @@ const circleStyle = insertCss({
 });
 
 // Handle/marker styles
-const handleStyle = insertCss('position:absolute transition: none 0.1s; r:50% border: 2px solid #fff; box-shadow: 0 0 0 1px #000 inset; touch-action:none user-select:none -webkit-touch-callout:none -webkit-tap-highlight-color:transparent');
+const handleStyle = A.insertCss('position:absolute transition: none 0.1s; r:50% border: 2px solid #fff; box-shadow: 0 0 0 1px #000 inset; touch-action:none user-select:none -webkit-touch-callout:none -webkit-tap-highlight-color:transparent');
 
 // Scale container styles
-const scaleStyle = insertCss('border: 1px solid $border; position:relative h:40px r:3px overflow:hidden');
+const scaleStyle = A.insertCss('border: 1px solid $border; position:relative h:40px r:3px overflow:hidden');
 
 interface TrackingState {
     event: MouseEvent | TouchEvent;
@@ -55,7 +55,7 @@ export function drawToggle(target: Light | GroupWithDerives, targetId: string | 
     
     const isGroup = 'lightIds' in target;
     
-    $('div.circle', circleStyle, 'click=', onClick, () => {
+    A('div.circle', circleStyle, 'click=', onClick, () => {
         // Reactive scope: only this inner function re-runs on state change
         const isOn = target.lightState?.on;
         
@@ -88,7 +88,7 @@ export function drawToggle(target: Light | GroupWithDerives, targetId: string | 
         // Use gradient if available, otherwise use solid color
         const finalBackground = knobBackground || knobColor;
         
-        $({
+        A({
             '.on': isOn,
             style: `--knob-color: ${knobColor}; --knob-background: ${finalBackground}; --knob-glow: ${knobGlow}`,
         });
@@ -96,7 +96,7 @@ export function drawToggle(target: Light | GroupWithDerives, targetId: string | 
 }
 
 function drawScaleMarker(state: LightState, mode: 'brightness' | 'temperature' | 'hue' | 'saturation', tempRange?: [number, number], size: number = 24): void {
-    $('div', handleStyle, () => {
+    A('div', handleStyle, () => {
         let lsize = size;
         let fraction: number;
         
@@ -113,11 +113,11 @@ function drawScaleMarker(state: LightState, mode: 'brightness' | 'temperature' |
                         fraction = (approxMireds - tempRange![0]) / (tempRange![1] - tempRange![0]);
                         lsize = Math.min(lsize, 8);
                     } else {
-                        $('display:none');
+                        A('display:none');
                         return;
                     }
                 } else {
-                    $('display:none');
+                    A('display:none');
                     return;
                 }
             } else {
@@ -125,13 +125,13 @@ function drawScaleMarker(state: LightState, mode: 'brightness' | 'temperature' |
             }
         } else if (mode === 'hue') {
             if (state.hue == null) {
-                $('display:none');
+                A('display:none');
                 return;
             }
             fraction = state.hue / 360;
         } else { // saturation
             if (state.saturation == null) {
-                $('display:none');
+                A('display:none');
                 return;
             }
             fraction = state.saturation / 100;
@@ -141,7 +141,7 @@ function drawScaleMarker(state: LightState, mode: 'brightness' | 'temperature' |
             lsize /= 4;
         }
 
-        $(`display:block h:${lsize}px w:${lsize}px mt:${-lsize/2}px ml:${-lsize/2}px top:50% left:${fraction*100}%`);
+        A(`display:block h:${lsize}px w:${lsize}px mt:${-lsize/2}px ml:${-lsize/2}px top:50% left:${fraction*100}%`);
     });
 }
 
@@ -166,8 +166,8 @@ export function drawColorPicker(target: Light | GroupWithDerives, targetId: stri
     const capabilities = target.lightCaps;
     if (!capabilities) return;
             
-    $('div m:$3 display:flex gap:$3 flex-direction:column', () => {
-        $('div display:flex gap:$3 align-items:center', () => {
+    A('div m:$3 display:flex gap:$3 flex-direction:column', () => {
+        A('div display:flex gap:$3 align-items:center', () => {
             if ('lightIds' in target) { // group
                 drawToggle(target as GroupWithDerives, targetId as string);
             }
@@ -193,7 +193,7 @@ export function drawColorPicker(target: Light | GroupWithDerives, targetId: stri
 const CANVAS_WIDTH = 64;
 
 function drawScale(target: Light | GroupWithDerives, targetId: string | number, mode: 'brightness' | 'temperature' | 'hue' | 'saturation', tempRange?: [number, number]): void {
-    $('div', scaleStyle, () => {
+    A('div', scaleStyle, () => {
 
         let state = target.lightState || {} as LightState;
 
@@ -201,7 +201,7 @@ function drawScale(target: Light | GroupWithDerives, targetId: string | number, 
         const canvasHeight = mode === 'saturation' ? 16 : 1;
 
         // We'll create a small canvas, and scale it to fit. Lineair interpolation is great for gradients!
-        let canvasEl = $('canvas h:100% w:100%', {
+        let canvasEl = A('canvas h:100% w:100%', {
             width: CANVAS_WIDTH,
             height: canvasHeight,
         }) as HTMLCanvasElement;
@@ -266,7 +266,7 @@ function drawScale(target: Light | GroupWithDerives, targetId: string | number, 
 
         drawScaleMarker(state, mode, tempRange);
 
-        if ('lightIds' in target) onEach(target.lightIds, ieee => {
+        if ('lightIds' in target) A.onEach(target.lightIds, ieee => {
             let memberState = api.store.lights[ieee]?.lightState;
             if (memberState) {
                 drawScaleMarker(memberState, mode, tempRange, 8);
@@ -307,7 +307,7 @@ function drawScale(target: Light | GroupWithDerives, targetId: string | number, 
             else trackMouse(event);
         }
 
-        $('mousedown=', startTrack, 'touchstart=', startTrack);
+        A('mousedown=', startTrack, 'touchstart=', startTrack);
     });
 }
 

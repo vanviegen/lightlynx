@@ -1,4 +1,4 @@
-import { $, proxy, ref, onEach, isEmpty, unproxy, peek, insertCss, copy, clone } from 'aberdeen';
+import A from 'aberdeen';
 import { grow, shrink } from 'aberdeen/transitions';
 import * as route from 'aberdeen/route';
 import api from '../api';
@@ -25,9 +25,9 @@ function formatTime({hour, minute, type}: {hour: number, minute: number, type: s
 }
 
 // Draw the scene options in a grid, each at least 150px wide
-const scenePresetsClass = insertCss({
+const scenePresetsClass = A.insertCss({
     "&": "display:grid grid-template-columns:repeat(auto-fit,minmax(150px,1fr)) gap:$2 m:$3",
-    ".item": "display:flex flex-direction:column align-items:center padding:$2 r:8px border:1px solid $border.interacting:bg:.interacting cursor:pointer",
+    ".item": "display:flex flex-direction:column align-items:center padding:$2 r:8px border: 1px solid $border; cursor:pointer",
     ".item.selected, .item.selected input": "color:$primary",
     ".custom": {
         "&": "display:flex flex-direction:column align-items:center justify-content:center",
@@ -49,40 +49,40 @@ export function drawSceneEditor(group: Group, groupId: number): void {
 		return route.up();
 	}
 
-	$(() => {
+	A(() => {
 		routeState.title = group.name + ' · ' + scene.name;
 	});
 	routeState.subTitle = "scene";
 	routeState.drawIcons = undefined;
 
-    const sceneState = proxy(peek(() => ({
+    const sceneState = A.proxy(A.peek(() => ({
         shortName: scene.name,
         triggers: (api.store.config.sceneTriggers[groupId]?.[sceneId] || []).map(t => ({...t})) // Copy triggers
     })));
     
-    $('h1#Scene name');
+    A('h1#Scene name');
     
     // Scene identity - combined preset and custom name
     const scenePresets = Object.keys(icons.scenes).filter(name => 
         !['dim', 'soft', 'orientation'].includes(name) // Filter out legacy aliases
     );
 
-    const selected: Record<string, boolean> = proxy({});
-    $(() => {
+    const selected: Record<string, boolean> = A.proxy({});
+    A(() => {
         let name = sceneState.shortName.toLowerCase();
         if (!scenePresets.includes(name)) name = 'custom';
-        copy(selected, {[name]: true});
+        A.copy(selected, {[name]: true});
     });
 
-	$('div.list', scenePresetsClass, () => {
+	A('div.list', scenePresetsClass, () => {
 		// Permanent input field as first "button"
-		$('div.custom.item', () => {
-			$('input', {
+		A('div.custom.item', () => {
+			A('input', {
 				type: 'text',
-				bind: ref(sceneState, 'shortName')
+				bind: A.ref(sceneState, 'shortName')
 			});
-            $(() => {
-                $({'.selected': ref(selected, 'custom')});
+            A(() => {
+                A({'.selected': A.ref(selected, 'custom')});
             });
         });
 
@@ -90,65 +90,65 @@ export function drawSceneEditor(group: Group, groupId: number): void {
 			const icon = icons.scenes[presetName]!;
 			const label = presetName.charAt(0).toUpperCase() + presetName.slice(1);
 			
-			$('div.item.link click=', () => {
+			A('div.item.link click=', () => {
 				sceneState.shortName = label;
 			}, () => {
-				$(() => {
-					$({'.selected': ref(selected, presetName)});
+				A(() => {
+					A({'.selected': A.ref(selected, presetName)});
 				});
 				icon("color:inherit");
-				$('small#', label);
+				A('small#', label);
 			});
 		}
 	});
 
 	
 	const automationEnabled = api.store.config.automationEnabled;
-	$('h1#Triggers', () => {
+	A('h1#Triggers', () => {
 		if (automationEnabled) icons.create('.link click=', () => sceneState.triggers.push({event: '1'}));
 	});
-	$('div.list', () => {
+	A('div.list', () => {
 	    if (!automationEnabled) return;
-		onEach(sceneState.triggers, (trigger, triggerIndex) => {
-			const showTimes = proxy(peek(trigger, 'startTime') != null);
+		A.onEach(sceneState.triggers, (trigger, triggerIndex) => {
+			const showTimes = A.proxy(A.peek(trigger, 'startTime') != null);
 
 			// Set/delete times when showTimes is toggled.
-			$(() => {
+			A(() => {
 				if (showTimes.value) {
-					if (!peek(trigger, 'startTime')) trigger.startTime = (trigger.event === 'time' ? '18' : '0bs');
-					if (!peek(trigger, 'endTime')) trigger.endTime = (trigger.event === 'time' ? '22' : '0ar');
+					if (!A.peek(trigger, 'startTime')) trigger.startTime = (trigger.event === 'time' ? '18' : '0bs');
+					if (!A.peek(trigger, 'endTime')) trigger.endTime = (trigger.event === 'time' ? '22' : '0ar');
 				} else {
 					delete trigger.startTime;
 					delete trigger.endTime;
 				}
 			});
 
-			$('div.item flex-direction:column align-items:stretch', () => {
-				$('div display:flex justify-content:space-between gap:$3 align-items: center', () =>{
-					$('select width:inherit bind=', ref(trigger, 'event'), () => {
-						$('option value=1 #Single Tap');
-						$('option value=2 #Double Tap');
-						$('option value=3 #Triple Tap');
-						$('option value=4 #Quadruple Tap');
-						$('option value=5 #Quintuple Tap');
-						$('option value=sensor #Motion Sensor');
-						$('option value=time #Time-based');
+			A('div.item flex-direction:column align-items:stretch', () => {
+				A('div display:flex justify-content:space-between gap:$3 align-items: center', () =>{
+					A('select width:inherit bind=', A.ref(trigger, 'event'), () => {
+						A('option value=1 #Single Tap');
+						A('option value=2 #Double Tap');
+						A('option value=3 #Triple Tap');
+						A('option value=4 #Quadruple Tap');
+						A('option value=5 #Quintuple Tap');
+						A('option value=sensor #Motion Sensor');
+						A('option value=time #Time-based');
 					});
 					
-					$(() => {
+					A(() => {
 						if (trigger.event !== 'time') {
-							$('label display:flex align-items:center gap:$2 flex:1', () => {
-								$('input type=checkbox bind=', showTimes);
-								$('#Only between...');
+							A('label display:flex align-items:center gap:$2 flex:1', () => {
+								A('input type=checkbox bind=', showTimes);
+								A('#Only between...');
 							});
 						}
 					})
 
 					icons.remove('click=', () => sceneState.triggers.splice(triggerIndex, 1));
 				});
-				$(() => {
+				A(() => {
 					if (showTimes.value || trigger.event === 'time') {
-						$('div', {create: grow, destroy: shrink}, () => {
+						A('div', {create: grow, destroy: shrink}, () => {
 							drawTimeEditor("From", trigger, 'startTime');
 							drawTimeEditor("Until", trigger, 'endTime');
 						})
@@ -157,10 +157,10 @@ export function drawSceneEditor(group: Group, groupId: number): void {
 
 			})
 		});
-		if (isEmpty(sceneState.triggers)) $('div.empty#None yet');
+		if (A.isEmpty(sceneState.triggers)) A('div.empty#None yet');
     });
 
-    $('h1#Actions');
+    A('h1#Actions');
     async function save(e: Event): Promise<void> {
         e.stopPropagation();
         if (!await askConfirm(`Are you sure you want to overwrite the '${scene!.name}' scene for group '${group.name}' with the current light state?`)) return;
@@ -171,9 +171,9 @@ export function drawSceneEditor(group: Group, groupId: number): void {
         if (!await askConfirm(`Are you sure you want to delete the '${scene!.name}' scene for group '${group.name}'?`)) return;
         api.send("scene", groupId, sceneId, "remove");
     }
-    $('div.list', () => {
-        $('div.item.link', icons.save, '#Overwrite scene with current state', 'click=', save);
-        $('div.item.link', icons.remove, '#Delete scene', 'click=', remove);
+    A('div.list', () => {
+        A('div.item.link', icons.save, '#Overwrite scene with current state', 'click=', save);
+        A('div.item.link', icons.remove, '#Delete scene', 'click=', remove);
     })
 
     lazySave(() => {
@@ -183,7 +183,7 @@ export function drawSceneEditor(group: Group, groupId: number): void {
         }
     });
     lazySave(() => {
-		const triggers = clone(sceneState.triggers);
+		const triggers = A.clone(sceneState.triggers);
         return function() {
             api.send('scene', groupId, sceneId, 'setTriggers', triggers);
         }
@@ -194,35 +194,35 @@ export function drawSceneEditor(group: Group, groupId: number): void {
 function drawTimeEditor(text: string, trigger: Trigger, field: 'startTime' | 'endTime'): void {
 	const timeStr = trigger[field] || '';
 	const parsedTime = parseTime(timeStr) || {hour: 0, minute: 0, type: 'wall' as const};
-	const timeState = proxy(parsedTime);
+	const timeState = A.proxy(parsedTime);
 	
 	// Rebuild time string whenever component changes
-	$(() => {
+	A(() => {
 		const newTimeStr = formatTime(timeState);
 		trigger[field] = newTimeStr;
 	});
 	
-	$('div display:flex align-items:center gap:$2', () => {
-		$('label flex:1 text-align:right text=', text+" ")
+	A('div display:flex align-items:center gap:$2', () => {
+		A('label flex:1 text-align:right text=', text+" ")
 		// $('input width:4em type=number min=0 max=23 bind=', ref(timeState, 'hour'));
-		$('select bind=', ref(timeState, 'hour'), () => {
+		A('select bind=', A.ref(timeState, 'hour'), () => {
 			for (let h = 0; h < 24; h++) {
-				$('option value=', h, '#', h.toString().padStart(2, '0'));
+				A('option value=', h, '#', h.toString().padStart(2, '0'));
 			}
 		})
-		$('b# : ');
+		A('b# : ');
 		// $('input width:4em type=number min=0 max=59 value=', unproxy(timeState).minute.toString().padStart(2, '0'), 'input=', (event: any) => timeState.minute = parseInt(event.target.value));
-		$('select bind=', ref(timeState, 'minute'), () => {
+		A('select bind=', A.ref(timeState, 'minute'), () => {
 			for (let m = 0; m < 60; m+=5) {
-				$('option value=', m, '#', m.toString().padStart(2, '0'));
+				A('option value=', m, '#', m.toString().padStart(2, '0'));
 			}
 		});
-		$('select bind=', ref(timeState, 'type'), () => {
-			$('option value=wall #wall time');
-			$('option value=br #before sunrise');
-			$('option value=ar #after sunrise');
-			$('option value=bs #before sunset');
-			$('option value=as #after sunset');
+		A('select bind=', A.ref(timeState, 'type'), () => {
+			A('option value=wall #wall time');
+			A('option value=br #before sunrise');
+			A('option value=ar #after sunrise');
+			A('option value=bs #before sunset');
+			A('option value=as #after sunset');
 		});
 	});
 }

@@ -1,4 +1,4 @@
-import { $, insertCss, insertGlobalCss, isEmpty } from 'aberdeen';
+import A from 'aberdeen';
 import * as route from 'aberdeen/route';
 import * as icons from '../icons';
 import api from '../api';
@@ -6,7 +6,7 @@ import logoUrl from '../logo.webp';
 import { routeState, manage } from '../ui';
 import { createToast } from './toasts';
 
-const headerStyle = insertCss({
+const headerStyle = A.insertCss({
 	'&': 'bg:$surface display:flex gap:$2 align-items:center pr:$2',
 	'.logo': 'max-height:40px cursor:pointer',
 	h1: 'font-size:1.5rem line-height:0.9 p: 0.1em 0 0.25em; m:0 text-transform:none letter-spacing:normal font-weight:600',
@@ -21,8 +21,8 @@ const headerStyle = insertCss({
 	'.update-available': 'fg:$success animation: pulse-opacity 1.5s ease-in-out infinite;',
 });
 
-insertGlobalCss({
-    '@keyframes pulse-opacity': {
+A.insertGlobalCss({
+  '@keyframes pulse-opacity': {
 		'0%': 'opacity:1',
 		'50%': 'opacity:0.3',
 		'100%': 'opacity:1'
@@ -34,42 +34,42 @@ insertGlobalCss({
 });
 
 export function drawHeader(updateAvailable: { value: boolean }): void {
-    $('header', headerStyle, () => {
-        $('img.logo src=', logoUrl, 'click=', () => route.back('/'));
+    A('header', headerStyle, () => {
+        A('img.logo src=', logoUrl, 'click=', () => route.back('/'));
         
-        $(() => {
+        A(() => {
             if (route.current.path !== '/') {
                 icons.back('click=', () => route.back());
             }
-            $('h1.title', () => {
+            A('h1.title', () => {
                 const title = routeState.title || 'Light Lynx';
-                $(`#${title}`);
+                A(`#${title}`);
                 if (routeState.subTitle) {
-                    $('span.subTitle#' + routeState.subTitle);
+                    A('span.subTitle#' + routeState.subTitle);
                 }
             });
         });
         
-        $(() => {
+        A(() => {
             if (routeState.drawIcons) {
                 routeState.drawIcons();
             }
         });
         
-        $(() => {
+        A(() => {
             if (updateAvailable.value) {
                 icons.reload('.update-available click=', () => window.location.reload());
             }
         });
         
-        $(() => {
+        A(() => {
             if (api.store.permitJoin) {
                 icons.create('.on.pulse click=', () => api.send("bridge", "request", "permit_join", {time: 0}));
             }
         });
         
-        $(() => {
-            if (isEmpty(api.servers)) return;
+        A(() => {
+            if (A.isEmpty(api.servers)) return;
             let lowest = 100;
             for (const device of Object.values(api.store.toggles)) {
                 const b = device.meta?.battery;
@@ -86,7 +86,7 @@ export function drawHeader(updateAvailable: { value: boolean }): void {
             });
         });
         
-        $(() => {
+        A(() => {
             const server = api.servers[0];
             if (!server) return;
             const user = api.store.config.users?.[server.userName];
@@ -127,11 +127,11 @@ export function drawHeader(updateAvailable: { value: boolean }): void {
             });
         });
 
-        $(() => {
+        A(() => {
             icons.reconnect(() => {
                 const state = api.connection.state;
                 const stalling = api.connection.stalling;
-                $({
+                A({
                     '.spinning': state !== 'connected' && state !== 'idle',
                     '.on': state === 'connected' && !stalling,
                     '.off': state === 'idle',

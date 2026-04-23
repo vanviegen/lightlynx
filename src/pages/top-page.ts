@@ -1,4 +1,4 @@
-import { $, insertCss, onEach, derive, proxy, isEmpty } from "aberdeen";
+import A from "aberdeen";
 import * as route from 'aberdeen/route';
 import api from "../api";
 import * as colors from '../colors';
@@ -9,7 +9,7 @@ import { askPrompt } from "../components/prompt";
 import { createToast } from "../components/toasts";
 import * as icons from '../icons';
 
-const groupListClass = insertCss({
+const groupListClass = A.insertCss({
 	'&': 'display:flex flex-direction:column',
 	'> .off h2': 'fg:$textMuted',
 	'h2': 'white-space:nowrap overflow:hidden text-overflow:ellipsis',
@@ -20,69 +20,69 @@ const groupListClass = insertCss({
 });
 
 export function drawTopPage(): void {
-	if (isEmpty(api.store.groups) && api.connection.state !== 'connected') {
+	if (A.isEmpty(api.store.groups) && api.connection.state !== 'connected') {
 		if (api.connection.state === 'idle') {
 			api.connection.mode = 'try';
 		}
-		$('div.empty#Connecting...');
+		A('div.empty#Connecting...');
 	}
 
 	routeState.title = '';
 	routeState.subTitle = '';
 
-	$("div.list mt:$2", groupListClass, () => {
-		onEach(api.store.groups, (group, groupId) => {
+	A("div.list mt:$2", groupListClass, () => {
+		A.onEach(api.store.groups, (group, groupId) => {
 			groupId = parseInt(groupId);
 			
-			$('div.item.group', () => {
+			A('div.item.group', () => {
 				// Add 'off' class if lights are off
-				$('.off=', derive(() => !group.lightState?.on));
+				A('.off=', A.derive(() => !group.lightState?.on));
 				// Add 'disabled' class if user cannot control this group (CSS handles pointer-events:none)
-				$('.disabled=', derive(() => !api.canControlGroup(groupId)));
+				A('.disabled=', A.derive(() => !api.canControlGroup(groupId)));
 
 				// Toggle button
 				drawToggle(group, groupId);
 				
 				// Name and chevron (includes spacer, min 20px padding)
-				$('h2.link flex-grow:1 text=', group.name, 'click=', () => route.go(['group', groupId]));
+				A('h2.link flex-grow:1 text=', group.name, 'click=', () => route.go(['group', groupId]));
 				
 				// Scene icons (horizontally scrollable)
-				$("div.scenes", () => {
-					onEach(group.scenes, (scene, sceneId) => {
+				A("div.scenes", () => {
+					A.onEach(group.scenes, (scene, sceneId) => {
 						sceneId = parseInt(sceneId);
 						function onClick(): void {
 							api.recallScene(groupId, sceneId);
 						}
-						const isActive = derive(() => group.activeSceneId === sceneId);
+						const isActive = A.derive(() => group.activeSceneId === sceneId);
 						const icon = icons.scenes[scene.name.toLowerCase()];
 						if (icon) icon('.link click=', onClick, {'.active-scene': isActive});
-						else $('div.scene.link#', scene.name, {'.active-scene': isActive}, 'click=', onClick);
+						else A('div.scene.link#', scene.name, {'.active-scene': isActive}, 'click=', onClick);
 					},  (scene, sceneId) => {
 						const triggers = api.store.config.sceneTriggers[groupId]?.[Number(sceneId)] || [];
 						return triggers.map(t => t.event).sort().concat([scene.name]);
 					}); // Sort be trigger event, and then by name
 					
-					if (isEmpty(group.scenes)) {
+					if (A.isEmpty(group.scenes)) {
 						icons.scenes.normal('click=', () => api.setLightState(groupId, {on: false, brightness: 140, mireds: colors.CT_DEFAULT}));
 					}
 				});
 			});
 		}, group => group.name);
 
-		onEach(api.store.lights, (device, ieee) => {
-			$('div.item', () => {
+		A.onEach(api.store.lights, (device, ieee) => {
+			A('div.item', () => {
 				// Add 'disabled' class if user is not admin (CSS handles pointer-events:none)
-				$('.off=', derive(() => !device.lightState?.on));
-				$('.disabled=', derive(() => !api.store.me?.isAdmin));
+				A('.off=', A.derive(() => !device.lightState?.on));
+				A('.disabled=', A.derive(() => !api.store.me?.isAdmin));
 				drawToggle(device, ieee);
-				$('h2.link text=', device.name, 'click=', () => route.go(['device', ieee]));
+				A('h2.link text=', device.name, 'click=', () => route.go(['device', ieee]));
 			});
 		}, (device, ieee) => {
 			return api.lightGroups[ieee] ? undefined : device.name;
 		});
 	});
 
-	$(() => {
+	A(() => {
 		if (manage.value && api.store.me?.isAdmin) {
 			drawManagementSection();
 			drawUsersSection();
@@ -91,19 +91,19 @@ export function drawTopPage(): void {
 
 	const msg = api.store.config.systemMessage;
 	if (msg) {
-		$('div p:$3 mt:$4 line-height:130% fg:$textMuted', () => {
+		A('div p:$3 mt:$4 line-height:130% fg:$textMuted', () => {
 			for (const line of (msg as string).split('\n')) {
-				if (line.trim()) $('p mb:$2 rich=', line);
+				if (line.trim()) A('p mb:$2 rich=', line);
 			}
 		});
 	}
 }
 
 function drawRemoteAccessToggle(): void {
-	const remoteBusy = proxy(false);
-	$('label.item', () => {
-		$({'.busy': remoteBusy.value});
-		$('input type=checkbox', {
+	const remoteBusy = A.proxy(false);
+	A('label.item', () => {
+		A({'.busy': remoteBusy.value});
+		A('input type=checkbox', {
 			checked: api.store.config.allowRemote,
 			disabled: remoteBusy.value,
 			change: async (e: Event) => {
@@ -121,12 +121,12 @@ function drawRemoteAccessToggle(): void {
 				}
 			}
 		});
-		$('h2#Remote access');
+		A('h2#Remote access');
 		if (api.store.config.allowRemote && api.store.config.instanceId) {
 			let address = api.store.config.instanceId;
 			if (address.indexOf('.')<0) address = `ext-${address}.lightlynx.eu`;
 			if (address.indexOf(':')<0 && api.store.config.externalPort) address += `:${api.store.config.externalPort}`;
-			$('span.link opacity:0.6 #'+address, 'click=', (e: Event) => {
+			A('span.link opacity:0.6 #'+address, 'click=', (e: Event) => {
 				e.stopPropagation();
 				e.preventDefault();
 				if (address) {
@@ -162,32 +162,32 @@ function disableJoin(): void {
 
 
 function drawManagementSection(): void {
-	$('h1#Management');
-	$('div.list', () => {
-		$(() => {
+	A('h1#Management');
+	A('div.list', () => {
+		A(() => {
 			const active = api.store.permitJoin;
-			$('div.item.link', {click: active ? disableJoin : permitJoin}, () => {
+			A('div.item.link', {click: active ? disableJoin : permitJoin}, () => {
 				(active ? icons.stop : icons.create)();
-				$('h2#', active ? 'Stop searching for devices' : 'Search for devices');
+				A('h2#', active ? 'Stop searching for devices' : 'Search for devices');
 			});
 		});
 
-		$('div.item.link', {click: createGroup}, () => {
+		A('div.item.link', {click: createGroup}, () => {
 			icons.createGroup();
-			$('h2#Create group');
+			A('h2#Create group');
 		});
 
-		$('div.item.link', {click: () => route.go(['devices'])}, () => {
+		A('div.item.link', {click: () => route.go(['devices'])}, () => {
 			icons.sensor();
-			$('h2#Devices');
+			A('h2#Devices');
 		});
 
 		drawRemoteAccessToggle();
 		
-		const automationBusy = proxy(false);
-		$('label.item', () => {
-			$({'.busy': automationBusy.value});
-			$('input type=checkbox', {
+		const automationBusy = A.proxy(false);
+		A('label.item', () => {
+			A({'.busy': automationBusy.value});
+			A('input type=checkbox', {
 				checked: api.store.config.automationEnabled,
 				disabled: automationBusy.value,
 				change: async (e: Event) => {
@@ -200,7 +200,7 @@ function drawManagementSection(): void {
 					}
 				}
 			});
-			$('h2#Automation');
+			A('h2#Automation');
 			icons.info('.link margin-left:auto click=', (e: Event) => {
 				e.stopPropagation();
 				e.preventDefault();
@@ -213,9 +213,9 @@ function drawManagementSection(): void {
 }
 
 function drawLocationSetting(): void {
-	$('div.item gap:$2', () => {
-		$('h2 flex:0 #Location:');
-		$('input type=number step=0.01 placeholder=Latitude width:5rem flex:initial', {
+	A('div.item gap:$2', () => {
+		A('h2 flex:0 #Location:');
+		A('input type=number step=0.01 placeholder=Latitude width:5rem flex:initial', {
 			value: api.store.config.latitude,
 			change: async (e: Event) => {
 				const lat = parseFloat((e.target as HTMLInputElement).value);
@@ -223,7 +223,7 @@ function drawLocationSetting(): void {
 				if (!isNaN(lat)) await api.setLocation(lat, lon);
 			}
 		});
-		$('input type=number step=0.01 placeholder=Longitude width:5rem flex:initial', {
+		A('input type=number step=0.01 placeholder=Longitude width:5rem flex:initial', {
 			value: api.store.config.longitude,
 			change: async (e: Event) => {
 				const lon = parseFloat((e.target as HTMLInputElement).value);
@@ -231,7 +231,7 @@ function drawLocationSetting(): void {
 				if (!isNaN(lon)) await api.setLocation(lat, lon);
 			}
 		});
-		$('a #Use current', {
+		A('a #Use current', {
 			click: (e: Event) => {
 				e.preventDefault();
 				if (!navigator.geolocation) {

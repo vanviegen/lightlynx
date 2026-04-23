@@ -1,4 +1,4 @@
-import { $, proxy, clone, copy, unproxy, peek, merge, onEach, derive } from "aberdeen";
+import A from "aberdeen";
 import { applyPrediction, applyCanon, Patch } from "aberdeen/prediction";
 import * as route from "aberdeen/route";
 import { mergeLightStateWithCaps }  from "./colors";
@@ -51,11 +51,11 @@ class Api {
     private connectTimeout?: ReturnType<typeof setTimeout>;
     private stallingTimeout?: ReturnType<typeof setTimeout>;
 
-    store: ClientState = proxy(createFreshStoreState());
+    store: ClientState = A.proxy(createFreshStoreState());
 
-    lightGroups: Record<string, number[]> = proxy({}); // Reactive list of group ids per ieee
+    lightGroups: Record<string, number[]> = A.proxy({}); // Reactive list of group ids per ieee
 
-    servers: ServerCredentials[] = proxy([]); // Preserved to localStorage. servers[0] is the current server.
+    servers: ServerCredentials[] = A.proxy([]); // Preserved to localStorage. servers[0] is the current server.
 
     connection: {
         mode: 'enabled' | 'disabled' | 'try';
@@ -64,7 +64,7 @@ class Api {
         attempts: number;
         stalling: boolean;
         newSecret?: string;
-    } = proxy({ mode: 'enabled', state: 'idle', attempts: 0, stalling: false });
+    } = A.proxy({ mode: 'enabled', state: 'idle', attempts: 0, stalling: false });
 
     notifyHandlers: Array<(type: 'error' | 'info' | 'warning', msg: string, channel?: string) => void> = [];
     
@@ -72,7 +72,7 @@ class Api {
         // Load server list
         try {
             const data = localStorage.getItem("lightlynx-servers");
-            if (data) copy(this.servers, JSON.parse(data));
+            if (data) A.copy(this.servers, JSON.parse(data));
         } catch(e) {
             console.error("Failed to load lightlynx-servers from localStorage:", e);
         }
@@ -81,7 +81,7 @@ class Api {
         try {
             const data = localStorage.getItem("lightlynx-store");
             if (data) {
-                merge(this.store, JSON.parse(data));
+                A.merge(this.store, JSON.parse(data));
                 for (const light of Object.values(this.store.lights)) {
                     if (!light.lightState) light.lightState = {} as any;
                 }
@@ -91,7 +91,7 @@ class Api {
         }
         
         // Persist servers list to localStorage on changes
-        $(() => {
+        A(() => {
             const json = JSON.stringify(this.servers);
             setTimeout(() => {
                 localStorage.setItem("lightlynx-servers", json);
@@ -99,13 +99,13 @@ class Api {
         });
 
         // Persist store to localStorage on changes
-        $(() => {
+        A(() => {
             const data = {
                 lights: this.cloneLightsWithoutState(),
-                toggles: clone(this.store.toggles),
-                groups: clone(this.store.groups),
-                config: clone(this.store.config),
-                me: this.store.me ? clone(this.store.me) : undefined,
+                toggles: A.clone(this.store.toggles),
+                groups: A.clone(this.store.groups),
+                config: A.clone(this.store.config),
+                me: this.store.me ? A.clone(this.store.me) : undefined,
             };
             setTimeout(() => {
                 localStorage.setItem("lightlynx-store", JSON.stringify(data));
@@ -113,17 +113,17 @@ class Api {
         });
 
         // Flush store when changing server
-        let prevInstanceId = peek(() => this.servers[0]?.instanceId);
-        $(() => {
+        let prevInstanceId = A.peek(() => this.servers[0]?.instanceId);
+        A(() => {
             if (this.servers[0]?.instanceId !== prevInstanceId) {
                 prevInstanceId = this.servers[0]?.instanceId;
-                copy(this.store, createFreshStoreState());
+                A.copy(this.store, createFreshStoreState());
             }
         })
 
         // Auto-connect from URL parameters
         // As we're not in any scope, this peek shouldn't do anything, but just for clarity:
-        peek(() => {
+        A.peek(() => {
             const initialInstanceId = route.current.search.instanceId;
             const initialUserName = route.current.search.userName;
             if (!initialInstanceId || !initialUserName) return;
@@ -149,10 +149,10 @@ class Api {
         });
                 
         // Connect and disconnect/reconnect as servers[0] changes
-        $(() => {
+        A(() => {
             const server = this.servers[0];
             this.disconnect();
-            const connecting = derive(() => this.connection.mode !== 'disabled');
+            const connecting = A.derive(() => this.connection.mode !== 'disabled');
             
             if (server && connecting.value) {
                 // Whenever connection.attempts changes, try to connect again
@@ -162,7 +162,7 @@ class Api {
                     userName: server.userName,
                     secret: server.secret,
                     newSecret: this.connection.newSecret,
-                    externalPort: peek(server, 'externalPort'),
+                    externalPort: A.peek(server, 'externalPort'),
                 });
             } else {
                 // Not going to reconnect; reject anything still pending
@@ -170,18 +170,18 @@ class Api {
             }
         });
 
-        $(() => {
-            onEach(this.store.groups, this.deriveGroupLightState.bind(this));
+        A(() => {
+            A.onEach(this.store.groups, this.deriveGroupLightState.bind(this));
         })
 
-        $(() => {
+        A(() => {
             let result: Record<string, number[]> = {};
             for (const [groupId, group] of Object.entries(this.store.groups)) {
                 for (const ieee of group.lightIds) {
                     (result[ieee] = result[ieee] || []).push(parseInt(groupId));
                 }
             }
-            copy(this.lightGroups, result);
+            A.copy(this.lightGroups, result);
         });
     }
 
@@ -192,8 +192,8 @@ class Api {
                 name: light.name,
                 description: light.description,
                 model: light.model,
-                meta: clone(light.meta),
-                lightCaps: clone(light.lightCaps),
+                meta: A.clone(light.meta),
+                lightCaps: A.clone(light.lightCaps),
             }
         }
         return result;
@@ -320,7 +320,7 @@ class Api {
             });
             
             socket.addEventListener("error", (e: any) => {
-                console.error("api/onError", socket.url, e);
+                console.warn("api/onError", socket.url, e);
                 close(`Unable to establish a connection. Please check instance ID and network connection.`);
             });
             
@@ -456,7 +456,7 @@ class Api {
             for (const [ieee, lightState] of Object.entries(lightStates)) {
                 const light = this.store.lights[ieee];
                 if (!light) continue;
-                copy(light.lightState, lightState);
+                A.copy(light.lightState, lightState);
             }
             return 6000;
         });
@@ -548,15 +548,15 @@ class Api {
             if (!light) continue;
 
             if (!groupCaps || !groupState) { // Start by copying first member's caps/state
-                groupCaps = clone(light.lightCaps);
-                groupState = clone(light.lightState);
+                groupCaps = A.clone(light.lightCaps);
+                groupState = A.clone(light.lightState);
                 continue;
             }
 
             // Merge lightCaps into groupCaps
             for(const [name,obj] of Object.entries(light.lightCaps||{}) as [keyof LightCaps, any][]) {
                 if (obj && typeof obj === 'object') {
-                    const cap = (groupCaps[name] ||= clone(obj));
+                    const cap = (groupCaps[name] ||= A.clone(obj));
                     if (obj.min != null && cap.min != null) {
                         cap.min = Math.min(cap.min, obj.min);
                         cap.max = Math.max(cap.max, obj.max);
@@ -598,8 +598,8 @@ class Api {
                 groupState.brightness = undefined;
             }
         }
-        copy(group, 'lightCaps', groupCaps || {});
-        copy(group, 'lightState', groupState || {});
+        A.copy(group, 'lightCaps', groupCaps || {});
+        A.copy(group, 'lightState', groupState || {});
 
         // Subscribe to the lightCaps property we just set, so that in case a server patch
         // somehow overwrites the entire Light, we will be triggered to recalculate.
@@ -620,7 +620,7 @@ class Api {
 
     async patchConfig(patch: any): Promise<void> {
         await this.send('patch-config', patch, () => {
-            copy(this.store.config, patch);
+            A.copy(this.store.config, patch);
         });
     }
 
@@ -706,13 +706,13 @@ class Api {
             if (this.connection.mode === 'try') {
                 this.connection.mode = 'enabled';
             }
-            unproxy(this.connection).attempts = 0; // Don't trigger reconnect by changing this
+            A.unproxy(this.connection).attempts = 0; // Don't trigger reconnect by changing this
             clearTimeout(this.connectTimeout);
             this.connectTimeout = undefined;
 
             const appliedDelta = {};
             applyDelta(appliedDelta, store);
-            copy(this.store, appliedDelta);
+            A.copy(this.store, appliedDelta);
 
             // If we connected without an instance id, replace with the real instance ID
             const server = this.servers[0];

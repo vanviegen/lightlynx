@@ -1,4 +1,4 @@
-import { $, proxy, derive, onEach, insertCss, peek } from 'aberdeen';
+import A from 'aberdeen';
 import * as route from 'aberdeen/route';
 import api from '../api';
 import { ServerCredentials } from '../types';
@@ -8,7 +8,7 @@ import { errorMessageStyle } from '../global-style';
 import { isEqual } from '../utils';
 import { createToast } from '../components/toasts';
 
-const setupInstructionsStyle = insertCss({
+const setupInstructionsStyle = A.insertCss({
     '&': 'bg:$surface r:8px p:$3 mb:$3 line-height:1.6',
     'h3': 'mt:0 mb:$2 font-size:1rem',
     'ol': 'pl:1.5em m:0 fg:$textLight',
@@ -23,67 +23,67 @@ export function drawConnectionPage(): void {
     api.connection.mode = 'disabled';
 
     // Navigate away on successful connection
-    $(() => {
+    A(() => {
         if (api.connection.mode === 'enabled') {
             route.back('/');
         }
     });
 
-    const selectedIndex = proxy(0);
-    $(() => {
+    const selectedIndex = A.proxy(0);
+    A(() => {
         if (selectedIndex.value > api.servers.length) {
             selectedIndex.value = api.servers.length;
         }
     })
 
     // Show setup instructions for first-time users
-    $(() => {
+    A(() => {
         if (api.servers.length === 0) {
-            $('div', setupInstructionsStyle, () => {
-                $('h3#First time? Install the extension:');
-                $('ol', () => {
-                    $('li', () => {
-                        $('#Download ');
-                        $('a href=/extension.js download=lightlynx.js #lightlynx.js');
+            A('div', setupInstructionsStyle, () => {
+                A('h3#First time? Install the extension:');
+                A('ol', () => {
+                    A('li', () => {
+                        A('#Download ');
+                        A('a href=/extension.js download=lightlynx.js #lightlynx.js');
                     });
-                    $('li', () => {
-                        $('#Copy it to your Zigbee2MQTT ');
-                        $('code#data/extension');
-                        $('#folder');
+                    A('li', () => {
+                        A('#Copy it to your Zigbee2MQTT ');
+                        A('code#data/extension');
+                        A('#folder');
                     });
-                    $('li#Restart Zigbee2MQTT');
-                    $('li#Have instance ID autodetected below (or copy it from Zigbee2MQTT logs)');
+                    A('li#Restart Zigbee2MQTT');
+                    A('li#Have instance ID autodetected below (or copy it from Zigbee2MQTT logs)');
                 });
             });
         }
     });
 
-    $('h1#Select a connection');
-    $('div m:$3 div.list', () => {
-        onEach(api.servers, (server: ServerCredentials, index: number) => {
+    A('h1#Select a connection');
+    A('div m:$3 div.list', () => {
+        A.onEach(api.servers, (server: ServerCredentials, index: number) => {
             const name = `${server.userName}@${server.instanceId}`;
             if (isEqual(index, selectedIndex.value)) {
-                $('div.item fg:$primary text=', name);
+                A('div.item fg:$primary text=', name);
             } else {
-                $('div.item.link text=', name, 'click=', () => {
+                A('div.item.link text=', name, 'click=', () => {
                     delete api.connection.lastError;
                     selectedIndex.value = index;
                 });
             }
         });
         if (isEqual(selectedIndex.value, api.servers.length)) {
-            $('div.item fg:$primary text="New connection..."');
+            A('div.item fg:$primary text="New connection..."');
         } else {
-            $('div.item.link text="New connection..." click=', () => {
+            A('div.item.link text="New connection..." click=', () => {
                 delete api.connection.lastError;
                 selectedIndex.value = api.servers.length;
             });
         }
     });
 
-    $('h1#Connection details');
+    A('h1#Connection details');
 
-    $(() => {
+    A(() => {
         drawConnectionDetails(selectedIndex);
     })
 }
@@ -92,20 +92,20 @@ function drawConnectionDetails(selectedIndex: { value: number }): void {
     const index = selectedIndex.value;
     const orgServer: Partial<ServerCredentials> = api.servers[index] || {};
     
-    const instanceId = proxy(orgServer.instanceId || '');
-    const userName = proxy(orgServer.userName || 'admin');
-    const password = proxy(orgServer.secret || '');
+    const instanceId = A.proxy(orgServer.instanceId || '');
+    const userName = A.proxy(orgServer.userName || 'admin');
+    const password = A.proxy(orgServer.secret || '');
 
     // Keep the user-name normalized (trim + lower-case) in the UI as it's edited
-    $(() => {
+    A(() => {
         userName.value = (userName.value || '').trim().toLowerCase();
     });
 
     // Change-password UI
-    const newSecret = peek(api.connection, 'newSecret')
-    const changePassword = proxy(newSecret !== undefined);
-    const newPassword = proxy(newSecret  || '');
-    const newPasswordAgain = proxy(newSecret  || '');
+    const newSecret = A.peek(api.connection, 'newSecret')
+    const changePassword = A.proxy(newSecret !== undefined);
+    const newPassword = A.proxy(newSecret  || '');
+    const newPasswordAgain = A.proxy(newSecret  || '');
 
     async function autoLookup(event?: Event) {
         if (event) createToast('info', 'Looking up instance ID…', 'auto');
@@ -122,11 +122,11 @@ function drawConnectionDetails(selectedIndex: { value: number }): void {
     if (!orgServer.instanceId) autoLookup();
 
     // Show connection errors
-    $(() => {
+    A(() => {
         if (api.connection.stalling) {
-            $('div', errorMessageStyle, '#The server is taking longer than usual to respond…');
+            A('div', errorMessageStyle, '#The server is taking longer than usual to respond…');
         } else if (api.connection.lastError) {
-            $('div', errorMessageStyle, '#', api.connection.lastError);
+            A('div', errorMessageStyle, '#', api.connection.lastError);
         }
     });
 
@@ -162,41 +162,41 @@ function drawConnectionDetails(selectedIndex: { value: number }): void {
         }
     }
     
-    $('form submit=', handleSubmit, () => {
-        $('div.field', () => {
-            $('label#Instance ID or host:port - ', () => {
-                $('a text=Auto-detect click=', autoLookup);
+    A('form submit=', handleSubmit, () => {
+        A('div.field', () => {
+            A('label#Instance ID or host:port - ', () => {
+                A('a text=Auto-detect click=', autoLookup);
             });
-            $('input placeholder="Eg: a0324d3 or 1.2.3.4:43597" required=', true, 'bind=', instanceId);
+            A('input placeholder="Eg: a0324d3 or 1.2.3.4:43597" required=', true, 'bind=', instanceId);
         });
-        $('div.field', () => {
-            $('label#User name');
-            $('input required=', true, 'bind=', userName);
+        A('div.field', () => {
+            A('label#User name');
+            A('input required=', true, 'bind=', userName);
         });
-        $('div.field', () => {
-            $('label#Password');
-            $('input type=password bind=', password, 'placeholder=', 'Password or hash or empty');
+        A('div.field', () => {
+            A('label#Password');
+            A('input type=password bind=', password, 'placeholder=', 'Password or hash or empty');
         });
 
         // New password fields shown when Change password is toggled
-        $(() => {
+        A(() => {
             if (!changePassword.value) return;
-            $('div.field', () => {
-                $('label#New password');
-                $('input type=password bind=', newPassword);
+            A('div.field', () => {
+                A('label#New password');
+                A('input type=password bind=', newPassword);
             });
-            $('div.field', () => {
-                $('label#New password (again)');
-                $('input type=password bind=', newPasswordAgain);
+            A('div.field', () => {
+                A('label#New password (again)');
+                A('input type=password bind=', newPasswordAgain);
             });
         });
 
-        $('div.button-row', () => {
-            if (index < api.servers.length) $('button.danger type=button text=Logout click=', handleDelete);
-            $('button.secondary type=button text=Cancel click=', () => route.back('/'));
-            $('button.primary type=submit .busy=', derive(() => api.connection.mode !== 'disabled'), 'text=', derive(() => changePassword.value ? 'Change' : 'Connect'));
+        A('div.button-row', () => {
+            if (index < api.servers.length) A('button.danger type=button text=Logout click=', handleDelete);
+            A('button.secondary type=button text=Cancel click=', () => route.back('/'));
+            A('button.primary type=submit .busy=', A.derive(() => api.connection.mode !== 'disabled'), 'text=', A.derive(() => changePassword.value ? 'Change' : 'Connect'));
         });
-        $('small.link text-align:right text="Copy direct-connect URL" click=', async () => {
+        A('small.link text-align:right text="Copy direct-connect URL" click=', async () => {
             let url = `${location.protocol}//${location.host}/?instanceId=${encodeURIComponent(instanceId.value)}&userName=${encodeURIComponent(userName.value)}`;
             const secret = await hashSecret(password.value);
             if (secret) url += `&secret=${encodeURIComponent(secret)}`;
@@ -204,7 +204,7 @@ function drawConnectionDetails(selectedIndex: { value: number }): void {
         });
 
         // Toggle Change password link
-        $('small.link text-align:right text=', derive(() => changePassword.value ? "Don't change password" : "Change password"), "click=", () => {
+        A('small.link text-align:right text=', A.derive(() => changePassword.value ? "Don't change password" : "Change password"), "click=", () => {
             changePassword.value = !changePassword.value;
         });
     });

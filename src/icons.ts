@@ -1,4 +1,4 @@
-import {$} from 'aberdeen'
+import A from 'aberdeen'
 
 export function createIcon(alt: string, innerHTML: string, viewBox: string | number = "0 0 24 24") {
   if (typeof viewBox === 'number') viewBox = `0 0 ${viewBox} ${viewBox}`
@@ -8,7 +8,7 @@ export function createIcon(alt: string, innerHTML: string, viewBox: string | num
     el.setAttribute("viewBox", viewBox)
     el.setAttribute("aria-label", alt)
     el.innerHTML = innerHTML
-    $(el, ...args)
+    A(el, ...args)
   }
 }
 

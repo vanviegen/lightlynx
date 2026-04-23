@@ -1,4 +1,4 @@
-import { $, proxy, ref, onEach, isEmpty, derive, partition, peek, insertCss } from 'aberdeen';
+import A from 'aberdeen';
 import { grow, shrink } from 'aberdeen/transitions';
 import * as route from 'aberdeen/route';
 import api from '../api';
@@ -10,17 +10,17 @@ import { askConfirm, askPrompt } from '../components/prompt';
 import { drawSceneEditor } from './scene-editor';
 import { Trigger } from '../types';
 
-const triggerBadgeClass = insertCss({
+const triggerBadgeClass = A.insertCss({
     '&': 'fg:$textMuted font-size:16px font-weight:bold ml:$3',
     '> *': 'vertical-align:middle fg: inherit !important; ml:$2',
 });
 
 function drawTriggerBadges(triggers: Trigger[]): void {
     if (!triggers?.length) return;
-    $('span', triggerBadgeClass, () => {
+    A('span', triggerBadgeClass, () => {
         for (const trigger of triggers) {
             if (trigger.event >= '1' && trigger.event <= '5') {
-                $('span #', trigger.event);
+                A('span #', trigger.event);
             } else if (trigger.event === 'sensor') {
                 icons.sensor("w:14px h:14px");
             } else if (trigger.event === 'time') {
@@ -32,7 +32,7 @@ function drawTriggerBadges(triggers: Trigger[]): void {
 
 // All buttons and sensors, partitioned by group. {groupId: {ieee: Toggle}}. Toggles that belong to
 // no group are placed in '-1'.
-const togglesByGroup = partition(api.store.toggles, device => {
+const togglesByGroup = A.partition(api.store.toggles, device => {
     const ieee = Object.keys(api.store.toggles).find(key => api.store.toggles[key] === device)!;
     const linkedGroupIds = api.store.config.toggleGroupLinks[ieee] || [];
     return linkedGroupIds.length ? linkedGroupIds : -1;
@@ -41,14 +41,14 @@ const togglesByGroup = partition(api.store.toggles, device => {
 export function drawGroupPage(groupId: number): void {
     const optGroup = api.store.groups[groupId];
     if (!optGroup) {
-        $('div.empty#No such group');
+        A('div.empty#No such group');
         return;
     }
     const group = optGroup;
     
     // Check if user has permission to access this group
     if (!api.canControlGroup(groupId)) {
-        $("div.empty#You don't have access to this group");
+        A("div.empty#You don't have access to this group");
         return;
     }
     
@@ -65,29 +65,29 @@ export function drawGroupPage(groupId: number): void {
         api.send("scene", groupId, freeId, "store", name);
     }
     
-    $(() => {
+    A(() => {
         routeState.title = group.name;
         routeState.subTitle = 'group';
     })
     
-    if (!isEmpty(group.lightIds)) drawColorPicker(group, groupId);
+    if (!A.isEmpty(group.lightIds)) drawColorPicker(group, groupId);
     
-    $('h1#Scenes', () => {
+    A('h1#Scenes', () => {
         if (manage.value && api.canControlGroup(groupId) === 'manage') icons.create('.link click=', createScene);
     });
     
-    $('div.list', () => {
-        onEach(group.scenes || [], (scene, sceneId) => {
+    A('div.list', () => {
+        A.onEach(group.scenes || [], (scene, sceneId) => {
             sceneId = parseInt(sceneId as string);
             function recall(): void {
                 api.recallScene(groupId, sceneId);
             }
-            const isActive = derive(() => group.activeSceneId === sceneId);
-            $('div.item.link click=', recall, '.active-scene=', isActive, () => {
+            const isActive = A.derive(() => group.activeSceneId === sceneId);
+            A('div.item.link click=', recall, '.active-scene=', isActive, () => {
                 let icon = icons.scenes[scene.name.toLowerCase()] || icons.empty;
                 icon();
-                $('h2', () => {
-                    $('#', scene.name);
+                A('h2', () => {
+                    A('#', scene.name);
                     const triggers = api.store.config.sceneTriggers[groupId]?.[sceneId] || [];
                     drawTriggerBadges(triggers);
                 });
@@ -103,32 +103,32 @@ export function drawGroupPage(groupId: number): void {
             const triggers = api.store.config.sceneTriggers[groupId]?.[Number(sceneId)] || [];
             return triggers.map(trigger => trigger.event).concat(scene.name);
         });
-        $(() => {
-            if (isEmpty(group.scenes)) $('div.empty#None yet');
+        A(() => {
+            if (A.isEmpty(group.scenes)) A('div.empty#None yet');
         });
     });
 
-    $("h1#Bulbs", () => {
+    A("h1#Bulbs", () => {
         if (manage.value && api.store.me?.isAdmin) icons.create('.link click=', () => route.go(['group', groupId, 'addLight']));
     });
     
-    $("div.list", () => {
+    A("div.list", () => {
         const lights = api.store.lights;
-        onEach(group.lightIds, (ieee) => { 
+        A.onEach(group.lightIds, (ieee) => { 
             let light = lights[ieee]!;
-            $('div.item', () => {
+            A('div.item', () => {
                 drawToggle(light, ieee);
-                $('h2.link#', light.name, 'click=', () => route.go(['device', ieee]));
+                A('h2.link#', light.name, 'click=', () => route.go(['device', ieee]));
             });
         }, (ieee) => lights[ieee]?.name);
         
-        if (isEmpty(group.lightIds)) {
-            $('div.empty#None yet');
+        if (A.isEmpty(group.lightIds)) {
+            A('div.empty#None yet');
         }
     });
 
     // Group configuration section for users with manage access
-    $(() => {
+    A(() => {
         if (manage.value && api.canControlGroup(groupId) === 'manage') {
             drawGroupConfigurationEditor(group, groupId);
         }
@@ -148,11 +148,11 @@ function drawGroupAddLight(
     routeState.title = group.name;
     routeState.subTitle = 'add light';
     
-    $("div.list", () => {
-        onEach(api.store.lights, (device, ieee) => { 
-            $("div.item", () => {
+    A("div.list", () => {
+        A.onEach(api.store.lights, (device, ieee) => { 
+            A("div.item", () => {
                 drawToggle(device, ieee);
-                $('h2.link#', device.name, 'click=', () => addDevice(ieee));
+                A('h2.link#', device.name, 'click=', () => addDevice(ieee));
             });
         }, (device, ieee) => {
             let inGroups = api.lightGroups[ieee] || [];
@@ -175,11 +175,11 @@ function drawGroupAddInput(
         route.up();
     }
     
-    $("div.list", () => {
-        onEach(api.store.toggles, (device, ieee) => { 
-            $('div.item', () => {
+    A("div.list", () => {
+        A.onEach(api.store.toggles, (device, ieee) => { 
+            A('div.item', () => {
                 icons.sensor();
-                $('h2.link#', device.name, 'click=', () => addDevice(ieee));
+                A('h2.link#', device.name, 'click=', () => addDevice(ieee));
             });
         }, (device, ieee) => {
             let inGroups = api.store.config.toggleGroupLinks[ieee] || [];
@@ -194,7 +194,7 @@ function drawGroupConfigurationEditor(
     groupId: number
 ): void {
     
-    const groupState = proxy(peek(() => {
+    const groupState = A.proxy(A.peek(() => {
         // Convert group timeout (seconds from config) back to value/unit for UI
         let timeout: {value: number, unit: 's' | 'm' | 'h' | 'd'} | null = null;
         const timeoutSeconds = api.store.config.groupTimeouts[groupId];
@@ -217,44 +217,44 @@ function drawGroupConfigurationEditor(
 
     const automationEnabled = api.store.config.automationEnabled;
 
-    $("h1", () => {
-        $("#Buttons and sensors");
+    A("h1", () => {
+        A("#Buttons and sensors");
         if (automationEnabled) icons.create('.link click=', () => route.go(['group', groupId, 'addInput']));
     });
 
     if (automationEnabled) {
-        $('div.list', () => {
-            onEach(togglesByGroup[groupId] || {}, (device, ieee) => {
-                $("div.item.link", 'click=', () => route.go(['device', ieee]), () => {
+        A('div.list', () => {
+            A.onEach(togglesByGroup[groupId] || {}, (device, ieee) => {
+                A("div.item.link", 'click=', () => route.go(['device', ieee]), () => {
                     icons.sensor();
-                    $("h2#", device.name);
+                    A("h2#", device.name);
                 });
             });
-            if (isEmpty(togglesByGroup[groupId] || {})) {
-                $('div.empty#None yet');
+            if (A.isEmpty(togglesByGroup[groupId] || {})) {
+                A('div.empty#None yet');
             }
         });
     } else {
-        $('div.empty#Automations must be enabled to add buttons and sensors');
+        A('div.empty#Automations must be enabled to add buttons and sensors');
     }
 
-    $('h1#Settings');
+    A('h1#Settings');
     
     // Group name (admin only - uses bridge command)
-    $('div.list', () => {
+    A('div.list', () => {
 
-        $(() => {
+        A(() => {
             if (!api.store.me?.isAdmin) return;
-            $('div.item', () => {
-                $('h2#Name');
-                $('input type=text placeholder="Group name" bind=', ref(groupState, 'name'));
+            A('div.item', () => {
+                A('h2#Name');
+                A('input type=text placeholder="Group name" bind=', A.ref(groupState, 'name'));
             });
         });
         
         if (automationEnabled) {
             // Lights off timer checkbox
-            $('label.item', () => {
-                $('input type=checkbox', 'checked=', !!groupState.timeout, 'change=', (e: Event) => {
+            A('label.item', () => {
+                A('input type=checkbox', 'checked=', !!groupState.timeout, 'change=', (e: Event) => {
                     const target = e.target as HTMLInputElement;
                     if (target.checked) {
                         groupState.timeout = { value: 30, unit: 'm' };
@@ -262,32 +262,32 @@ function drawGroupConfigurationEditor(
                         groupState.timeout = null;
                     }
                 });
-                $('h2#Lights off timer');
+                A('h2#Lights off timer');
             });
 
             // Timer configuration (only show if checkbox is set)
-            $(() => {
+            A(() => {
                 if (!groupState.timeout) return;
-                $('label.item', 'create=', grow, 'destroy=', shrink, () => {
-                    $('h2#Turn off lights after');
-                    $('input type=number min=1 bind=', ref(groupState.timeout!, 'value'));
-                    $('select bind=', ref(groupState.timeout!, 'unit'), () => {
-                        $('option value=s #seconds');
-                        $('option value=m #minutes');
-                        $('option value=h #hours');
-                        $('option value=d #days');
+                A('label.item', 'create=', grow, 'destroy=', shrink, () => {
+                    A('h2#Turn off lights after');
+                    A('input type=number min=1 bind=', A.ref(groupState.timeout!, 'value'));
+                    A('select bind=', A.ref(groupState.timeout!, 'unit'), () => {
+                        A('option value=s #seconds');
+                        A('option value=m #minutes');
+                        A('option value=h #hours');
+                        A('option value=d #days');
                     });
                 });
             });
         } else {
-            $('div.empty#Automations must be enabled to set a lights off timer');
+            A('div.empty#Automations must be enabled to set a lights off timer');
         }
     });
 
-    $(() => {
+    A(() => {
         if (!api.store.me?.isAdmin) return;
-        $('h1#Actions');
-        $('div.list div.item.link', icons.remove, '#Delete group', 'click=', async () => {
+        A('h1#Actions');
+        A('div.list div.item.link', icons.remove, '#Delete group', 'click=', async () => {
             if (!await askConfirm(`Are you sure you want to delete group '${group.name}'?`)) return;
             api.send("bridge", "request", "group", "remove", {id: groupId});
             route.back('/');
@@ -302,8 +302,6 @@ function drawGroupConfigurationEditor(
             api.setGroupTimeout(groupId, secs);
         }
     });
-
-
 }
 
 

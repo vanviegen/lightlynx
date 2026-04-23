@@ -1,4 +1,4 @@
-import { $, proxy, ref, onEach, isEmpty, clone, unproxy, derive } from 'aberdeen';
+import A from 'aberdeen';
 import * as route from 'aberdeen/route';
 import api from '../api';
 import * as icons from '../icons';
@@ -8,17 +8,17 @@ import { askConfirm } from '../components/prompt';
 import { createToast } from '../components/toasts';
 
 export function drawUsersSection(): void {
-    $("h1#Users", () => {
+    A("h1#Users", () => {
         icons.create('.link click=', () => route.go(['user']));
     });
 
-    $('div.list', () => {
-        onEach(api.store.config.users || {}, (user, userName) => {
-            $('div.item.link', 'click=', () => route.go(['user', userName]), () => {
+    A('div.list', () => {
+        A.onEach(api.store.config.users || {}, (user, userName) => {
+            A('div.item.link', 'click=', () => route.go(['user', userName]), () => {
                 (user.isAdmin ? icons.shield : icons.user)();
-                $('h2#', userName);
-                if (!user.secret) $('span.badge.warning#No password');
-                else if (user.allowRemote) $('span.badge#Remote');
+                A('h2#', userName);
+                if (!user.secret) A('span.badge.warning#No password');
+                else if (user.allowRemote) A('span.badge#Remote');
             });
         });
     });
@@ -29,10 +29,10 @@ export function drawUserEditor(): void {
     
     const userName = route.current.p[1]!;
     const existing = userName ? api.store.config.users?.[userName] : undefined;
-    const userNameProxy = proxy(existing ? userName : "");
+    const userNameProxy = A.proxy(existing ? userName : "");
 
-    const user = proxy<User>(
-        existing ? clone(unproxy(existing)) : {
+    const user = A.proxy<User>(
+        existing ? A.clone(A.unproxy(existing)) : {
             isAdmin: false,
             defaultGroupAccess: false,
             groupAccess: {},
@@ -41,62 +41,62 @@ export function drawUserEditor(): void {
         }
     );
     
-    $(() => {
+    A(() => {
         routeState.title = existing ? userName : 'Add';
         routeState.subTitle = 'user';
     });
 
-    $('h1#Settings');
-    $('div.list', () => {
+    A('h1#Settings');
+    A('div.list', () => {
 
         if (!existing) {
-            $('div.item', () => {
-                $('h2.form-label#User name');
-                $('input placeholder=frank bind=', userNameProxy);
+            A('div.item', () => {
+                A('h2.form-label#User name');
+                A('input placeholder=frank bind=', userNameProxy);
             });
         }
 
-        $('div.item', () => {
-            $('h2.form-label flex:0 #Password');
-            $('input flex:1 type=password bind=', ref(user, 'secret'), 'placeholder=', 'Password or hash or empty');
+        A('div.item', () => {
+            A('h2.form-label flex:0 #Password');
+            A('input flex:1 type=password bind=', A.ref(user, 'secret'), 'placeholder=', 'Password or hash or empty');
         });
 
-        $('label.item', () => {
-            $('input type=checkbox bind=', ref(user, 'isAdmin'));
-            $('h2#Admin access');
+        A('label.item', () => {
+            A('input type=checkbox bind=', A.ref(user, 'isAdmin'));
+            A('h2#Admin access');
         });
 
-        $('label.item', () => {
+        A('label.item', () => {
             // Can only enable remote access if user has password
-            $('input type=checkbox bind=', ref(user, 'allowRemote'), 'disabled=', derive(() => !user.secret), 'title=', derive(() => user.secret ? '' : 'Set a password first to enable remote access'));
-            $('h2#Allow remote access');
-            $(() => {
-                if (!user.secret) $('p.muted#Requires password');
+            A('input type=checkbox bind=', A.ref(user, 'allowRemote'), 'disabled=', A.derive(() => !user.secret), 'title=', A.derive(() => user.secret ? '' : 'Set a password first to enable remote access'));
+            A('h2#Allow remote access');
+            A(() => {
+                if (!user.secret) A('p.muted#Requires password');
             });
         });
     });
 
-    $(() => {
+    A(() => {
         if (user.isAdmin) return;
 
-        $('h1#Group Permissions');
-        $('div.list', () => {
-            $('div.item', () => {
-                $('h2 flex:1 font-weight:bold #Default group access');
-                $('select change=', (e: Event) => {
+        A('h1#Group Permissions');
+        A('div.list', () => {
+            A('div.item', () => {
+                A('h2 flex:1 font-weight:bold #Default group access');
+                A('select change=', (e: Event) => {
                     const val = (e.target as HTMLSelectElement).value;
                     user.defaultGroupAccess = val === 'manage' ? 'manage' : val === 'true' ? true : false;
                 }, () => {
-                    $('option value=false #No access', 'selected=', user.defaultGroupAccess === false);
-                    $('option value=true #Control', 'selected=', user.defaultGroupAccess === true);
-                    $('option value=manage #Manage', 'selected=', user.defaultGroupAccess === 'manage');
+                    A('option value=false #No access', 'selected=', user.defaultGroupAccess === false);
+                    A('option value=true #Control', 'selected=', user.defaultGroupAccess === true);
+                    A('option value=manage #Manage', 'selected=', user.defaultGroupAccess === 'manage');
                 });
             });
-            onEach(api.store.groups, (group, groupId) => {
-                $('div.item', () => {
+            A.onEach(api.store.groups, (group, groupId) => {
+                A('div.item', () => {
                     const gid = parseInt(groupId);
-                    $('h2 flex:1 #', group.name);
-                    $('select change=', (e: Event) => {
+                    A('h2 flex:1 #', group.name);
+                    A('select change=', (e: Event) => {
                         const val = (e.target as HTMLSelectElement).value;
                         if (val === 'default') {
                             delete user.groupAccess[gid];
@@ -105,22 +105,22 @@ export function drawUserEditor(): void {
                         }
                     }, () => {
                         const current = user.groupAccess[gid];
-                        $('option value=default #Use default', 'selected=', current === undefined);
-                        $('option value=false #No access', 'selected=', current === false);
-                        $('option value=true #Control', 'selected=', current === true);
-                        $('option value=manage #Manage', 'selected=', current === 'manage');
+                        A('option value=default #Use default', 'selected=', current === undefined);
+                        A('option value=false #No access', 'selected=', current === false);
+                        A('option value=true #Control', 'selected=', current === true);
+                        A('option value=manage #Manage', 'selected=', current === 'manage');
                     });
                 });
             });
-            $(() => { if (isEmpty(api.store.groups)) $('div.empty#No groups'); });
+            A(() => { if (A.isEmpty(api.store.groups)) A('div.empty#No groups'); });
         });
     });
 
-    const busy = proxy(false);
-    $('form div.button-row', () => {
+    const busy = A.proxy(false);
+    A('form div.button-row', () => {
 
         if (existing && api.store.me?.name !== userName) {
-            $('button.danger', icons.remove, '#Delete user', 'click=', async () => {
+            A('button.danger', icons.remove, '#Delete user', 'click=', async () => {
                 if (await askConfirm(`Are you sure you want to delete user '${userName}'?`)) {
                     await api.deleteUser(userName);
                     route.up();
@@ -129,8 +129,8 @@ export function drawUserEditor(): void {
         }
 
 
-        $('button.secondary type=button text=Cancel click=', () => route.up());
-        $('button.primary type=button .busy=', busy, 'text=Save click=', async () => {
+        A('button.secondary type=button text=Cancel click=', () => route.up());
+        A('button.primary type=button .busy=', busy, 'text=Save click=', async () => {
             const normalizedName = (userNameProxy.value || '').trim().toLowerCase();
             if (!normalizedName) {
                 createToast('error', 'User name is required');
@@ -145,8 +145,8 @@ export function drawUserEditor(): void {
         });
     });
 
-    $('form', () => {
-        $('small.link text-align:right text="Copy direct-connect URL" click=', async () => {
+    A('form', () => {
+        A('small.link text-align:right text="Copy direct-connect URL" click=', async () => {
             const instanceId = api.servers[0]?.instanceId || api.store.config.instanceId || '';
             let url = `${location.protocol}//${location.host}/?instanceId=${encodeURIComponent(instanceId)}&userName=${encodeURIComponent(userName)}`;
             if (user.secret) url += `&secret=${encodeURIComponent(user.secret)}`;

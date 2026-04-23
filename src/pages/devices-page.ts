@@ -1,11 +1,11 @@
-import { $, insertCss, onEach, isEmpty, ref } from 'aberdeen';
+import A from 'aberdeen';
 import * as route from 'aberdeen/route';
 import api from '../api';
 import { drawToggle } from '../components/color-picker';
 import { routeState } from '../ui';
 import * as icons from '../icons';
 
-const filterBarClass = insertCss({
+const filterBarClass = A.insertCss({
     '&': 'display:flex gap:$2 mb:$2 px:$2',
     'select': 'flex:1 bg:$surface border:none p:$2 rounded:$1 appearance:auto',
 });
@@ -25,54 +25,54 @@ export function drawDevicesPage(): void {
     routeState.title = 'Devices';
     routeState.subTitle = filter === 'toggles' ? 'buttons & sensors' : filter === 'lights' ? 'lights' : '';
 
-    $('div display:flex mt:$1 p:$2', filterBarClass, () => {
-        $('select bind=', ref(route.current.search, 'filter'), () => {
-            $('option value=all #Show all devices');
-            $('option value=toggles #Show inputs');
-            $('option value=lights #Show lights');
+    A('div display:flex mt:$1 p:$2', filterBarClass, () => {
+        A('select bind=', A.ref(route.current.search, 'filter'), () => {
+            A('option value=all #Show all devices');
+            A('option value=toggles #Show inputs');
+            A('option value=lights #Show lights');
         });
-        $('select bind=', ref(route.current.search, 'sort'), () => {
-            $('option value=name #Order by name');
-            $('option value=battery #Order by battery');
-            $('option value=model #Order by model');
-            $('option value=groups #Order by group #');
+        A('select bind=', A.ref(route.current.search, 'sort'), () => {
+            A('option value=name #Order by name');
+            A('option value=battery #Order by battery');
+            A('option value=model #Order by model');
+            A('option value=groups #Order by group #');
         });
     });
 
     const devices = getFilteredDevices();
 
-    $('div.list', () => {
-        onEach(devices, (item, ieee) => {
-            $('div.item.link', 'click=', () => route.go(['device', ieee]), () => {
+    A('div.list', () => {
+        A.onEach(devices, (item, ieee) => {
+            A('div.item.link', 'click=', () => route.go(['device', ieee]), () => {
                 if (item.type === 'light') {
                     drawToggle(item.device as typeof api.store.lights[string], ieee);
                 } else {
                     icons.sensor(".toggle-width");
                 }
-                $('div flex:1 min-width:0', () => {
-                    $('h2#', item.device.name);
-                    $('p fg:$textMuted text-overflow:ellipsis overflow:hidden white-space:nowrap', () => {
+                A('div flex:1 min-width:0', () => {
+                    A('h2#', item.device.name);
+                    A('p fg:$textMuted text-overflow:ellipsis overflow:hidden white-space:nowrap', () => {
                         if (item.device.model) {
-                            $('#', item.device.model);
+                            A('#', item.device.model);
                         }
                         const linkedGroups = item.type === 'toggle' 
                             ? (api.store.config.toggleGroupLinks[ieee] || []).length 
                             : (api.lightGroups[ieee] || []).length;
                         if (linkedGroups > 0) {
-                            $('#', ` · ${linkedGroups} group${linkedGroups > 1 ? 's' : ''}`);
+                            A('#', ` · ${linkedGroups} group${linkedGroups > 1 ? 's' : ''}`);
                         }
                     });
                 });
                 const b = item.device.meta?.battery;
                 if (b !== undefined) {
-                    $('p font-weight:bold flex:0 #', `${Math.round(b)}%`, b <= 5 ? '.critical' : b <= 15 ? '.warning' : '');
+                    A('p font-weight:bold flex:0 #', `${Math.round(b)}%`, b <= 5 ? '.critical' : b <= 15 ? '.warning' : '');
                 }
             });
         }, (item, ieee) => getSortKey(item, ieee));
 
-        $(() => {
-            if (isEmpty(devices)) {
-                $('div.empty#No devices');
+        A(() => {
+            if (A.isEmpty(devices)) {
+                A('div.empty#No devices');
             }
         });
     });

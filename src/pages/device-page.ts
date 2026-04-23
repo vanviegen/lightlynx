@@ -1,4 +1,4 @@
-import { $, proxy, unproxy, onEach } from 'aberdeen';
+import A from 'aberdeen';
 import api from '../api';
 import * as icons from '../icons';
 import { drawColorPicker, drawToggle } from '../components/color-picker';
@@ -11,24 +11,24 @@ export function drawDevicePage(ieee: string): void {
     const device = light || toggle;
     
     if (!device) {
-        $('div.empty#No such device');
+        A('div.empty#No such device');
         return;
     }
     
     const isLight = !!light;
     
-    $(() => {
+    A(() => {
         routeState.title = device.name;
     });
     routeState.subTitle = isLight ? 'light' : 'button/sensor';
     
-    $('div.list div.item', () => {
+    A('div.list div.item', () => {
         if (isLight) {
             drawToggle(light, ieee);
         } else {
             icons.sensor();
         }
-        $('span#', device.model);
+        A('span#', device.model);
     });
     
     if (isLight) {
@@ -37,11 +37,11 @@ export function drawDevicePage(ieee: string): void {
 
     if (!manage.value || !api.store.me?.isAdmin) return;
 
-    $('h1#Settings');
-    const name = proxy(unproxy(device).name);
-    $('div.list div.item', () => {
-        $('h2#Name');
-        $('input flex:3 bind=', name);
+    A('h1#Settings');
+    const name = A.proxy(A.unproxy(device).name);
+    A('div.list div.item', () => {
+        A('h2#Name');
+        A('input flex:3 bind=', name);
     });
     lazySave(() => {
         const newName = name.value;
@@ -51,19 +51,19 @@ export function drawDevicePage(ieee: string): void {
         };
     });
 
-    $('h1#Actions');
-    const removing = proxy(false);
+    A('h1#Actions');
+    const removing = A.proxy(false);
 
-    $('div.list', () => {
+    A('div.list', () => {
         const linkedGroupIds = isLight 
             ? api.lightGroups[ieee] 
             : api.store.config.toggleGroupLinks[ieee];
         
-        if (!removing.value && linkedGroupIds) onEach(linkedGroupIds, (groupId) => {
-            const busy = proxy(false);
+        if (!removing.value && linkedGroupIds) A.onEach(linkedGroupIds, (groupId) => {
+            const busy = A.proxy(false);
             const group = api.store.groups[groupId];
             if (group) {
-                $(`div.item.link .busy=`, busy, icons.remove, `#Remove from "${group.name}"`, 'click=', async function() {
+                A(`div.item.link .busy=`, busy, icons.remove, `#Remove from "${group.name}"`, 'click=', async function() {
                     busy.value = true;
                     try {
                         if (isLight) {
@@ -79,7 +79,7 @@ export function drawDevicePage(ieee: string): void {
         });
 
         if (!removing.value) {
-            $('div.item.link', icons.eject, 'text="Delete from Zigbee2MQTT" click=', async function() {
+            A('div.item.link', icons.eject, 'text="Delete from Zigbee2MQTT" click=', async function() {
                 if (await askConfirm(`Are you sure you want to detach '${device.name}' from zigbee2mqtt?`)) {
                     removing.value = true;
                     try {
@@ -90,7 +90,7 @@ export function drawDevicePage(ieee: string): void {
                 }
             });
         } else {
-            $('div.item.link', icons.eject, 'text="Force delete from Zigbee2MQTT" click=', async function() {
+            A('div.item.link', icons.eject, 'text="Force delete from Zigbee2MQTT" click=', async function() {
                 if (await askConfirm(`Are you sure you want to FORCE detach '${device.name}' from zigbee2mqtt?`)) {
                     api.send("bridge", "request", "device", "remove", {id: ieee, force: true});
                 }
