@@ -60,7 +60,7 @@ export function drawTopPage(): void {
 					},  (scene, sceneId) => {
 						const triggers = api.store.config.sceneTriggers[groupId]?.[Number(sceneId)] || [];
 						return triggers.map(t => t.event).sort().concat([scene.name]);
-					}); // Sort be trigger event, and then by name
+					}); // Sort by trigger event, and then by name
 					
 					if (A.isEmpty(group.scenes)) {
 						icons.scenes.normal('click=', () => api.setLightState(groupId, {on: false, brightness: 140, mireds: colors.CT_DEFAULT}));

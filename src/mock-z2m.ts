@@ -659,10 +659,10 @@ async function init() {
                 7: [{ event: '3' }]  // Night - triple press
             },
             3: { // Bedroom
-                9: [{ event: 'time', startTime: '20:00', endTime: '22:30' }] // Reading 8pm-10:30pm
+                9: [{ event: 'sensor', startTime: '20:00', endTime: '22:30' }] // Reading 8pm-10:30pm
             },
             4: { // Office
-                12: [{ event: 'time', startTime: '9:00', endTime: '17:00' }] // Bright during work hours
+                12: [{ event: 'sensor', startTime: '9:00', endTime: '17:00' }] // Bright during work hours
             },
             5: { // Bathroom
                 15: [{ event: 'sensor' }], // Normal - sensor during day

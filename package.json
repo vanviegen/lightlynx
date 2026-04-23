@@ -36,7 +36,7 @@
     "ws": "^8.19.0"
   },
   "dependencies": {
-    "aberdeen": "^1.10.1",
-    "shotest": "^1.2.1"
+    "aberdeen": "^1.11.2",
+    "shotest": "^1.4.0"
   }
 }

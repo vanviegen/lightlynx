@@ -110,8 +110,6 @@ test('connect page: username is trimmed and lowercased when saving a server', as
     
     // Submit to save server (connection may fail because user doesn't exist)
     await page.getByRole('button', { name: 'Connect' }).click();
-    
-    
 });
 
 test('changing password to blank is rejected for a user that allows remote access', async ({ page }) => {
