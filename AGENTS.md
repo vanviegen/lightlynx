@@ -31,7 +31,7 @@ tests/
 build.frontend/       # Production output for app (app.lightlynx.eu)
 build.backend/        # Generated Bunny edge script
 build.site/           # Production output for static site (www.lightlynx.eu)
-build.video/           # Demo video + screenshots (used as publicDir for site)
+build.video/          # ShoTest demo artifacts; demo.webm is copied to the root and used as publicDir for site
 ```
 
 ## Architecture
